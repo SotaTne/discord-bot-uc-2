@@ -6,7 +6,7 @@ import { hourLabel } from "./format";
 type OptionDefinition = NonNullable<CommandDefinition["options"]>[number];
 
 type FormContext = {
-  /** 登録されている試合枠の時刻（time の選択肢にする） */
+  /** 登録されている試合時刻（time の選択肢にする） */
   slots: number[];
   /** チームのロール（team-role の選択肢にする） */
   roles: MockRole[];

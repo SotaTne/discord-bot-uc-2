@@ -131,7 +131,7 @@ export function renderStatePanel(state: MockState, snapshot: Snapshot, error: st
                 <span class="when">${slotText(win.slotDate, win.slotHour)}</span>
                 <span>
                   <div>${win.match.a} vs ${win.match.b}</div>
-                  <div><b>${win.teamName}</b> の勝ち ${win.points}${win.countedPoints !== null && win.countedPoints !== win.points ? html` → <b>${win.countedPoints}</b>` : ""}pt${win.matchNumber !== null ? ` · ${win.matchNumber}試合目` : ""}${win.active ? "" : "（無効）"}${win.hasScreenshot ? html` <a href="/ui/screenshot/${win.id}" target="_blank" rel="noreferrer">画像</a>` : ""}</div>
+                  <div><b>${win.teamName}</b> の勝利 ${win.points}${win.countedPoints !== null && win.countedPoints !== win.points ? html` → <b>${win.countedPoints}</b>` : ""}pt${win.matchNumber !== null ? ` · ${win.matchNumber}試合目` : ""}${win.active ? "" : "（無効）"}${win.hasScreenshot ? html` <a href="/ui/screenshot/${win.id}" target="_blank" rel="noreferrer">画像</a>` : ""}</div>
                 </span>
               </li>`,
             )}

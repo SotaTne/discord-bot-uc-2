@@ -4,7 +4,7 @@ const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /**
  * ローカルの D1 に投入する開発用データ（SQL）。
- * 疑似 Discord のロールをそのままチームとして登録し、試合枠とチャンネルを設定する。
+ * 疑似 Discord のロールをそのままチームとして登録し、試合時刻とチャンネルを設定する。
  * INSERT OR IGNORE なので、何度実行しても同じ結果になる。
  */
 export function buildSeedSql(seed: Seed, options: { slotHours: number[]; now: number }): string {

@@ -171,7 +171,7 @@ export function createInteractionClient(options: InteractionClientOptions, state
     return (await response.json()) as DevSnapshot;
   }
 
-  /** worker の活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・枠・チームは残る */
+  /** worker の活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残る */
   async function resetWorkerData(): Promise<void> {
     const response = await doFetch(`${workerUrl}/dev/reset?guildId=${encodeURIComponent(state.guildId)}`, { method: "POST" });
     if (!response.ok) throw new Error(`worker が ${response.status} を返しました（DEV_CLOCK=true になっていますか）`);

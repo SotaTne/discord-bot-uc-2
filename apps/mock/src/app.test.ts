@@ -50,7 +50,7 @@ describe("画面の構成", () => {
     expect(Array.from(page.querySelectorAll("form[data-send]:not([hidden])")).map((f) => f.id)).toEqual(["cmd-uc-handup"]);
   });
 
-  it("入力欄は、オプションの型に合わせる: 時刻は枠の選択、チームはロールの選択、点数は数値、画像はファイル、日付は日付", async () => {
+  it("入力欄は、オプションの型に合わせる: 時刻は対戦枠の選択、チームはロールの選択、点数は数値、画像はファイル、日付は日付", async () => {
     const win = (await pageOf(await createTestMock())).querySelector("#cmd-uc-admin-win")!;
 
     const optionsOf = (name: string) => Array.from(win.querySelectorAll(`select[name=${name}] option`)).map((o) => o.textContent);
@@ -69,7 +69,7 @@ describe("画面の構成", () => {
     expect(page.querySelectorAll("#cmd-uc-status input:not([type=hidden]), #cmd-uc-status select")).toHaveLength(0);
   });
 
-  it("枠の選択肢は、worker に登録されている枠から作る。状態を取れないときは、既定の 21・22・23 時", async () => {
+  it("時刻の選択肢は、worker に登録されている試合時刻から作る。状態を取れないときは、既定の 21・22・23 時", async () => {
     const options = (page: Document) => Array.from(page.querySelectorAll("#cmd-uc-handup select[name=time] option")).map((o) => o.textContent);
 
     expect(options(await pageOf(await createTestMock({ snapshot: makeSnapshot({ slots: [20, 21] }) })))).toEqual(["選択", "20:00", "21:00"]);
@@ -129,7 +129,7 @@ describe("時計", () => {
     expect(clock.querySelector("#clock-time")).not.toBeNull();
   });
 
-  it("イベントは、募集開始・各枠の締切・各枠の試合開始。時刻順", () => {
+  it("イベントは、募集開始・各対戦枠の締切・各対戦枠の試合開始。時刻順", () => {
     const steps = clockSteps(makeSnapshot());
 
     expect(steps.map((step) => step.at)).toEqual([
@@ -154,7 +154,7 @@ describe("状態", () => {
     ]);
   });
 
-  it("チームごとに、挙手中（枠と挙手した人）・対戦数・勝利数・得点を出す。挙手のないチームは、空", async () => {
+  it("チームごとに、挙手中（対戦枠と挙手した人）・対戦数・勝利数・得点を出す。挙手のないチームは、空", async () => {
     const page = await pageOf(await createTestMock());
 
     expect(rowsOf(sectionOf(page, "チーム"))).toEqual([
@@ -163,7 +163,7 @@ describe("状態", () => {
     ]);
   });
 
-  it("マッチングログは、組み合わせと除外を出す。組めなかった枠も出す", async () => {
+  it("マッチングログは、組分けと除外を出す。組めなかった対戦枠も出す", async () => {
     const [first, second] = Array.from(sectionOf(await pageOf(await createTestMock()), "マッチングログ").querySelectorAll("li"));
     const lines = (item: Element | undefined) => Array.from(item?.querySelectorAll("div") ?? []).map((line) => line.textContent);
 
@@ -174,13 +174,13 @@ describe("状態", () => {
     expect(lines(second)).toEqual(["除外 UT"]);
   });
 
-  it("勝利ログは、枠・組分け・勝ったチーム・点数（入力 → 集計）・何試合目・画像を出す", async () => {
+  it("勝利ログは、対戦枠・組分け・勝ったチーム・点数（入力 → 集計）・何試合目・画像を出す", async () => {
     const [first] = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利ログ").querySelectorAll("li"));
 
     expect(first?.querySelector(".when")?.textContent).toBe("10/06 21:00");
     expect(Array.from(first?.querySelectorAll("div") ?? []).map((line) => line.textContent?.replace(/\s+/g, " ").trim())).toEqual([
       "KMU vs UT",
-      "UT の勝ち 30 → 100pt · 6試合目 画像",
+      "UT の勝利 30 → 100pt · 6試合目 画像",
     ]);
     expect(first?.querySelector("a")?.getAttribute("href")).toBe("/ui/screenshot/2");
   });
@@ -251,11 +251,11 @@ describe("Discord の画面", () => {
 
   it("見出しと太字は、記号のままでなく、見た目にする", async () => {
     const mock = await createTestMock();
-    mock.state.addMessage({ channelId: mock.state.channelId, content: "## 試合 (時間:21時) の組み合わせ:\n- **KMU** vs **UT**\n\n<script>x</script>" });
+    mock.state.addMessage({ channelId: mock.state.channelId, content: "## 試合 (時間:21時) の組分け:\n- **KMU** vs **UT**\n\n<script>x</script>" });
 
     const body = (await pageOf(mock)).querySelector("#feed .msg .body")!;
 
-    expect(body.querySelector(".h.h2")?.textContent).toBe("試合 (時間:21時) の組み合わせ:");
+    expect(body.querySelector(".h.h2")?.textContent).toBe("試合 (時間:21時) の組分け:");
     expect(Array.from(body.querySelectorAll("strong")).map((s) => s.textContent)).toEqual(["KMU", "UT"]);
     expect(body.textContent).not.toContain("**");
     expect(body.querySelector("script")).toBeNull();
@@ -267,12 +267,12 @@ describe("Discord の画面", () => {
       channelId: mock.state.channelId,
       content: "クリアしますか",
       visibleTo: ADMIN,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "クリアする", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
     });
 
     const button = (await pageOf(mock)).querySelector("#feed button[data-post]")!;
 
-    expect(button.textContent).toBe("クリアする");
+    expect(button.textContent).toBe("全てクリア");
     expect(button.className).toContain("danger");
     expect(JSON.parse(button.getAttribute("data-fields")!)).toEqual({ custom_id: "score-clear:confirm", message_id: message.id });
   });
@@ -294,7 +294,7 @@ describe("GET /ui/fragments（自動で書き換わる表示）", () => {
 });
 
 describe("コマンドの実行（POST /ui/send）", () => {
-  it("フォームの項目を、コマンドのオプションにして worker に送る（選択した枠は数値になる）", async () => {
+  it("フォームの項目を、コマンドのオプションにして worker に送る（選択した対戦枠は数値になる）", async () => {
     const mock = await createTestMock();
 
     const result = await json(await post(mock.app, "/ui/send", { users: ALICE, command: "uc-handup", time: "21" }));
@@ -378,7 +378,7 @@ describe("ボタンを押す（POST /ui/click）", () => {
       channelId: mock.state.channelId,
       content: "確認",
       visibleTo: ADMIN,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "クリアする", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
     });
 
     const result = await json(await post(mock.app, "/ui/click", { custom_id: "score-clear:confirm", message_id: message.id }));

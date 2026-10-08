@@ -43,9 +43,9 @@ if (text !== current || !existsSync(varsPath)) {
   console.log("apps/worker/.dev.vars は、すでに最新です。");
 }
 
-// ローカルの D1 に投入する開発用データ（チーム・試合枠・設定）を、wrangler が読める SQL として書き出す。
+// ローカルの D1 に投入する開発用データ（チーム・試合時刻・設定）を、wrangler が読める SQL として書き出す。
 // 投入は worker 側の `db:seed` が行う。
 const seedPath = path("../../worker/.wrangler/dev-seed.sql");
 mkdirSync(dirname(seedPath), { recursive: true });
 writeFileSync(seedPath, buildSeedSql(defaultSeed(), { slotHours: [21, 22, 23], now: Date.now() }));
-console.log("開発用のシード（チーム・試合枠）を apps/worker/.wrangler/dev-seed.sql に書き出しました。");
+console.log("開発用のシード（チーム・試合時刻）を apps/worker/.wrangler/dev-seed.sql に書き出しました。");

@@ -6,7 +6,7 @@ import { buildSeedSql } from "./seed-sql";
 const options = { slotHours: [21, 22, 23], now: 1_700_000_000_000 };
 
 describe("buildSeedSql", () => {
-  it("本物のマイグレーションを適用した DB に、チーム・試合枠・設定を投入できる", () => {
+  it("本物のマイグレーションを適用した DB に、チーム・試合時刻・設定を投入できる", () => {
     const seed = defaultSeed();
     const db = createTestDatabase();
 

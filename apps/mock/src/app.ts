@@ -67,7 +67,7 @@ export function createMockApp(deps: MockAppDeps) {
       return new Response(attachment.bytes, { headers: { "Content-Type": attachment.contentType } });
     })
 
-    // 記録した勝利のスクリーンショット（worker の R2 から取って、そのまま返す）
+    // 記録した勝利の画像（worker の R2 から取って、そのまま返す）
     .get("/ui/screenshot/:seq", async (c) => {
       const response = await deps.interactions.fetchScreenshot(c.req.param("seq")).catch(() => null);
       if (!response?.ok) return c.text("not found", 404);

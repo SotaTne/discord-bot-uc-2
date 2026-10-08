@@ -134,7 +134,7 @@ describe("InteractionClient: 疑似時計・添付ファイル・ボタン・cro
   });
 
   it("ボタンつきの返信は、ボタンも一緒にメッセージとして残る", async () => {
-    const buttons = [{ type: 1, components: [{ type: 2, style: 4, label: "クリアする", custom_id: "score-clear:confirm" }] }];
+    const buttons = [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }];
     const { fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "確認", flags: 64, components: buttons } }));
 
     await clientFor(fetchImpl).sendCommand({ userId: admin().id, name: "uc-admin-score-clear" });
@@ -148,7 +148,7 @@ describe("InteractionClient: 疑似時計・添付ファイル・ボタン・cro
       channelId: state.channelId,
       content: "確認",
       visibleTo: admin().id,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "クリアする", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
     });
     const { sent, fetchImpl } = fakeWorker(() => ({ type: 7, data: { content: "クリアしました", components: [] } }));
 

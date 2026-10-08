@@ -158,7 +158,7 @@ describe("画面のスクリプト: コマンドの実行（ページを読み�
   const handupForm = (page: Awaited<ReturnType<typeof openPage>>) => page.$<HTMLFormElement>("#cmd-uc-handup");
 
   it("選んだ全員として、同時に送る。返信は Discord の画面に出る。成功の通知は出さない。入力は消えない", async () => {
-    const mock = await createTestMock({ interaction: { type: 4, data: { content: "21時の試合に応募しました", flags: 64 } } });
+    const mock = await createTestMock({ interaction: { type: 4, data: { content: "21時の試合に挙手しました", flags: 64 } } });
     const page = await openPage(mock);
     const input = page.document.querySelector<HTMLInputElement>('#users input[data-name^="carol"]')!;
     input.checked = true;
@@ -286,12 +286,12 @@ describe("画面のスクリプト: ボタン", () => {
       channelId: mock.state.channelId,
       content: "クリアしますか",
       visibleTo: ADMIN,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "クリアする", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
     });
     const page = await openPage(mock);
     await page.settle();
 
-    click(button(page, "クリアする"), page.window);
+    click(button(page, "全てクリア"), page.window);
     await page.settle();
 
     expect(page.calls.find((c) => c.url.endsWith("/ui/click"))?.fields).toEqual({ custom_id: "score-clear:confirm", message_id: message.id });

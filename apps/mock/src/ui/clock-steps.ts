@@ -10,7 +10,7 @@ export function shortJobName(key: string): string {
 export type ClockStep = { at: number; label: string };
 
 /**
- * 時計を移せるイベント。画面に出している日の、募集開始・各枠の締切・各枠の試合開始。時刻順。
+ * 時計を移せるイベント。画面に出している日の、募集開始・各対戦枠の締切・各対戦枠の試合開始。時刻順。
  * 別の日は、日付の前後ボタンで移る（その日のイベントが、あとから出る）。
  */
 export function clockSteps(snapshot: DevSnapshot | null): ClockStep[] {
