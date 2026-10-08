@@ -71,14 +71,24 @@ describe("勝利記録の画面: 絞り込みと並び替え", () => {
     expect(screen.getByText("条件に合う記録がありません")).toBeTruthy();
   });
 
-  it("「削除済みも表示」を外すと、削除済みの記録を隠す", async () => {
+  it("削除済みの扱いを、「すべて」「削除していない」「削除済み」から選べる。初期は、すべて", async () => {
     installFakeBackend(apis(wins));
     renderApp("/wins");
     await screen.findByLabelText("チームで絞り込み");
+    const choose = (label: string) => fireEvent.click(within(screen.getByRole("radiogroup", { name: "削除済みの扱い" })).getByLabelText(label));
 
-    fireEvent.click(screen.getByLabelText("削除済みも表示"));
+    expect(ids()).toEqual(["3", "2", "1"]);
 
+    choose("削除していない");
     expect(ids()).toEqual(["3", "1"]);
+    expect(screen.getByText("2件")).toBeTruthy();
+
+    choose("削除済み");
+    expect(ids()).toEqual(["2"]);
+    expect(screen.getByText("1件")).toBeTruthy();
+
+    choose("すべて");
+    expect(ids()).toEqual(["3", "2", "1"]);
   });
 
   it("見出しを押すと、並び替えられる（点数の昇順 → 降順 → 元の並び）。絞り込みとも組み合わせられる", async () => {

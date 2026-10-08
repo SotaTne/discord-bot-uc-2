@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, NativeSelect, Table, Text } from "@mantine/core";
+import { Button, Group, NativeSelect, SegmentedControl, Table, Text } from "@mantine/core";
 import { useState } from "react";
 import { Async, ConfirmButton, ErrorNote, PageTitle, RowMenu, ScreenshotLink, Section, SortableTh, nextSort, usePointsEditor, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
@@ -32,6 +32,8 @@ const compareBy: Record<SortKey, (a: WinRecord, b: WinRecord) => number> = {
   createdAt: (a, b) => a.createdAt - b.createdAt,
 };
 
+type DeletedFilter = "all" | "active" | "deleted";
+
 const ALL = "";
 const unique = (values: string[]) => [...new Set(values)];
 
@@ -46,7 +48,8 @@ function History() {
   const [team, setTeam] = useState(ALL);
   const [date, setDate] = useState(ALL);
   const [recorder, setRecorder] = useState(ALL);
-  const [showDeleted, setShowDeleted] = useState(true);
+  // 削除済みの扱い: すべて / 削除していないものだけ / 削除済みだけ（削除済みだけにすると、間違えて削除した記録を探して、元に戻せる）
+  const [deletedFilter, setDeletedFilter] = useState<DeletedFilter>("all");
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
   const directionOf = (key: SortKey) => (sort?.key === key ? sort.direction : null);
   const header = (key: SortKey, label: string) => <SortableTh label={label} direction={directionOf(key)} onSort={() => setSort((current) => nextSort(current, key))} />;
@@ -70,7 +73,7 @@ function History() {
               (team === ALL || win.match.teamA === team || win.match.teamB === team) &&
               (date === ALL || win.slotDate === date) &&
               (recorder === ALL || win.recordedByName === recorder) &&
-              (showDeleted || win.active),
+              (deletedFilter === "all" || (deletedFilter === "active" ? win.active : !win.active)),
           );
           const sign = sort?.direction === "desc" ? -1 : 1;
           const rows = sort ? [...filtered].sort((a, b) => sign * compareBy[sort.key](a, b)) : filtered;
@@ -81,7 +84,16 @@ function History() {
                 <NativeSelect aria-label="チームで絞り込み" w={160} value={team} onChange={(event) => setTeam(event.target.value)} data={options("すべてのチーム", teams)} />
                 <NativeSelect aria-label="日付で絞り込み" w={160} value={date} onChange={(event) => setDate(event.target.value)} data={options("すべての日付", dates)} />
                 <NativeSelect aria-label="記録者で絞り込み" w={160} value={recorder} onChange={(event) => setRecorder(event.target.value)} data={options("すべての記録者", recorders)} />
-                <Checkbox label="削除済みも表示" checked={showDeleted} onChange={(event) => setShowDeleted(event.currentTarget.checked)} />
+                <SegmentedControl
+                  aria-label="削除済みの扱い"
+                  value={deletedFilter}
+                  onChange={(value) => setDeletedFilter(value as DeletedFilter)}
+                  data={[
+                    { value: "all", label: "すべて" },
+                    { value: "active", label: "削除していない" },
+                    { value: "deleted", label: "削除済み" },
+                  ]}
+                />
                 <Text c="dimmed" size="sm" role="status">
                   {rows.length}件
                 </Text>
