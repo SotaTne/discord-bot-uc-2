@@ -145,7 +145,7 @@ describe("コマンドの実行（署名 → ハンドラー → DB）", () => {
     const json = (await response.json()) as { type: number; data: { content: string; flags: number } };
     expect(json.type).toBe(4);
     expect(json.data.flags).toBe(64);
-    expect(json.data.content).toBe(`<@&${KMU_ROLE}> 21時の試合に応募しました`);
+    expect(json.data.content).toBe(`<@&${KMU_ROLE}> 21時の試合に挙手しました`);
 
     const rows = await listTeamHandupsOnDate(seeded.db, {
       guildId: GUILD_ID,

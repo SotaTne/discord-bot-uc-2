@@ -76,7 +76,7 @@ describe("サーバーの設定", () => {
   });
 });
 
-describe("試合枠", () => {
+describe("試合時刻", () => {
   it("一覧できる（シード: 21・22・23 時）", async () => {
     const { body } = await h.json<{ slots: { hour: number }[] }>("/api/slots", { cookie });
     expect(body.slots.map((s) => s.hour)).toEqual([21, 22, 23]);
@@ -133,7 +133,7 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${created.body.id}`, { method: "DELETE", cookie })).status).toBe(404);
   });
 
-  it("使われているチームも削除できる（論理削除）。一覧と得点表から消え、まだ組まれていない枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
+  it("使われているチームも削除できる（論理削除）。一覧と得点表から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
     const { db, kmuId, utId } = h.seeded;
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: kmuId, raisedBy: "u", createdAt: 1 });
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: "u", createdAt: 1 });

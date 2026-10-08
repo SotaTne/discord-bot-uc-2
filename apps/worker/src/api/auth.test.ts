@@ -122,6 +122,13 @@ describe("セッションが必要な API", () => {
     });
   });
 
+  it("サーバーの現在時刻（epoch ミリ秒）も返す。動かせる時計に従う", async () => {
+    const cookie = await h.login();
+    h.time.now = new Date("2026-10-07T21:30:00+09:00");
+    const { body } = await h.json<{ now: number }>("/api/me", { cookie });
+    expect(body.now).toBe(h.time.now.getTime());
+  });
+
   it("/api/health は、ログインなしでも使える", async () => {
     expect((await h.json("/api/health")).status).toBe(200);
   });

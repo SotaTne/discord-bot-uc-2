@@ -18,7 +18,7 @@ type CallOptions = Omit<RequestInit, "headers"> & {
 
 /**
  * ダッシュボード API のテスト用の環境。
- * シード済みの DB（チーム KMU・UT、試合枠 21〜23 時）、R2 の代わり、動かせる時計を持つ。
+ * シード済みの DB（チーム KMU・UT、試合時刻 21〜23 時）、R2 の代わり、動かせる時計を持つ。
  * ログインは、本物と同じ流れ（リンクの発行 → POST /api/login）で行う。
  */
 export async function createApiHarness(extraEnv: Partial<AppEnv> = {}) {

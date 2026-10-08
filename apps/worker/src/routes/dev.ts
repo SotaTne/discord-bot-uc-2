@@ -20,7 +20,7 @@ async function targetGuildId(db: Db, query: string | undefined): Promise<string 
  * - POST /tick: cron を待たずに、指定した日時で cron の処理（募集開始・締切）を1回実行する
  * - GET /state: いまの状態（挙手・対戦・得点・cron の予定と履歴・照合・ログイン）をまとめて返す
  * - GET /screenshots/:id: 保存した画像（ログインなしで見られる）
- * - POST /reset: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・枠・チームは残す
+ * - POST /reset: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残す
  */
 export function createDevRoutes(deps: { clock: Clock }) {
   const onlyInDev = createMiddleware<{ Bindings: AppEnv }>(async (c, next) => {

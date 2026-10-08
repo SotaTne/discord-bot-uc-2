@@ -113,7 +113,7 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
     expect((await call("/dev/screenshots/abc", env)).status).toBe(404);
   });
 
-  it("/dev/reset は、活動の記録を消して、設定・枠・チームは残す", async () => {
+  it("/dev/reset は、活動の記録を消して、設定・対戦枠・チームは残す", async () => {
     await createHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: seeded.kmuId, raisedBy: "u", createdAt: 1 });
     await insertWinInSlot(seeded.db, {
       guildId: GUILD_ID, teamId: seeded.kmuId, slotDate: "2026-10-07", slotHour: 21, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 1,

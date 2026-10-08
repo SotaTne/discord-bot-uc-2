@@ -5,7 +5,7 @@ import { createApiHarness, type ApiHarness } from "./harness";
 
 let h: ApiHarness;
 let cookie: string;
-/** KMU と UT が対戦する、マッチング処理済みの枠 */
+/** KMU と UT が対戦する、マッチング済みの対戦枠 */
 const played = (slotDate: string, slotHour: number) =>
   saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate, slotHour, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
 
@@ -25,7 +25,7 @@ function winForm(fields: Record<string, string | undefined>, image: File | null 
   return form;
 }
 
-/** 2026-10-07 21:00 の、KMU vs UT の組分けに、ダッシュボードから勝利を記録する */
+/** 2026-10-07 21:00 の、KMU vs UT の組分けに、ダッシュボードから勝利を追加する */
 const record = async (fields: Record<string, string | undefined> = {}, image?: File | null) => {
   const match = await findMatchForTeam(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: h.seeded.kmuId });
   return h.postForm<Record<string, unknown>>(
@@ -146,9 +146,9 @@ describe("勝利の記録の有効 / 無効", () => {
     expect(kmu?.wins.map((w) => w.matchNumber)).toEqual([1]);
   });
 
-  it("クリアすると、組分け（試合数）も消える。固定点の判定が、最初に戻る。挙手と枠は残る。別のサーバーには影響しない", async () => {
+  it("クリアすると、組分け（試合数）も消える。固定点の判定が、最初に戻る。挙手と対戦枠は残る。別のサーバーには影響しない", async () => {
     await seedWin(h.seeded.kmuId, 1, 80);
-    // 21時の枠は、マッチング処理済みなので、22時の枠に、挙手する
+    // 21時の対戦枠は、マッチング済みなので、22時の対戦枠に、挙手する
     await h.json("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour: 22 } });
     const other = await h.login({ guildId: "999999999999999999" });
 
@@ -168,7 +168,7 @@ describe("PUT /api/wins/:id/points（点数の修正）", () => {
   const setPoints = (id: number, points: unknown, who = cookie) => h.json(`/api/wins/${id}/points`, { method: "PUT", cookie: who, body: { points } });
   const totalOf = async (name: string) => (await h.json<{ teams: { name: string; total: number }[] }>("/api/scores", { cookie })).body.teams.find((t) => t.name === name)?.total;
 
-  it("点数だけを直す。勝ったチーム・組分けは変わらず、得点は、すぐ反映される", async () => {
+  it("点数だけを編集する。勝ったチーム・組分けは変わらず、得点は、すぐ反映される", async () => {
     const id = await seedWin(h.seeded.kmuId, 1, 80);
 
     expect((await setPoints(id, 95)).status).toBe(200);

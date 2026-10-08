@@ -51,7 +51,7 @@ describe("疑似時計（X-Dev-Now ヘッダー）", () => {
     const json = await send(app(), { DB: seeded.db.$client, DEV_CLOCK: "true" }, handup, {
       "X-Dev-Now": "2026-10-07T15:00:00+09:00",
     });
-    expect(json.data?.content).toContain("21時の試合に応募しました");
+    expect(json.data?.content).toContain("21時の試合に挙手しました");
   });
 
   it("DEV_CLOCK が無効なら、ヘッダーは無視される（本番の挙動）", async () => {

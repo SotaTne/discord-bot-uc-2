@@ -36,7 +36,7 @@ const winForm = (fields: Record<string, string>, image: File | null = new File([
   if (image) form.set("image", image);
   return form;
 };
-const recordWin = (matchId: number, fields: Record<string, string>, image?: File | null) =>
+const addWin = (matchId: number, fields: Record<string, string>, image?: File | null) =>
   h.postForm<{ id?: number; error?: string; winNumber?: number }>(`/api/matches/${matchId}/wins`, winForm(fields, image), { cookie });
 const setActive = (id: number, active: boolean) => h.json(`/api/wins/${id}/active`, { method: "PUT", cookie, body: { active } });
 
@@ -46,8 +46,8 @@ async function kmuVsUt(slotHour = 21) {
   return body.id;
 }
 
-describe("GET /api/board（枠の画面）", () => {
-  it("登録した枠ごとに、受付の段階・挙手・組分け・除外チームを返す。何もなければ、空の枠が並ぶ", async () => {
+describe("GET /api/board（対戦枠の画面）", () => {
+  it("登録した試合時刻ごとに、受付の段階・挙手・組分け・除外チームを返す。何もなければ、空の対戦枠が並ぶ", async () => {
     const result = await board();
 
     expect(result.date).toBe("2026-10-07");
@@ -76,9 +76,9 @@ describe("GET /api/board（枠の画面）", () => {
 
   it("組分けごとに、有効な勝利を返す。削除した記録は出さず、件数だけ返す", async () => {
     const matchId = await kmuVsUt();
-    const first = await recordWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
+    const first = await addWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
     await setActive(first.body.id!, false);
-    await recordWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
+    await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
 
     const [match] = (await slotOf(21)).matches;
 
@@ -122,21 +122,21 @@ describe("POST /api/matches（管理者による、組分けの追加）", () =>
     expect(after.find((handup) => handup.team.name === "KMU")).toMatchObject({ id: before.id, createdAt: before.createdAt });
   });
 
-  it("日付を指定できる。マッチング処理済みの枠にも、追加できる（挙手も付く）", async () => {
+  it("日付を指定できる。マッチング済みの対戦枠にも、追加できる（挙手も付く）", async () => {
     await addMatch({ teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21, slotDate: "2026-10-05" });
 
     expect((await slotOf(21, "?date=2026-10-05")).matches).toHaveLength(1);
     expect((await slotOf(21, "?date=2026-10-05")).handups).toHaveLength(2);
   });
 
-  it("同じ枠で、すでに組分けに入っているチームは、409（team_already_matched）。別の枠には、入れる", async () => {
+  it("同じ対戦枠で、すでに組分けに入っているチームは、409（team_already_matched）。別の対戦枠には、入れる", async () => {
     await kmuVsUt();
 
     expect((await addMatch({ teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21 })).body.error).toBe("team_already_matched");
     expect((await addMatch({ teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 22 })).status).toBe(201);
   });
 
-  it("存在しないチーム・登録されていない枠は 404。同じチーム同士・入力が不正なら 400", async () => {
+  it("存在しないチーム・登録されていない試合時刻は 404。同じチーム同士・入力が不正なら 400", async () => {
     expect((await addMatch({ teamAId: 9999, teamBId: h.seeded.utId, slotHour: 21 })).body.error).toBe("team_not_found");
     expect((await addMatch({ teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 20 })).body.error).toBe("slot_not_found");
     expect((await addMatch({ teamAId: h.seeded.kmuId, teamBId: h.seeded.kmuId, slotHour: 21 })).status).toBe(400);
@@ -153,9 +153,9 @@ describe("POST /api/matches（管理者による、組分けの追加）", () =>
 describe("DELETE /api/matches/:id（組分けの削除）", () => {
   it("組分けと、その勝利の記録（無効なものも）・画像を、あわせて削除する。挙手は残る。同じチームで、組み直せる", async () => {
     const matchId = await kmuVsUt();
-    const win = await recordWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
+    const win = await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
     await setActive(win.body.id!, false);
-    await recordWin(matchId, { teamId: String(h.seeded.utId), points: "50" });
+    await addWin(matchId, { teamId: String(h.seeded.utId), points: "50" });
     expect(h.r2.objects.size).toBe(2);
 
     const result = await h.json(`/api/matches/${matchId}`, { method: "DELETE", cookie });
@@ -184,7 +184,7 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
   it("勝ったチームと点数と画像で、記録できる。集計での扱いが返る。記録者は、管理者", async () => {
     const matchId = await kmuVsUt();
 
-    const result = await recordWin(matchId, { teamId: String(h.seeded.utId), points: "452" });
+    const result = await addWin(matchId, { teamId: String(h.seeded.utId), points: "452" });
 
     expect(result.status).toBe(201);
     expect(result.body).toMatchObject({ slotDate: "2026-10-07", matchNumber: 1, countedPoints: 452, fixed: false });
@@ -194,22 +194,22 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
 
   it("有効な記録は、1つの組分けに1件まで（409 win_exists）。削除すると、記録し直せる", async () => {
     const matchId = await kmuVsUt();
-    const first = await recordWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
+    const first = await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
 
-    const second = await recordWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
+    const second = await addWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
     expect(second).toMatchObject({ status: 409, body: { error: "win_exists" } });
     expect(h.r2.objects.size).toBe(1);
 
     await setActive(first.body.id!, false);
-    expect((await recordWin(matchId, { teamId: String(h.seeded.utId), points: "70" })).status).toBe(201);
+    expect((await addWin(matchId, { teamId: String(h.seeded.utId), points: "70" })).status).toBe(201);
     expect((await slotOf(21)).matches[0]).toMatchObject({ win: { team: { name: "UT" }, points: 70 }, deletedWins: 1 });
   });
 
   it("削除した記録は、ほかに有効な記録があるときは、有効に戻せない（409）。そちらを削除すれば、戻せる", async () => {
     const matchId = await kmuVsUt();
-    const first = await recordWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
+    const first = await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "80" });
     await setActive(first.body.id!, false);
-    const second = await recordWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
+    const second = await addWin(matchId, { teamId: String(h.seeded.utId), points: "70" });
 
     expect((await setActive(first.body.id!, true)).status).toBe(409);
     expect((await slotOf(21)).matches[0]?.win?.team.name).toBe("UT");
@@ -224,7 +224,7 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
     const { createTeam } = await import("@uc/db");
     const third = await createTeam(h.seeded.db, { guildId: GUILD_ID, roleId: "400000000000000009", createdAt: 1 });
 
-    const result = await recordWin(matchId, { teamId: String(third), points: "10" });
+    const result = await addWin(matchId, { teamId: String(third), points: "10" });
 
     expect(result).toMatchObject({ status: 400, body: { error: "team_not_in_match" } });
     expect(h.r2.objects.size).toBe(0);
@@ -234,10 +234,10 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
     const matchId = await kmuVsUt();
     const other = await h.login({ guildId: "999999999999999999" });
 
-    expect((await recordWin(9999, { teamId: String(h.seeded.kmuId), points: "1" })).status).toBe(404);
+    expect((await addWin(9999, { teamId: String(h.seeded.kmuId), points: "1" })).status).toBe(404);
     const crossed = await h.postForm(`/api/matches/${matchId}/wins`, winForm({ teamId: String(h.seeded.kmuId), points: "1" }), { cookie: other });
     expect(crossed.status).toBe(404);
-    expect((await recordWin("abc" as unknown as number, { teamId: "1", points: "1" })).status).toBe(400);
+    expect((await addWin("abc" as unknown as number, { teamId: "1", points: "1" })).status).toBe(400);
   });
 
   describe("記録できないとき（何も保存しない）", () => {
@@ -245,9 +245,9 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
       const matchId = await kmuVsUt();
       const fields = { teamId: String(h.seeded.kmuId), points: "80" };
 
-      expect((await recordWin(matchId, fields, null)).body).toEqual({ error: "image_required" });
-      expect((await recordWin(matchId, fields, new File(["x"], "a.pdf", { type: "application/pdf" }))).body).toEqual({ error: "unsupported_image" });
-      expect((await recordWin(matchId, fields, new File([new Uint8Array(9 * 1024 * 1024)], "big.png", { type: "image/png" }))).body).toEqual({ error: "image_too_large" });
+      expect((await addWin(matchId, fields, null)).body).toEqual({ error: "image_required" });
+      expect((await addWin(matchId, fields, new File(["x"], "a.pdf", { type: "application/pdf" }))).body).toEqual({ error: "unsupported_image" });
+      expect((await addWin(matchId, fields, new File([new Uint8Array(9 * 1024 * 1024)], "big.png", { type: "image/png" }))).body).toEqual({ error: "image_too_large" });
       expect(h.r2.objects.size).toBe(0);
       expect((await slotOf(21)).matches[0]?.win).toBeNull();
     });
@@ -256,7 +256,7 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
       const matchId = await kmuVsUt();
 
       for (const bad of [{ teamId: String(h.seeded.kmuId), points: "-1" }, { teamId: "abc", points: "1" }, { teamId: String(h.seeded.kmuId) }]) {
-        expect((await recordWin(matchId, bad)).status).toBe(400);
+        expect((await addWin(matchId, bad)).status).toBe(400);
       }
       expect(h.r2.objects.size).toBe(0);
     });
@@ -275,7 +275,7 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
     }
     const matchId = await kmuVsUt();
 
-    const result = await recordWin(matchId, { teamId: String(h.seeded.kmuId), points: "30" });
+    const result = await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "30" });
 
     expect(result.body).toMatchObject({ matchNumber: 6, countedPoints: 100, fixed: true });
     expect(ADMIN_USER).toBeTruthy();

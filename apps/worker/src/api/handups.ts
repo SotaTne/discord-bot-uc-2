@@ -13,10 +13,10 @@ import { Hono } from "hono";
 import { createDb } from "../db";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
-/** 管理者による、代理の挙手と取り消し（一覧は、枠の画面（/board）で見る） */
+/** 管理者による、代理の挙手と取り消し（一覧は、対戦枠の画面（/board）で見る） */
 export function createHandupRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
-    // 管理者による代理の挙手。受付時間に関係なくできる。ただし、マッチング処理済みの対戦枠には、できない
+    // 管理者による代理の挙手。受付時間に関係なくできる。ただし、マッチング済みの対戦枠には、できない
     .post("/handups", zValidator("json", adminHandupInputSchema), async (c) => {
       const db = createDb(c.env.DB);
       const { guildId, userId } = c.get("auth");

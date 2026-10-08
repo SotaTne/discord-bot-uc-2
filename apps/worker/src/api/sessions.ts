@@ -11,7 +11,8 @@ export function createSessionRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
     .get("/me", (c) => {
       const { guildId, userId } = c.get("auth");
-      return c.json({ guildId, userId });
+      // now: サーバーの時計（開発用の時計を動かしているときは、それ）。ダッシュボードのヘッダーの日時に使う
+      return c.json({ guildId, userId, now: deps.clock.now().getTime() });
     })
 
     .get("/sessions", async (c) => {

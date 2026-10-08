@@ -26,18 +26,18 @@ import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { deleteScreenshots } from "../usecases/clear-scores";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, recordWin } from "../usecases/record-win";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, addWin } from "../usecases/add-win";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
 /**
- * 枠の画面（日付ごとの、枠 → 挙手・組分け・勝利）のための API。
- * 挙手・マッチング・勝利が、枠を中心に、1つの画面で扱えるようにする。
+ * 対戦枠の画面（日付ごとの、対戦枠 → 挙手・組分け・勝利）のための API。
+ * 挙手・マッチング・勝利が、対戦枠を中心に、1つの画面で扱えるようにする。
  */
 export function createBoardRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
-    // その日の、枠ごとの状態: 受付の段階・挙手したチーム・組分け・組分けごとの勝利（有効な記録）・組まれなかったチーム
+    // その日の、対戦枠ごとの状態: 受付の段階・挙手したチーム・組分け・組分けごとの勝利（有効な記録）・組まれなかったチーム
     .get("/board", zValidator("query", dateQuerySchema), async (c) => {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");
@@ -142,7 +142,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       return c.json({ ok: true as const });
     })
 
-    // 管理者が、枠のマッチングを、いま確定する（cron の締切と同じ処理）。挙手を組み、結果を Discord に投稿する。
+    // 管理者が、対戦枠のマッチングを、いま確定する（cron の締切と同じ処理）。挙手を組み、結果を Discord に投稿する。
     // cron と同じ「実行する権利」を取るので、締切の時刻になっても、二重には実行されない
     .post("/match-slots/confirm", zValidator("json", matchSlotInputSchema), async (c) => {
       const db = createDb(c.env.DB);
@@ -171,7 +171,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       }
     })
 
-    // マッチング済みの枠を、未マッチングに戻す。その枠の組分けと勝利（無効なものも）と画像を削除する。挙手は残る
+    // マッチング済みの対戦枠を、未マッチングに戻す。その対戦枠の組分けと勝利（無効なものも）と画像を削除する。挙手は残る
     .post("/match-slots/reopen", zValidator("json", matchSlotInputSchema), async (c) => {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");
@@ -191,7 +191,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, deletedWins: reopened.deletedWins });
     })
 
-    // 組分けに、勝利を記録する（画像つきの multipart/form-data）。有効な記録は、1つの組分けに1件まで
+    // 組分けに、勝利を追加する（画像つきの multipart/form-data）。有効な記録は、1つの組分けに1件まで
     .post("/matches/:id/wins", async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
@@ -217,7 +217,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       if (!team) return c.json({ error: "team_not_found" as const }, 404);
 
       try {
-        const { id: winId } = await recordWin(
+        const { id: winId } = await addWin(
           { db, bucket: c.env.SCREENSHOTS, now: deps.clock.now().getTime() },
           {
             guildId,

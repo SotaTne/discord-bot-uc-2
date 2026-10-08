@@ -12,14 +12,14 @@ beforeEach(async () => {
 
 type HandupRow = { id: number; slotHour: number; team: { id: number; name: string }; raisedByName: string };
 type Board = { date: string; slots: { hour: number; handups: Omit<HandupRow, "slotHour">[] }[] };
-/** 枠の画面（/api/board）から、その日の挙手を、枠の時刻つきで取り出す */
+/** 対戦枠の画面（/api/board）から、その日の挙手を、対戦枠の時刻つきで取り出す */
 const list = async (query = "") => {
   const { body } = await h.json<Board>(`/api/board${query}`, { cookie });
   return { body: { date: body.date, handups: body.slots.flatMap((slot) => slot.handups.map((handup) => ({ ...handup, slotHour: slot.hour }))) } };
 };
 
-describe("枠の画面に出る挙手", () => {
-  it("その日の全チームの挙手を、枠ごとに、挙手の順に返す（取り消した挙手は、含まない）", async () => {
+describe("対戦枠の画面に出る挙手", () => {
+  it("その日の全チームの挙手を、対戦枠ごとに、挙手の順に返す（取り消した挙手は、含まない）", async () => {
     const { db, kmuId, utId } = h.seeded;
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: ALICE, createdAt: 10 });
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: utId, raisedBy: "u2", createdAt: 20 });
@@ -87,7 +87,7 @@ describe("POST /api/handups（管理者による代理の挙手）", () => {
     expect((await raise({ teamId: h.seeded.kmuId, slotHour: 21 })).status).toBe(201);
   });
 
-  it("存在しないチーム・登録されていない枠は 404。入力が不正なら 400", async () => {
+  it("存在しないチーム・登録されていない試合時刻は 404。入力が不正なら 400", async () => {
     expect((await raise({ teamId: 9999, slotHour: 21 })).status).toBe(404);
     expect((await raise({ teamId: h.seeded.kmuId, slotHour: 20 })).status).toBe(404);
     expect((await raise({ teamId: h.seeded.kmuId, slotHour: 24 })).status).toBe(400);
@@ -107,7 +107,7 @@ describe("DELETE /api/handups/:id（管理者による代理の取り消し）",
     expect((await h.json("/api/handups/abc", { method: "DELETE", cookie })).status).toBe(400);
   });
 
-  it("挙手 → 取り消し → 挙手を繰り返しても、一覧には、有効な挙手が1件だけ残る（同じチーム・枠の行が、重ならない）", async () => {
+  it("挙手 → 取り消し → 挙手を繰り返しても、一覧には、有効な挙手が1件だけ残る（同じチーム・対戦枠の行が、重ならない）", async () => {
     const raise = () => h.json<{ id: number }>("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour: 21 } });
 
     const first = await raise();
@@ -130,12 +130,12 @@ describe("DELETE /api/handups/:id（管理者による代理の取り消し）",
   });
 });
 
-describe("マッチング処理済みの対戦枠（ダッシュボードからも、挙手を受け付けない）", () => {
+describe("マッチング済みの対戦枠（ダッシュボードからも、挙手を受け付けない）", () => {
   const markMatched = async () => {
     await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [], now: 2 });
   };
 
-  it("代理の挙手は 409（slot_matched）。ほかの枠には、できる", async () => {
+  it("代理の挙手は 409（slot_matched）。ほかの対戦枠には、できる", async () => {
     await markMatched();
     const raise = (slotHour: number) =>
       h.json<{ error?: string }>("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour } });

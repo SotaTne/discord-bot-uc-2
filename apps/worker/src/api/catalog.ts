@@ -15,7 +15,7 @@ import { createRestFromEnv } from "../discord";
 import { teamNames } from "../usecases/team-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
-/** 試合枠とチームの登録 */
+/** 試合時刻とチームの登録 */
 export function createCatalogRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
     .get("/slots", async (c) => {

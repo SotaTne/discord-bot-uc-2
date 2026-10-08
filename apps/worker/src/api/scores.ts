@@ -22,7 +22,7 @@ import { clearScores } from "../usecases/clear-scores";
 import { loadScores } from "../usecases/scores";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
-import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, recordWin } from "../usecases/record-win";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, addWin } from "../usecases/add-win";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
 /** 得点・勝利の記録（有効 / 無効・クリア）・画像・試合ごとの記録の確認 */
@@ -67,7 +67,7 @@ export function createScoreRoutes(deps: ApiDeps) {
           id: row.id,
           teamId: row.teamId,
           teamName: nameOf.get(row.teamId) ?? String(row.teamId),
-          // 組分け（試合）。枠（日付 × 時刻）だけでは、同じ枠の別の組み合わせと区別できない
+          // 組分け（試合）。対戦枠（日付 × 時刻）だけでは、同じ対戦枠の別の組分けと区別できない
           match: {
             id: row.matchId,
             teamA: nameOf.get(row.teamAId) ?? String(row.teamAId),
@@ -102,7 +102,7 @@ export function createScoreRoutes(deps: ApiDeps) {
       return c.json({ ok: true as const });
     })
 
-    // 記録の点数を直す（無効な記録も直せる）。勝ったチーム・組分けは、変えない。得点は、毎回導き直すので、すぐ反映される
+    // 記録の点数を編集する（無効な記録も編集できる）。勝ったチーム・組分けは、変えない。得点は、毎回導き直すので、すぐ反映される
     .put("/wins/:id/points", zValidator("json", winPointsInputSchema), async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
@@ -117,7 +117,7 @@ export function createScoreRoutes(deps: ApiDeps) {
       return c.json({ ok: true as const, screenshots });
     })
 
-    // 記録したスクリーンショット。管理者のセッションがあるときだけ見られる（R2 のキーは外に出さない）
+    // 記録した画像。管理者のセッションがあるときだけ見られる（R2 のキーは外に出さない）
     .get("/screenshots/:id", async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);

@@ -50,7 +50,7 @@ async function matchedWithWin() {
 }
 
 describe("POST /api/match-slots/confirm（マッチングの確定）", () => {
-  it("未マッチングの枠の挙手を組み、マッチング済みにして、結果を投稿する。勝利の記録もできる", async () => {
+  it("未マッチングの対戦枠の挙手を組み、マッチング済みにして、結果を投稿する。勝利の記録もできる", async () => {
     const posted = await withChannel();
     await raise(h.seeded.kmuId);
     await raise(h.seeded.utId);
@@ -68,12 +68,12 @@ describe("POST /api/match-slots/confirm（マッチングの確定）", () => {
     expect(await slotOf(22)).toMatchObject({ matched: true, matches: [] });
   });
 
-  it("確定済みの枠は 409。締切の時刻が来ても、cron で二重に確定されない", async () => {
+  it("確定済みの対戦枠は 409。締切の時刻が来ても、cron で二重に確定されない", async () => {
     await confirm();
     expect(await confirm()).toMatchObject({ status: 409, body: { error: "slot_matched" } });
   });
 
-  it("登録されていない枠は 404。入力が不正なら 400", async () => {
+  it("登録されていない試合時刻は 404。入力が不正なら 400", async () => {
     expect((await confirm(20)).status).toBe(404);
     expect((await confirm(24)).status).toBe(400);
   });
@@ -102,7 +102,7 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
     expect((await slotOf(21)).matches).toHaveLength(1);
   });
 
-  it("未マッチングの枠は 409（slot_not_matched）。ほかの枠は、変わらない", async () => {
+  it("未マッチングの対戦枠は 409（slot_not_matched）。ほかの対戦枠は、変わらない", async () => {
     await confirm(22);
     expect(await reopen(21)).toMatchObject({ status: 409, body: { error: "slot_not_matched" } });
     expect((await slotOf(22)).matched).toBe(true);
