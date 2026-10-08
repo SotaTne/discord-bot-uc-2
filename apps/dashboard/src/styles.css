@@ -1,0 +1,10 @@
+/* 画面の見た目は Mantine（theme.ts）に任せる。ここには、部品では表せないものだけを置く */
+
+/* 無効な行: 要素ごとではなく、行全体に1本の線を引いて、薄くする（操作のボタンの列は、そのまま） */
+.struck td:not(:last-child) {
+  opacity: 0.5;
+  background: linear-gradient(transparent calc(50% - 0.5px), currentColor calc(50% - 0.5px), currentColor calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+
+/* 表が画面より広いときは、表の中だけ横に動かす */
+.table-scroll { overflow-x: auto; }
