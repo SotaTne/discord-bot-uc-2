@@ -69,21 +69,21 @@ export const commands: CommandDefinition[] = [
   },
   {
     name: "uc-admin-win",
-    description: "(管理者のみ) 勝利を記録する",
+    description: "(管理者のみ) 勝利を追加する",
     // 必須のオプションは、任意のオプションより前に並べる（Discord の決まり）
     options: [
       timeOption,
       teamRoleOption(true, "勝ったチームのロール"),
       {
         name: "point",
-        description: "得点",
+        description: "点数",
         type: OptionType.Integer,
         required: true,
         min_value: 0,
       },
       {
         name: "image",
-        description: "結果のスクリーンショット",
+        description: "結果の画像",
         type: OptionType.Attachment,
         required: true,
       },

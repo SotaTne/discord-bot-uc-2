@@ -60,7 +60,7 @@ describe("commands（Discord のコマンド登録の決まり）", () => {
 
 describe("responses", () => {
   it("ephemeralMessage は本人にだけ見え、メンションで通知しない", () => {
-    const response = ephemeralMessage("<@&1> 21時の試合に応募しました");
+    const response = ephemeralMessage("<@&1> 21時の試合に挙手しました");
     expect(response.data?.flags).toBe(MessageFlags.Ephemeral);
     expect(response.data?.allowed_mentions).toEqual({ parse: [] });
   });
