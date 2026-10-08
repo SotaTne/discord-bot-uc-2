@@ -120,6 +120,29 @@ describe("画面のスクリプト: 自動更新", () => {
   });
 });
 
+describe("画面のスクリプト: 画像のポップアップ", () => {
+  it("勝利記録の「画像」（青いリンク）を押すと、別のページに移らず、ポップアップで画像を出す。外側を押すと、閉じる", async () => {
+    const page = await openPage(await createTestMock());
+    await page.settle();
+    const dialog = page.$<HTMLDialogElement>("#image-dialog");
+    const button = page.$("a[data-image]");
+    expect(dialog.hasAttribute("open")).toBe(false);
+
+    const click = new page.window.MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+
+    // リンクの移動は、止めて、ポップアップにする
+    expect(click.defaultPrevented).toBe(true);
+    expect(page.$("#image-dialog-img").getAttribute("src")).toBe(button.getAttribute("data-image"));
+    expect(dialog.hasAttribute("open")).toBe(true);
+    expect(page.window.location.href).toBe("http://mock.local/");
+
+    // ポップアップの外側（ダイアログ自身）を押すと、閉じる
+    dialog.dispatchEvent(new page.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(dialog.hasAttribute("open")).toBe(false);
+  });
+});
+
 describe("画面のスクリプト: 実行者とコマンド", () => {
   const checkbox = (page: Awaited<ReturnType<typeof openPage>>, name: string) =>
     Array.from(page.document.querySelectorAll<HTMLInputElement>("#users input")).find((input) => input.dataset.name?.startsWith(name))!;

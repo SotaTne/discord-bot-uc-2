@@ -182,7 +182,9 @@ describe("状態", () => {
       "KMU vs UT",
       "UT の勝利 30 → 100pt · 6試合目 画像",
     ]);
+    // 画像は、青いリンク。押すと、ポップアップで見る（data-image）。スクリプトが動かないときは、リンクとして開く
     expect(first?.querySelector("a")?.getAttribute("href")).toBe("/ui/screenshot/2");
+    expect(first?.querySelector("a")?.getAttribute("data-image")).toBe("/ui/screenshot/2");
   });
 
   it("削除した記録は、薄く表示して、（削除済み）と出す。何試合目かは出さない", async () => {

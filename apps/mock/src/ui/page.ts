@@ -73,6 +73,10 @@ export async function renderPage(input: PageInput) {
             <p class="foot"><button type="button" class="link" data-post="/ui/reset" data-fields="{}" data-confirm="挙手・マッチング・得点・ログインと、このページのメッセージ・時計を、すべて初期状態に戻します。よろしいですか？">データを初期化</button></p>
           </div>
         </main>
+        <dialog id="image-dialog" aria-label="画像">
+          <img id="image-dialog-img" alt="画像" />
+          <form method="dialog"><button type="submit">閉じる</button></form>
+        </dialog>
         <script>${raw(SCRIPT)}</script>
       </body>
     </html>`;

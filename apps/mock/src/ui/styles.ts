@@ -106,5 +106,11 @@ th.num, td.num { text-align: right; padding-right: 0; padding-left: 12px; }
 .fixture b { font-size: 18px; font-weight: 600; }
 .fixture .status { font-size: 12px; font-weight: 400; color: var(--muted); }
 .fixture.matched .status { color: var(--ok); background: var(--ok-soft); padding: 1px 10px; border-radius: 999px; }
+.image-link { color: var(--accent); text-decoration: none; cursor: pointer; }
+.image-link:hover { text-decoration: underline; }
+dialog#image-dialog { border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 12px; max-width: min(92vw, 900px); }
+dialog#image-dialog::backdrop { background: rgb(0 0 0 / .45); }
+dialog#image-dialog img { display: block; max-width: 100%; max-height: 78vh; margin: 0 auto 12px; object-fit: contain; }
+dialog#image-dialog form { text-align: right; }
 .foot { margin: 0; text-align: right; }
 `;

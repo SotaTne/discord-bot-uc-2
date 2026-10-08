@@ -2,6 +2,7 @@
  * 画面のスクリプト（ブラウザで動く。ビルドは不要）。
  * - 時計・Discord・状態の表示（data-fragment の要素）を、2秒ごとに取り直す
  * - 実行者は複数選べる。コマンドは、選んだ全員として、順に実行する
+ * - 画像は、ポップアップで見る
  * - 操作はページを読み込み直さずに送る（入力が消えない）。失敗したときだけ、通知を出す
  */
 export const SCRIPT = `
@@ -81,6 +82,23 @@ export const SCRIPT = `
     if (tab) {
       document.querySelectorAll("[data-cmd]").forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
       document.querySelectorAll("form[data-send]").forEach((form) => { form.hidden = form.id !== "cmd-" + tab.dataset.cmd; });
+      return;
+    }
+
+    // 画像は、別のページには移らず、その場のポップアップで見る（外側を押す・Esc・「閉じる」で閉じる）
+    const imageLink = target.closest("[data-image]");
+    if (imageLink) {
+      // リンクのまま、別のページには移らず、ポップアップで見せる（スクリプトが動かないときだけ、リンクとして開く）
+      event.preventDefault();
+      const dialog = $("#image-dialog");
+      $("#image-dialog-img").setAttribute("src", imageLink.dataset.image);
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      return;
+    }
+    if (target.id === "image-dialog") {
+      if (typeof target.close === "function") target.close();
+      else target.removeAttribute("open");
       return;
     }
 
