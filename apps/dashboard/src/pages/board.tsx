@@ -331,9 +331,12 @@ function MatchRow({ match }: { match: Match }) {
       {match.win ? (
         <Table.Tr>
           <Table.Td>
-            {match.teamA.name} vs {match.teamB.name}
+            <Group gap={4} wrap="nowrap">
+              {match.teamA.name} vs {match.teamB.name}
+              {removeMatchButton}
+            </Group>
           </Table.Td>
-          <WinCells match={match} win={match.win} removeMatchButton={removeMatchButton} />
+          <WinCells match={match} win={match.win} />
         </Table.Tr>
       ) : (
         <RecordRows match={match} removeMatchButton={removeMatchButton} />
@@ -352,7 +355,7 @@ function MatchRow({ match }: { match: Match }) {
 type Win = NonNullable<Match["win"]>;
 
 /** 記録された勝利の列（勝利チーム・点数・記録・画像・操作）。点数の編集と勝利の削除は、同じ並びに置く */
-function WinCells({ match, win, removeMatchButton }: { match: Match; win: Win; removeMatchButton: ReactNode }) {
+function WinCells({ match, win }: { match: Match; win: Win }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}の勝利`;
   const edit = usePointsEditor({ winId: win.id, points: win.points, label });
   const removeWin = useInvalidatingMutation(
@@ -378,7 +381,6 @@ function WinCells({ match, win, removeMatchButton }: { match: Match; win: Win; r
               削除
             </Button>,
           )}
-          {removeMatchButton}
         </Group>
         <ErrorNote error={edit.error ?? removeWin.error} />
       </Table.Td>
@@ -431,12 +433,14 @@ function RecordRows({ match, removeMatchButton }: { match: Match; removeMatchBut
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap">
             <Group gap="lg" wrap="nowrap">
-              <Text span>{label}</Text>
+              <Group gap={4} wrap="nowrap">
+                <Text span>{label}</Text>
+                {removeMatchButton}
+              </Group>
               <Text span c="dimmed">
                 勝利はまだありません
               </Text>
             </Group>
-            {removeMatchButton}
           </Group>
           <form ref={formRef} onSubmit={submit} aria-label={`${label}の勝利を追加`}>
             <Group gap="sm" wrap="wrap">
