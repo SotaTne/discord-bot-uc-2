@@ -8,7 +8,7 @@ const session = (over: Record<string, unknown> = {}) => ({
   id: 1,
   userId: "500000000000000005",
   userName: "管理者さん",
-  userAgent: "Mozilla/5.0 (Macintosh)",
+  userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15",
   createdAt: at("2026-10-07T15:00:00"),
   expiresAt: at("2026-10-14T15:00:00"),
   current: true,
@@ -33,7 +33,8 @@ describe("ログイン管理の画面", () => {
     expect(within(current).getByText("このブラウザ")).toBeTruthy();
     expect(current.textContent).toContain("10/07 15:00");
     expect(current.textContent).toContain("10/14 15:00");
-    expect(current.textContent).toContain("Mozilla/5.0 (Macintosh)");
+    expect(current.textContent).toContain("Safari・macOS");
+    expect(current.textContent).not.toContain("Mozilla");
 
     const other = screen.getByText("副管理者").closest("tr")!;
     expect(within(other).queryByText("このブラウザ")).toBeNull();

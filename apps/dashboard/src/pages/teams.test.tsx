@@ -21,6 +21,62 @@ const apis = () => ({
   "GET /api/roles": { body: ROLES },
 });
 
+describe("チームの画面: 得点表の並び替え", () => {
+  // 得点表（「チームの管理」の表とは別）の中だけを見る
+  const board = () => within(screen.getByRole("region", { name: "得点" }));
+  const rows = () => board().getAllByRole("row").slice(1);
+  const names = () => rows().map((row) => within(row).getAllByRole("cell")[1]?.textContent);
+  const header = (name: string) => board().getByRole("columnheader", { name });
+  const press = (name: string) => fireEvent.click(within(header(name)).getByRole("button"));
+
+  it("最初は、得点の高い順（同点は元の並び）。見出しに、並びの印は付かない", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+    await screen.findByRole("region", { name: "得点" });
+    await board().findByRole("columnheader", { name: "チーム" });
+
+    expect(names()).toEqual(["KMU", "UT", "NGT"]);
+    expect(header("得点").getAttribute("aria-sort")).toBe("none");
+  });
+
+  it("見出しを押すたびに、昇順 → 降順 → 元の並び、と切り替わる（チーム名）", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+    await screen.findByRole("region", { name: "得点" });
+    await board().findByRole("columnheader", { name: "チーム" });
+
+    press("チーム");
+    expect(names()).toEqual(["KMU", "NGT", "UT"]);
+    expect(header("チーム").getAttribute("aria-sort")).toBe("ascending");
+
+    press("チーム");
+    expect(names()).toEqual(["UT", "NGT", "KMU"]);
+    expect(header("チーム").getAttribute("aria-sort")).toBe("descending");
+
+    press("チーム");
+    expect(names()).toEqual(["KMU", "UT", "NGT"]);
+    expect(header("チーム").getAttribute("aria-sort")).toBe("none");
+  });
+
+  it("試合数・勝利数・得点でも並べ替えられる。別の列を押すと、その列の昇順から。順位の表示は、並び替えても、変わらない", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+    await screen.findByRole("region", { name: "得点" });
+    await board().findByRole("columnheader", { name: "チーム" });
+
+    press("試合数");
+    expect(names()).toEqual(["NGT", "UT", "KMU"]);
+    press("勝利数");
+    expect(names()).toEqual(["NGT", "UT", "KMU"]);
+    expect(header("試合数").getAttribute("aria-sort")).toBe("none");
+    press("勝利数");
+    expect(names()).toEqual(["KMU", "UT", "NGT"]);
+    // 順位は、得点で決まる（KMU と UT は同点の 1 位）
+    const ranks = rows().map((row) => within(row).getAllByRole("cell")[0]?.textContent);
+    expect(ranks).toEqual(["1位", "1位", "3位"]);
+  });
+});
+
 describe("チームの画面: 得点", () => {
   const scoreRows = async () =>
     (await screen.findAllByRole("row"))
@@ -32,9 +88,9 @@ describe("チームの画面: 得点", () => {
     renderApp("/teams");
 
     expect(await scoreRows()).toEqual([
-      ["1位", "KMU", "250 pt", "5", "3"],
-      ["1位", "UT", "250 pt", "2", "1"],
-      ["3位", "NGT", "0 pt", "0", "0"],
+      ["1位", "KMU", "250pt", "5", "3"],
+      ["1位", "UT", "250pt", "2", "1"],
+      ["3位", "NGT", "0pt", "0", "0"],
     ]);
     expect(screen.queryByText(/内訳/)).toBeNull();
     expect(screen.getByRole("columnheader", { name: "勝利数" })).toBeTruthy();
@@ -88,8 +144,8 @@ describe("チームの画面: チームの追加と削除", () => {
     renderApp("/teams");
     await screen.findByRole("option", { name: "NGT" });
 
-    fireEvent.change(screen.getByLabelText("ロール"), { target: { value: "400000000000000003" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "追加する" }).at(-1)!);
+    fireEvent.change(screen.getByLabelText("追加するロール"), { target: { value: "400000000000000003" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "チームを追加" }).at(-1)!);
 
     await waitFor(() => expect(backend.last("POST", "/api/teams")?.json).toEqual({ roleId: "400000000000000003" }));
   });
@@ -99,8 +155,8 @@ describe("チームの画面: チームの追加と削除", () => {
     renderApp("/teams");
     await screen.findByRole("option", { name: "NGT" });
 
-    const options = within(screen.getByLabelText("ロール")).getAllByRole("option").map((option) => option.textContent);
-    expect(options).toEqual(["選択してください", "NGT"]);
+    const options = within(screen.getByLabelText("追加するロール")).getAllByRole("option").map((option) => option.textContent);
+    expect(options).toEqual(["ロールを選択", "NGT"]);
   });
 
   it("ロールを選ぶまでは、追加できない", async () => {
@@ -108,9 +164,9 @@ describe("チームの画面: チームの追加と削除", () => {
     renderApp("/teams");
     await screen.findByRole("option", { name: "NGT" });
 
-    const add = screen.getAllByRole("button", { name: "追加する" }).at(-1) as HTMLButtonElement;
+    const add = screen.getAllByRole("button", { name: "チームを追加" }).at(-1) as HTMLButtonElement;
     expect(add.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("ロール"), { target: { value: "400000000000000003" } });
+    fireEvent.change(screen.getByLabelText("追加するロール"), { target: { value: "400000000000000003" } });
     expect(add.disabled).toBe(false);
   });
 
@@ -119,8 +175,8 @@ describe("チームの画面: チームの追加と削除", () => {
     renderApp("/teams");
     await screen.findByRole("option", { name: "NGT" });
 
-    fireEvent.change(screen.getByLabelText("ロール"), { target: { value: "400000000000000003" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "追加する" }).at(-1)!);
+    fireEvent.change(screen.getByLabelText("追加するロール"), { target: { value: "400000000000000003" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "チームを追加" }).at(-1)!);
 
     expect((await screen.findByRole("alert")).textContent).toContain("すでに登録されています");
   });
@@ -135,7 +191,7 @@ describe("チームの画面: チームの追加と削除", () => {
 
     expect(await screen.findByText(/ロール ID を直接入力してください/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("ロール ID"), { target: { value: "400000000000000003" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "追加する" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "チームを追加" }).at(-1)!);
 
     await waitFor(() => expect(backend.last("POST", "/api/teams")?.json).toEqual({ roleId: "400000000000000003" }));
   });
@@ -147,9 +203,10 @@ describe("チームの画面: チームの追加と削除", () => {
 
     fireEvent.click(within(row).getByRole("button", { name: "削除" }));
     expect(backend.count("DELETE", "/api/teams/1")).toBe(0);
-    fireEvent.click(within(row).getByRole("button", { name: "実行する" }));
+    // 確認の吹き出しに、削除しても履歴は残ることを書く
+    expect(screen.getByText(/過去の組分けと勝利は残ります/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "実行する" }));
 
     await waitFor(() => expect(backend.count("DELETE", "/api/teams/1")).toBe(1));
-    expect(screen.getByText(/過去の組分け・勝利は残ります/)).toBeTruthy();
   });
 });

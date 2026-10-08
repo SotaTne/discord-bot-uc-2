@@ -1,6 +1,6 @@
 import { Badge, Button, Group, NativeSelect, Table, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
-import { Async, ConfirmButton, ErrorNote, Section } from "../components/ui";
+import { Async, ConfirmButton, ErrorNote, PageTitle, Section, SortableTh, nextSort, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { useInvalidatingMutation, useRoles, useScores, useTeams } from "../lib/queries";
@@ -9,14 +9,24 @@ import { useInvalidatingMutation, useRoles, useScores, useTeams } from "../lib/q
 export function TeamsPage() {
   return (
     <>
+      <PageTitle>チーム</PageTitle>
       <Scoreboard />
       <Teams />
     </>
   );
 }
 
+type ScoreTeam = NonNullable<ReturnType<typeof useScores>["data"]>["teams"][number];
+type SortKey = "rank" | "name" | "total" | "matches" | "wins";
+
 function Scoreboard() {
   const scores = useScores();
+  // 並び替え（見出しを押して切り替える）。何も選んでいないときは、得点の高い順（順位の順）
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
+  const directionOf = (key: SortKey) => (sort?.key === key ? sort.direction : null);
+  const header = (key: SortKey, label: string, align: "left" | "right" = "right") => (
+    <SortableTh label={label} align={align} direction={directionOf(key)} onSort={() => setSort((current) => nextSort(current, key))} />
+  );
   return (
     <Section title="得点">
       <Async query={scores}>
@@ -32,15 +42,15 @@ function Scoreboard() {
               <Table>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>順位</Table.Th>
-                    <Table.Th>チーム</Table.Th>
-                    <Table.Th ta="right">得点</Table.Th>
-                    <Table.Th ta="right">試合数</Table.Th>
-                    <Table.Th ta="right">勝利数</Table.Th>
+                    {header("rank", "順位", "left")}
+                    {header("name", "チーム", "left")}
+                    {header("total", "得点")}
+                    {header("matches", "試合数")}
+                    {header("wins", "勝利数")}
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {data.teams.map((team) => {
+                  {sortTeams(data.teams, sort).map((team) => {
                     const rank = data.teams.findIndex((other) => other.total === team.total) + 1;
                     // 試合数が N を超えたあとの試合は、勝っても、記録した点数に関係なく、固定点で数える
                     const exceeded = team.matches > data.rule.fixedAfterMatches;
@@ -48,12 +58,7 @@ function Scoreboard() {
                       <Table.Tr key={team.teamId} {...(team.matches === 0 ? { c: "dimmed" } : {})}>
                         <Table.Td>{rank}位</Table.Td>
                         <Table.Td>{team.name}</Table.Td>
-                        <Table.Td ta="right">
-                          <Text span fw={700}>
-                            {team.total}
-                          </Text>
-                          {" pt"}
-                        </Table.Td>
+                        <Table.Td ta="right">{team.total}pt</Table.Td>
                         <Table.Td ta="right">
                           <Group gap="xs" justify="flex-end" wrap="nowrap">
                             {exceeded && (
@@ -61,9 +66,7 @@ function Scoreboard() {
                                 {data.rule.fixedPoints}pt固定（試合数{data.rule.fixedAfterMatches}を超過）
                               </Badge>
                             )}
-                            <Text span fw={700}>
-                              {team.matches}
-                            </Text>
+                            <Text span>{team.matches}</Text>
                           </Group>
                         </Table.Td>
                         <Table.Td ta="right">{team.wins.length}</Table.Td>
@@ -81,6 +84,21 @@ function Scoreboard() {
   );
 }
 
+const compareBy: Record<SortKey, (a: ScoreTeam, b: ScoreTeam) => number> = {
+  rank: (a, b) => b.total - a.total,
+  name: (a, b) => a.name.localeCompare(b.name, "ja"),
+  total: (a, b) => a.total - b.total,
+  matches: (a, b) => a.matches - b.matches,
+  wins: (a, b) => a.wins.length - b.wins.length,
+};
+
+/** 選んだ列で並べ替える（同じ値は、元の並びのまま）。順位は、並び替えても、得点から決まる */
+function sortTeams(teams: ScoreTeam[], sort: { key: SortKey; direction: SortDirection } | null): ScoreTeam[] {
+  if (!sort) return teams;
+  const sign = sort.direction === "asc" ? 1 : -1;
+  return [...teams].sort((a, b) => sign * compareBy[sort.key](a, b));
+}
+
 function Teams() {
   const teams = useTeams();
   const roles = useRoles();
@@ -93,9 +111,9 @@ function Teams() {
   const registered = new Set(teams.data?.teams.map((team) => team.roleId));
 
   return (
-    <Section title="チームの追加と削除">
+    <Section title="チームの管理">
       <Text c="dimmed" size="sm">
-        チームは、Discord のロールです。名前もロールのものを使い、そのロールを持つ人が、メンバーです。削除しても、過去の組分け・勝利は残ります（同じロールを追加し直すと、元に戻ります）。まだ組まれていない枠の挙手は、取り消されます。
+        チームは Discord のロールです。名前はロールの名前を使い、そのロールを持つ人がメンバーです。
       </Text>
       <Async query={teams}>
         {(data) =>
@@ -105,7 +123,7 @@ function Teams() {
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>ロール</Table.Th>
+                  <Table.Th>チーム</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
@@ -114,7 +132,13 @@ function Teams() {
                   <Table.Tr key={team.id}>
                     <Table.Td>{team.name}</Table.Td>
                     <Table.Td ta="right">
-                      <ConfirmButton label="削除" danger disabled={remove.isPending} onConfirm={() => remove.mutate(team.id)} />
+                      <ConfirmButton
+                        label="削除"
+                        danger
+                        description="過去の組分けと勝利は残ります。まだ組まれていない対戦枠の挙手は取り消されます。同じロールを追加し直すと、元に戻ります。"
+                        disabled={remove.isPending}
+                        onConfirm={() => remove.mutate(team.id)}
+                      />
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -130,19 +154,20 @@ function Teams() {
           add.mutate({ roleId }, { onSuccess: () => setRoleId("") });
         }}
       >
-        <Group align="flex-end">
+        <Group gap="xs">
           {roles.data ? (
             <NativeSelect
-              label="ロール"
+              aria-label="追加するロール"
+              w={240}
               value={roleId}
               onChange={(event) => setRoleId(event.target.value)}
-              data={[{ value: "", label: "選択してください" }, ...roles.data.roles.filter((role) => !registered.has(role.id)).map((role) => ({ value: role.id, label: role.name }))]}
+              data={[{ value: "", label: "ロールを選択" }, ...roles.data.roles.filter((role) => !registered.has(role.id)).map((role) => ({ value: role.id, label: role.name }))]}
             />
           ) : (
-            <TextInput label="ロール ID" value={roleId} onChange={(event) => setRoleId(event.target.value)} inputMode="numeric" />
+            <TextInput aria-label="ロール ID" name="roleId" placeholder="ロール ID" spellCheck={false} w={240} value={roleId} onChange={(event) => setRoleId(event.target.value)} inputMode="numeric" />
           )}
           <Button type="submit" disabled={roleId === "" || add.isPending}>
-            追加する
+            チームを追加
           </Button>
         </Group>
       </form>

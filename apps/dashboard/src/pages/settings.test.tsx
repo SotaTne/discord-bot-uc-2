@@ -21,79 +21,104 @@ const apis = () => ({
   "GET /api/sessions": { body: { sessions: [] } },
 });
 
-describe("設定の画面: サーバーの設定", () => {
-  it("いまの設定が、フォームに入っている", async () => {
+const region = (name: string) => within(screen.getByRole("region", { name }));
+
+describe("設定の画面: 設定は、関わるものごとに、別々のセクションに分かれる", () => {
+  it("いまの設定が、それぞれのセクションに入っている", async () => {
     installFakeBackend(apis());
     renderApp("/settings");
 
     expect(((await screen.findByLabelText(/投稿先のチャンネル ID/)) as HTMLInputElement).value).toBe("300000000000000001");
-    expect((screen.getByLabelText("募集を開始する時刻（時, JST）") as HTMLInputElement).value).toBe("12");
-    expect((screen.getByLabelText("試合の何分前に締め切るか") as HTMLInputElement).value).toBe("7");
-    expect((screen.getByLabelText("何試合目までは、勝ったとき、記録した点数で集計するか（それを超えた試合は、固定点）") as HTMLInputElement).value).toBe("5");
-    expect((screen.getByLabelText("それを超えた試合で勝ったときの、固定の点数") as HTMLInputElement).value).toBe("100");
+    expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
+    expect((screen.getByLabelText("締切（試合の何分前）") as HTMLInputElement).value).toBe("7");
+    expect((screen.getByLabelText("N（記録した点数で集計する試合数）") as HTMLInputElement).value).toBe("5");
+    expect((screen.getByLabelText("固定点") as HTMLInputElement).value).toBe("100");
+    expect((screen.getByLabelText(/これまでのログインをすべて失効させる/) as HTMLInputElement).checked).toBe(false);
   });
 
-  it("変更して保存すると、数値と真偽値の形で送る。チャンネルを空にすると null", async () => {
+  it("「投稿と募集」だけを保存しても、ほかの項目は、いまの値のまま送る。チャンネルを空にすると null", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
     renderApp("/settings");
     fireEvent.change(await screen.findByLabelText(/投稿先のチャンネル ID/), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("募集を開始する時刻（時, JST）"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("試合の何分前に締め切るか"), { target: { value: "15" } });
-    fireEvent.click(screen.getByLabelText(/これまでのログインをすべて無効にする/));
+    fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "15" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "保存する" }));
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
 
-    expect(await screen.findByText("保存しました")).toBeTruthy();
+    expect(await region("投稿と募集").findByText("保存しました")).toBeTruthy();
     expect(backend.last("PUT", "/api/settings")?.json).toEqual({
       channelId: null,
       recruitHour: 10,
       cutoffMinutes: 15,
       fixedAfterMatches: 5,
       fixedPoints: 100,
-      revokeSessionsOnReissue: true,
+      revokeSessionsOnReissue: false,
     });
   });
 
-  it("入力が不正で保存できなかったら、入力の確認を促す", async () => {
+  it("「得点の集計」を保存すると、N と固定点だけが変わる", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
+    renderApp("/settings");
+    fireEvent.change(await screen.findByLabelText("N（記録した点数で集計する試合数）"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
+
+    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(backend.count("PUT", "/api/settings")).toBe(1));
+    expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ channelId: "300000000000000001", fixedAfterMatches: 3, fixedPoints: 80 });
+  });
+
+  it("ログインの設定は、切り替えると、その場で保存する（保存ボタンはない）", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
+    renderApp("/settings");
+
+    fireEvent.click(await screen.findByLabelText(/これまでのログインをすべて失効させる/));
+
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ revokeSessionsOnReissue: true, fixedPoints: 100 }));
+    expect(region("ログイン").queryByRole("button", { name: "保存する" })).toBeNull();
+  });
+
+  it("入力が不正で保存できなかったら、そのセクションに、入力の確認を促す", async () => {
     installFakeBackend({ ...apis(), "PUT /api/settings": { status: 400, body: { success: false, error: { name: "ZodError" } } } });
     renderApp("/settings");
 
-    fireEvent.click(await screen.findByRole("button", { name: "保存する" }));
+    await screen.findByLabelText("固定点");
+    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
 
-    expect((await screen.findByRole("alert")).textContent).toContain("入力内容を確認してください");
+    expect((await region("得点の集計").findByRole("alert")).textContent).toContain("入力内容を確認してください");
   });
 });
 
-describe("設定の画面: 試合枠", () => {
-  it("登録済みの枠を出し、追加の候補からは登録済みの時刻を除く", async () => {
+describe("設定の画面: 試合時刻", () => {
+  it("登録済みの試合時刻を出し、追加の候補からは登録済みの時刻を除く", async () => {
     installFakeBackend(apis());
     renderApp("/settings");
 
-    // 登録済みの枠（21:00 の削除ボタン）が表示されてから、追加の候補を確かめる
-    await screen.findByRole("button", { name: "21:00の枠を削除" });
-    const select = screen.getByLabelText("追加する枠");
+    // 登録済みの試合時刻（21:00 の削除ボタン）が表示されてから、追加の候補を確かめる
+    await screen.findByRole("button", { name: "21:00の試合時刻を削除" });
+    const select = screen.getByLabelText("追加する試合時刻");
     const options = within(select).getAllByRole("option").map((o) => o.textContent);
     expect(options).toContain("20:00");
     expect(options).not.toContain("21:00");
     expect(options).not.toContain("22:00");
   });
 
-  it("枠を追加できる", async () => {
+  it("試合時刻を追加できる", async () => {
     const backend = installFakeBackend({ ...apis(), "POST /api/slots": { status: 201, body: { id: 14 } } });
     renderApp("/settings");
     await screen.findByRole("option", { name: "20:00" });
 
-    fireEvent.change(screen.getByLabelText("追加する枠"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("追加する試合時刻"), { target: { value: "20" } });
     fireEvent.click(screen.getAllByRole("button", { name: "追加する" })[0]!);
 
     await waitFor(() => expect(backend.last("POST", "/api/slots")?.json).toEqual({ hour: 20 }));
   });
 
-  it("枠を削除できる", async () => {
+  it("試合時刻を削除できる", async () => {
     const backend = installFakeBackend({ ...apis(), "DELETE /api/slots/11": { body: { ok: true } } });
     renderApp("/settings");
 
-    fireEvent.click(await screen.findByRole("button", { name: "21:00の枠を削除" }));
+    fireEvent.click(await screen.findByRole("button", { name: "21:00の試合時刻を削除" }));
 
     await waitFor(() => expect(backend.count("DELETE", "/api/slots/11")).toBe(1));
   });

@@ -2,7 +2,7 @@ import { Badge, Button, Group, Table, Text } from "@mantine/core";
 import { Async, ConfirmButton, ErrorNote, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
-import { formatJstDateTime } from "../lib/format";
+import { describeBrowser, formatJstDateTime } from "../lib/format";
 import { useInvalidatingMutation, useSessions } from "../lib/queries";
 
 /** ログイン中の端末（誰が・いつログインして・いつまで有効か）の確認と、失効 */
@@ -47,9 +47,7 @@ export function Sessions() {
                     </Table.Td>
                     <Table.Td>{formatJstDateTime(session.createdAt)}</Table.Td>
                     <Table.Td>{formatJstDateTime(session.expiresAt)}</Table.Td>
-                    <Table.Td c="dimmed" maw={260} style={{ whiteSpace: "normal" }}>
-                      {session.userAgent ?? "—"}
-                    </Table.Td>
+                    <Table.Td>{describeBrowser(session.userAgent)}</Table.Td>
                     <Table.Td>
                       <Button variant="default" disabled={revoke.isPending} onClick={() => revoke.mutate(session.id)} aria-label={`${session.userName}のログインを失効させる`}>
                         失効させる
@@ -67,13 +65,13 @@ export function Sessions() {
           label="すべてのログインを失効させる"
           confirmLabel="すべて失効させる"
           heavy
-          description="すべての端末のログインを失効させます。いま使っているブラウザも、ログアウトされます。"
+          description="すべての端末のログインを失効させます。いま使っているブラウザもログアウトされます。"
           danger
           disabled={revokeAll.isPending}
           onConfirm={() => revokeAll.mutate(undefined)}
         />
         <Text c="dimmed" size="sm">
-          いま使っているブラウザも、ログアウトされます。
+          いま使っているブラウザもログアウトされます。
         </Text>
       </Group>
       <ErrorNote error={revoke.error ?? revokeAll.error} />
