@@ -59,9 +59,9 @@ export const teams = sqliteTable(
 );
 
 /**
- * 対戦枠（match slot）: ある日の、ある時刻の試合（日付 × 枠）。挙手・組み合わせ（matches）は、すべてこれに紐づく。
- * open（未マッチング。挙手を受け付ける）→ matched（マッチング処理済み。挙手を受け付けない）。
- * 時刻ではなく、この状態が「挙手を受け付けるか」の根拠になる（時計を戻しても、処理済みの枠は開かない）。
+ * 対戦枠（match slot）: ある日の、ある時刻の試合（日付 × 対戦枠）。挙手・組分け（matches）は、すべてこれに紐づく。
+ * open（未マッチング。挙手を受け付ける）→ matched（マッチング済み。挙手を受け付けない）。
+ * 時刻ではなく、この状態が「挙手を受け付けるか」の根拠になる（時計を戻しても、処理済みの対戦枠は開かない）。
  */
 export const matchSlots = sqliteTable(
   "match_slots",
@@ -105,14 +105,14 @@ export const handups = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
-    // 同じ枠・チームの挙手は1件だけ。取り消すと、行ごと削除する（取り消した履歴は、残さない）ので、取り消した後の再挙手もできる。
+    // 同じ対戦枠・チームの挙手は1件だけ。取り消すと、行ごと削除する（取り消した履歴は、残さない）ので、取り消した後の再挙手もできる。
     uniqueIndex("handups_unique").on(t.matchSlotId, t.teamId),
     index("handups_match_slot").on(t.matchSlotId),
   ],
 );
 
 /**
- * 組み合わせ（試合）: 対戦枠で組まれた2チーム。勝利は、これに紐づく。
+ * 組分け（試合）: 対戦枠で組まれた2チーム。勝利は、これに紐づく。
  * 対戦枠のマッチングを処理すると作られる（作り直さない。勝利が紐づくため）。
  */
 export const matches = sqliteTable(
@@ -136,7 +136,7 @@ export const matches = sqliteTable(
 );
 
 /**
- * 勝利の記録。どの試合（組み合わせ）の、どのチームの勝利かを持つ。
+ * 勝利の記録。どの試合（組分け）の、どのチームの勝利かを持つ。
  * 間違えた記録は、削除せずに「無効」にする（`active = false`。あとで有効に戻せる）。無効な記録は、得点に数えない。
  * 「得点のクリア」は、このテーブルの行をすべて削除する（履歴も 0 になる）。
  */
@@ -145,7 +145,7 @@ export const wins = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     guildId: text("guild_id").notNull(),
-    /** 勝った試合（組み合わせ） */
+    /** 勝った試合（組分け） */
     matchId: integer("match_id")
       .notNull()
       .references(() => matches.id),
@@ -157,7 +157,7 @@ export const wins = sqliteTable(
     points: integer("points").notNull(),
     /** 有効か。false の記録は、得点にも、勝数にも数えない */
     active: integer("active", { mode: "boolean" }).notNull().default(true),
-    /** スクリーンショットの R2 キー */
+    /** 画像の R2 キー */
     screenshotKey: text("screenshot_key"),
     /** 記録した人（Discord のユーザー ID など） */
     recordedBy: text("recorded_by").notNull(),

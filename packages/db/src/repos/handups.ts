@@ -32,7 +32,7 @@ const selectHandups = (db: Db) => db.select(columns).from(handups).innerJoin(mat
 
 /**
  * 挙手を作る。対戦枠がなければ、未マッチングで作る。
- * - 対戦枠がマッチング処理済みなら、MatchSlotMatchedError（時刻に関係なく、受け付けない）
+ * - 対戦枠がマッチング済みなら、MatchSlotMatchedError（時刻に関係なく、受け付けない）
  * - 同じ対戦枠・チームに、挙手がすでにあると、UNIQUE 制約で失敗する（isUniqueViolation で判定できる）
  */
 export async function createHandup(
@@ -58,7 +58,7 @@ export async function createHandup(
 
 /**
  * 挙手を付ける（なければ作る。あれば、そのまま）。管理者が組分けを追加したときの「自動挙手」に使う。
- * 通常の挙手（createHandup）と違って、対戦枠がマッチング処理済みでも、付けられる。
+ * 通常の挙手（createHandup）と違って、対戦枠がマッチング済みでも、付けられる。
  */
 export async function ensureHandup(
   db: Db,
@@ -96,10 +96,10 @@ export async function findHandup(db: Db, key: SlotKey): Promise<Handup | undefin
   return row;
 }
 
-/** 取り消しの結果。matched は、対戦枠がマッチング処理済みで、取り消せなかった */
+/** 取り消しの結果。matched は、対戦枠がマッチング済みで、取り消せなかった */
 export type WithdrawResult = "withdrawn" | "not_found" | "matched";
 
-/** 挙手を取り消す（行を削除する。取り消した履歴は、残さない）。対戦枠がマッチング処理済みなら、取り消せない */
+/** 挙手を取り消す（行を削除する。取り消した履歴は、残さない）。対戦枠がマッチング済みなら、取り消せない */
 export async function withdrawHandup(db: Db, key: SlotKey): Promise<WithdrawResult> {
   const found = await findHandup(db, key);
   if (!found) return "not_found";
@@ -139,7 +139,7 @@ export function listHandupsOnDate(db: Db, input: { guildId: string; slotDate: st
     .orderBy(asc(matchSlots.slotHour), asc(handups.createdAt), asc(handups.id));
 }
 
-/** ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング処理済みなら、取り消せない */
+/** ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング済みなら、取り消せない */
 export async function withdrawHandupById(db: Db, input: { guildId: string; id: number }): Promise<WithdrawResult> {
   const [row] = await selectHandups(db)
     .where(and(eq(handups.guildId, input.guildId), eq(handups.id, input.id)))

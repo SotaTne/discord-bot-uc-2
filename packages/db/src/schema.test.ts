@@ -19,7 +19,7 @@ function insertTeam(_label: string, roleId: string, guildId = GUILD): number {
   return Number(result.lastInsertRowid);
 }
 
-/** 対戦枠（日付 × 枠）。同じものがあれば、それを使う */
+/** 対戦枠（日付 × 対戦枠）。同じものがあれば、それを使う */
 function matchSlotId(slotHour = 21, slotDate = "2026-10-07"): number {
   db.prepare("INSERT OR IGNORE INTO match_slots (guild_id, slot_date, slot_hour, created_at) VALUES (?, ?, ?, ?)").run(
     GUILD,
@@ -45,7 +45,7 @@ describe("match_slots（対戦枠）", () => {
       .prepare("INSERT INTO match_slots (guild_id, slot_date, slot_hour, status, matched_at, created_at) VALUES (?, ?, ?, ?, ?, ?)")
       .run(GUILD, "2026-10-07", hour, status, matchedAt, NOW);
 
-  it("同じ日・枠は、1つだけ", () => {
+  it("同じ日・対戦枠は、1つだけ", () => {
     insertFixture(21);
     expect(() => insertFixture(21)).toThrow(/UNIQUE/);
     expect(() => insertFixture(22)).not.toThrow();
@@ -107,13 +107,13 @@ describe("slots", () => {
 });
 
 describe("handups", () => {
-  it("同じ枠・チームの挙手は1件だけ", () => {
+  it("同じ対戦枠・チームの挙手は1件だけ", () => {
     const team = insertTeam("KMU", "r1");
     insertHandup(team);
     expect(() => insertHandup(team)).toThrow(/UNIQUE/);
   });
 
-  it("別の枠・別の日・別のチームなら挙手できる", () => {
+  it("別の対戦枠・別の日・別のチームなら挙手できる", () => {
     const a = insertTeam("KMU", "r1");
     const b = insertTeam("UT", "r2");
     insertHandup(a, 21);
@@ -122,7 +122,7 @@ describe("handups", () => {
     expect(() => insertHandup(b, 21)).not.toThrow();
   });
 
-  it("取り消す（行を削除する）と、同じ枠に挙手し直せる。取り消した行は、残らない", () => {
+  it("取り消す（行を削除する）と、同じ対戦枠に挙手し直せる。取り消した行は、残らない", () => {
     const team = insertTeam("KMU", "r1");
     insertHandup(team);
     db.prepare("DELETE FROM handups WHERE team_id = ?").run(team);
@@ -137,7 +137,7 @@ describe("handups", () => {
   });
 });
 
-describe("matches（組み合わせ）", () => {
+describe("matches（組分け）", () => {
   const insertMatch = (a: number, b: number, slot = 21) =>
     db.prepare("INSERT INTO matches (match_slot_id, team_a_id, team_b_id) VALUES (?, ?, ?)").run(matchSlotId(slot), a, b);
 
@@ -150,7 +150,7 @@ describe("matches（組み合わせ）", () => {
   });
 });
 
-/** 試合（組み合わせ）を1つ作って、その ID を返す */
+/** 試合（組分け）を1つ作って、その ID を返す */
 function aMatch(): number {
   const a = insertTeam(`A${Math.random()}`, `ra${Math.random()}`);
   const b = insertTeam(`B${Math.random()}`, `rb${Math.random()}`);
@@ -247,7 +247,7 @@ describe("job_runs", () => {
     expect(() => insertJob("cutoff:2026-10-07:21")).toThrow(/UNIQUE/);
   });
 
-  it("別の枠・別のサーバーなら実行済みにできる", () => {
+  it("別の対戦枠・別のサーバーなら実行済みにできる", () => {
     insertJob("cutoff:2026-10-07:21");
     expect(() => insertJob("cutoff:2026-10-07:22")).not.toThrow();
     expect(() => insertJob("cutoff:2026-10-07:21", "200")).not.toThrow();

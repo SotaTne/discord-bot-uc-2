@@ -4,7 +4,7 @@ import { dashboardLinks, handups, jobRuns, matches, matchSlots, sessions, wins }
 
 /**
  * 開発用: サーバーの「活動の記録」（挙手・マッチング結果・得点・cron の履歴・ログイン）をすべて消す。
- * 設定・試合枠・チームは、残す。本番のデータには使わない（worker は、開発用の設定のときだけ呼べるようにしている）。
+ * 設定・試合時刻・チームは、残す。本番のデータには使わない（worker は、開発用の設定のときだけ呼べるようにしている）。
  */
 export async function deleteGuildActivity(db: Db, guildId: string): Promise<void> {
   await db.delete(wins).where(eq(wins.guildId, guildId));

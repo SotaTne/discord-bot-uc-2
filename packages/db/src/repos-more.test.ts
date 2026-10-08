@@ -86,7 +86,7 @@ const save = (input: { slotHour?: number; slotDate?: string; guildId?: string; e
   });
 
 describe("マッチング結果", () => {
-  it("ペアと除外チームを保存して、日付・時刻の順に読み出せる。組み合わせは、試合の ID を持つ", async () => {
+  it("ペアと除外チームを保存して、日付・時刻の順に読み出せる。組分けは、試合の ID を持つ", async () => {
     const [a, b, c] = [await team("A", "r1"), await team("B", "r2"), await team("C", "r3")];
     await save({ slotHour: 22, now: 2 });
     await save({ slotHour: 21, excludedTeamId: c, pairs: [[a, b]], now: 1 });
@@ -98,14 +98,14 @@ describe("マッチング結果", () => {
     expect(slots[1]?.pairs).toEqual([]);
   });
 
-  it("保存すると、対戦枠はマッチング処理済みになる。まだの枠は、結果に出ない", async () => {
+  it("保存すると、対戦枠はマッチング済みになる。まだの対戦枠は、結果に出ない", async () => {
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 20, teamId: await team("A", "r1"), raisedBy: "u", createdAt: 1 });
     await save({ slotHour: 21 });
 
     expect((await listMatchedSlots(db, { guildId: GUILD })).map((r) => r.slotHour)).toEqual([21]);
   });
 
-  it("同じ枠をもう一度保存しても、試合は作り直さない（勝利が紐づくので、ID が変わらない）", async () => {
+  it("同じ対戦枠をもう一度保存しても、試合は作り直さない（勝利が紐づくので、ID が変わらない）", async () => {
     const [a, b] = [await team("A", "r1"), await team("B", "r2")];
     await save({ pairs: [[a, b]], now: 1 });
     const before = (await listMatchedSlots(db, { guildId: GUILD }))[0]!.pairs;
@@ -131,7 +131,7 @@ describe("マッチング結果", () => {
     expect(await listMatchedSlots(db, { guildId: GUILD })).toEqual([]);
   });
 
-  it("あるチームの試合を、日付・枠・チームで探せる。対戦していないチーム・マッチングされていない枠は、見つからない", async () => {
+  it("あるチームの試合を、日付・対戦枠・チームで探せる。対戦していないチーム・マッチングされていない対戦枠は、見つからない", async () => {
     const [a, b, c] = [await team("A", "r1"), await team("B", "r2"), await team("C", "r3")];
     await save({ pairs: [[a, b]], excludedTeamId: c });
     const key = { guildId: GUILD, slotDate: DATE, slotHour: 21 };
@@ -295,7 +295,7 @@ describe("セッション", () => {
   });
 });
 
-describe("チーム・試合枠の削除", () => {
+describe("チーム・試合時刻の削除", () => {
   it("チームを ID で探して、削除（論理削除）できる。削除済みは、探しても出ない。もう一度は false", async () => {
     const id = await team("KMU", "r1");
 
@@ -318,7 +318,7 @@ describe("チーム・試合枠の削除", () => {
     expect(await findTeamsByRoleIds(db, GUILD, ["r1", "r2"])).toHaveLength(1);
   });
 
-  it("参照されているチームも削除できる。組分け・勝利・マッチング済みの挙手は残り、まだ組まれていない枠の挙手は取り消される", async () => {
+  it("参照されているチームも削除できる。組分け・勝利・マッチング済みの挙手は残り、まだ組まれていない対戦枠の挙手は取り消される", async () => {
     const [kmu, ut] = [await team("KMU", "r1"), await team("UT", "r2")];
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 21, teamId: kmu, raisedBy: "u", createdAt: 1 });
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 22, teamId: kmu, raisedBy: "u", createdAt: 1 });
@@ -344,7 +344,7 @@ describe("チーム・試合枠の削除", () => {
     expect(isUniqueViolation(error)).toBe(true);
   });
 
-  it("試合枠を削除できる", async () => {
+  it("試合時刻を削除できる", async () => {
     const id = await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 1 });
 
     expect(await deleteSlot(db, OTHER, id)).toBe(false);
@@ -364,7 +364,7 @@ describe("cron の対象のサーバー", () => {
 });
 
 describe("管理者向けの挙手の参照・取り消し", () => {
-  it("枠の挙手を挙手順に返す。その日の全チームの挙手も返す。取り消した挙手は、どちらにも含まない", async () => {
+  it("対戦枠の挙手を挙手順に返す。その日の全チームの挙手も返す。取り消した挙手は、どちらにも含まない", async () => {
     const [a, b] = [await team("A", "r1"), await team("B", "r2")];
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 21, teamId: b, raisedBy: "u2", createdAt: 20 });
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 21, teamId: a, raisedBy: "u1", createdAt: 10 });
@@ -420,7 +420,7 @@ describe("画面のための参照（cron の履歴・ログインリンク）",
 });
 
 describe("開発用: 活動の記録の初期化", () => {
-  it("挙手・マッチング・得点・ジョブ・ログインを消して、設定・枠・チームは残す。別のサーバーには影響しない", async () => {
+  it("挙手・マッチング・得点・ジョブ・ログインを消して、設定・対戦枠・チームは残す。別のサーバーには影響しない", async () => {
     const a = await team("A", "r1");
     const b = await team("B", "r2");
     const other = await team("X", "r9", OTHER);

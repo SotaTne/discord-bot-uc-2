@@ -102,7 +102,7 @@ describe("チーム", () => {
   });
 });
 
-describe("試合枠", () => {
+describe("試合時刻", () => {
   it("開始時刻の早い順に一覧できる", async () => {
     for (const hour of [23, 21, 22]) await createSlot(db, { guildId: GUILD, hour, createdAt: 1 });
 
@@ -131,7 +131,7 @@ describe("挙手", () => {
     expect(await findHandup(db, key(kmu, 22))).toBeUndefined();
   });
 
-  it("同じ日・枠・チームに、取り消されていない挙手が2つ作れない", async () => {
+  it("同じ日・対戦枠・チームに、取り消されていない挙手が2つ作れない", async () => {
     const kmu = await team("KMU", "r1");
     await raise(kmu, 100);
 
@@ -140,7 +140,7 @@ describe("挙手", () => {
     expect(isUniqueViolation(error)).toBe(true);
   });
 
-  it("取り消すと、行ごと削除される（履歴は残らない）。見つからなくなり、同じ枠にもう一度挙手できる", async () => {
+  it("取り消すと、行ごと削除される（履歴は残らない）。見つからなくなり、同じ対戦枠にもう一度挙手できる", async () => {
     const kmu = await team("KMU", "r1");
     await raise(kmu, 100);
 

@@ -5,7 +5,7 @@ import { matchSlots } from "../schema";
 export type MatchSlot = typeof matchSlots.$inferSelect;
 export type MatchSlotKey = { guildId: string; slotDate: string; slotHour: number };
 
-/** マッチング処理済み（挙手を受け付けない）の対戦枠に、挙手などをしようとしたとき */
+/** マッチング済み（挙手を受け付けない）の対戦枠に、挙手などをしようとしたとき */
 export class MatchSlotMatchedError extends Error {
   constructor() {
     super("この対戦枠は、すでにマッチングが済んでいます");
@@ -22,7 +22,7 @@ export async function findMatchSlot(db: Db, key: MatchSlotKey): Promise<MatchSlo
 }
 
 /**
- * 日付 × 枠の対戦枠を返す。なければ、未マッチング（open）で作る。
+ * 日付 × 試合時刻の対戦枠を返す。なければ、未マッチング（open）で作る。
  * 同時に作られても、UNIQUE 制約で1件になる。
  */
 export async function ensureMatchSlot(db: Db, input: MatchSlotKey & { createdAt: number }): Promise<MatchSlot> {
@@ -36,7 +36,7 @@ export async function ensureMatchSlot(db: Db, input: MatchSlotKey & { createdAt:
 }
 
 /**
- * 対戦枠を、マッチング処理済みにする（挙手を受け付けなくなる）。
+ * 対戦枠を、マッチング済みにする（挙手を受け付けなくなる）。
  * すでに処理済みなら何もしない（やり直しても、処理した時刻は変わらない）。
  */
 export async function markMatchSlotMatched(db: Db, input: { id: number; matchedAt: number }): Promise<void> {

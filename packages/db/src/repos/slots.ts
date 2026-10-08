@@ -9,7 +9,7 @@ export async function createSlot(
   input: { guildId: string; hour: number; createdAt: number },
 ): Promise<number> {
   const [row] = await db.insert(slots).values(input).returning({ id: slots.id });
-  if (!row) throw new Error("試合枠の作成に失敗しました");
+  if (!row) throw new Error("試合時刻の作成に失敗しました");
   return row.id;
 }
 

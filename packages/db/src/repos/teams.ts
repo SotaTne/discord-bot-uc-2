@@ -44,7 +44,7 @@ export async function findTeamById(db: Db, guildId: string, id: number, lookup?:
 
 /**
  * チームを削除する（論理削除）。過去の組分け・勝利は、そのまま残る。
- * まだマッチングされていない枠の挙手は、取り消す（マッチング済みの枠の挙手は、履歴なので残す）。
+ * まだマッチングされていない対戦枠の挙手は、取り消す（マッチング済みの対戦枠の挙手は、履歴なので残す）。
  * 見つからない・すでに削除済みなら false。
  */
 export async function deleteTeam(db: Db, guildId: string, id: number, now: number): Promise<boolean> {

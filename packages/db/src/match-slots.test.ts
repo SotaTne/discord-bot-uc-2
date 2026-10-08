@@ -33,7 +33,7 @@ beforeEach(async () => {
 });
 
 describe("対戦枠（fixtures）", () => {
-  it("なければ、未マッチング（open）で作る。同じ日・枠なら、同じものを返す", async () => {
+  it("なければ、未マッチング（open）で作る。同じ日・対戦枠なら、同じものを返す", async () => {
     const first = await ensureMatchSlot(db, { ...slot, createdAt: 10 });
     const second = await ensureMatchSlot(db, { ...slot, createdAt: 99 });
 
@@ -42,7 +42,7 @@ describe("対戦枠（fixtures）", () => {
     expect(await findMatchSlot(db, { ...slot, slotHour: 22 })).toBeUndefined();
   });
 
-  it("マッチング処理済みにすると、時刻が入る。やり直しても、最初の時刻のまま", async () => {
+  it("マッチング済みにすると、時刻が入る。やり直しても、最初の時刻のまま", async () => {
     const fixture = await ensureMatchSlot(db, { ...slot, createdAt: 10 });
 
     await markMatchSlotMatched(db, { id: fixture.id, matchedAt: 100 });
@@ -61,17 +61,17 @@ describe("対戦枠（fixtures）", () => {
   });
 });
 
-describe("マッチング処理済みの対戦枠は、挙手を受け付けない（時刻には、関係しない）", () => {
+describe("マッチング済みの対戦枠は、挙手を受け付けない（時刻には、関係しない）", () => {
   const raise = (teamId: number) => createHandup(db, { ...slot, teamId, raisedBy: "u", createdAt: 1 });
 
-  it("挙手すると、対戦枠が作られて、紐づく。ほかの枠・日には、影響しない", async () => {
+  it("挙手すると、対戦枠が作られて、紐づく。ほかの対戦枠・日には、影響しない", async () => {
     await raise(kmu);
 
     expect(await findMatchSlot(db, slot)).toMatchObject({ status: "open" });
     expect(await listHandupsForSlot(db, slot)).toMatchObject([{ teamId: kmu, slotDate: DATE, slotHour: 21 }]);
   });
 
-  it("処理済みの対戦枠には、挙手できない。別の枠・別の日には、できる", async () => {
+  it("処理済みの対戦枠には、挙手できない。別の対戦枠・別の日には、できる", async () => {
     await raise(kmu);
     const fixture = (await findMatchSlot(db, slot))!;
     await markMatchSlotMatched(db, { id: fixture.id, matchedAt: 100 });
@@ -91,7 +91,7 @@ describe("マッチング処理済みの対戦枠は、挙手を受け付けな�
   });
 });
 
-describe("組み合わせと勝利は、対戦枠・試合に紐づく", () => {
+describe("組分けと勝利は、対戦枠・試合に紐づく", () => {
   const save = (over: { slotHour?: number; pairs?: [number, number][] } = {}) =>
     saveMatchResult(db, { ...slot, slotHour: 21, excludedTeamId: null, pairs: [], now: 10, ...over });
 
@@ -119,7 +119,7 @@ describe("組み合わせと勝利は、対戦枠・試合に紐づく", () => {
     ]);
   });
 
-  it("存在しない試合には、勝利を記録できない", async () => {
+  it("存在しない試合には、勝利を追加できない", async () => {
     await expect(
       insertWin(db, { guildId: GUILD, matchId: 999, teamId: kmu, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 1 }),
     ).rejects.toThrow();

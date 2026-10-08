@@ -58,7 +58,7 @@ describe("ensureHandup（自動挙手）", () => {
     expect(await listHandupsForSlot(db, slot)).toMatchObject([{ teamId: a, raisedBy: "admin" }]);
   });
 
-  it("マッチング処理済みの枠にも、付けられる（通常の挙手と違って）", async () => {
+  it("マッチング済みの対戦枠にも、付けられる（通常の挙手と違って）", async () => {
     await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [], now: 5 });
     await expect(createHandup(db, { ...slot, teamId: a, raisedBy: "u", createdAt: 6 })).rejects.toThrow();
 
@@ -78,7 +78,7 @@ describe("addMatch（管理者による、組分けの追加）", () => {
     expect(await findMatchForTeam(db, { ...slot, teamId: b })).toMatchObject({ matchId: id });
   });
 
-  it("同じ枠で、すでに組分けに入っているチームは、入れない。別の枠・別の日なら、入れる", async () => {
+  it("同じ対戦枠で、すでに組分けに入っているチームは、入れない。別の対戦枠・別の日なら、入れる", async () => {
     await add(a, b);
 
     await expect(add(a, c)).rejects.toBeInstanceOf(MatchTeamTakenError);
@@ -96,7 +96,7 @@ describe("addMatch（管理者による、組分けの追加）", () => {
     expect((await findMatchSlot(db, slot))?.excludedTeamId).toBeNull();
   });
 
-  it("日付ごとに、枠の時刻・追加した順に返す。ほかのサーバーは含まない", async () => {
+  it("日付ごとに、対戦枠の時刻・追加した順に返す。ほかのサーバーは含まない", async () => {
     const late = await add(c, d, { slotHour: 22 });
     const early = await add(a, b);
     await addMatch(db, { guildId: "999", slotDate: DATE, slotHour: 21, teamAId: a, teamBId: b, createdAt: 1 }).catch(() => undefined);

@@ -46,7 +46,7 @@ const selectWins = (db: Db) =>
     .innerJoin(matchSlots, eq(matches.matchSlotId, matchSlots.id));
 
 /**
- * 勝利を記録する（はじめは有効）。どの試合（組み合わせ）の勝利かを持つ。
+ * 勝利を追加する（はじめは有効）。どの試合（組分け）の勝利かを持つ。
  * teamId は、その試合の2チームのどちらか（呼び出し側が、findMatchForTeam で確かめる）。
  * 点数は入力された生の値（N 試合を超えた試合の固定点は、集計時に適用する）。
  */
@@ -77,7 +77,7 @@ export async function setWinActive(db: Db, input: { guildId: string; id: number;
   return rows.length > 0;
 }
 
-/** 記録の点数（生の点数）を直す。勝ったチーム・組分け・画像は、変えない。見つからなければ false */
+/** 記録の点数（記録した点数）を書き換える。勝ったチーム・組分け・画像は、変えない。見つからなければ false */
 export async function updateWinPoints(db: Db, input: { guildId: string; id: number; points: number }): Promise<boolean> {
   const rows = await db
     .update(wins)

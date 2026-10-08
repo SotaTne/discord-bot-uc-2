@@ -3,7 +3,7 @@ import type { Db } from "../client";
 import { matches, matchSlots, wins } from "../schema";
 import { ensureMatchSlot, findMatchSlot, markMatchSlotMatched } from "./match-slots";
 
-/** マッチング処理済みの対戦枠と、組まれた試合（組み合わせ） */
+/** マッチング済みの対戦枠と、組まれた試合（組分け） */
 export type MatchedSlot = {
   id: number;
   guildId: string;
@@ -16,10 +16,10 @@ export type MatchedSlot = {
   pairs: { matchId: number; teamAId: number; teamBId: number }[];
 };
 
-/** 組分けに入れようとしたチームが、その枠で、すでに別の組分けに入っているとき */
+/** 組分けに入れようとしたチームが、その対戦枠で、すでに別の組分けに入っているとき */
 export class MatchTeamTakenError extends Error {
   constructor() {
-    super("そのチームは、この枠で、すでに組分けに入っています");
+    super("そのチームは、この対戦枠で、すでに組分けに入っています");
     this.name = "MatchTeamTakenError";
   }
 }
@@ -28,10 +28,10 @@ const inSlot = (matchSlotId: number, teamId: number) =>
   and(eq(matches.matchSlotId, matchSlotId), or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)));
 
 /**
- * マッチング結果を保存する。対戦枠をマッチング処理済みにして、除外チームと、組分けを保存する。
+ * マッチング結果を保存する。対戦枠をマッチング済みにして、除外チームと、組分けを保存する。
  * 組分けは、すでにある組（同じ2チーム）は、作り直さない（勝利が紐づくので、ID を変えない）。
  * 管理者が先に追加した組分けは、残る（自動のマッチングは、その分を、足すだけ）。
- * （処理済みの枠は、挙手が変わらないので、やり直しても同じ結果になる）
+ * （処理済みの対戦枠は、挙手が変わらないので、やり直しても同じ結果になる）
  */
 export async function saveMatchResult(
   db: Db,
@@ -61,7 +61,7 @@ export async function saveMatchResult(
 
 /**
  * 管理者が、組分けを追加する。対戦枠がなければ、未マッチングで作る（処理済みには、しない）。
- * どちらかのチームが、その枠で、すでに別の組分けに入っていれば、MatchTeamTakenError。
+ * どちらかのチームが、その対戦枠で、すでに別の組分けに入っていれば、MatchTeamTakenError。
  * 除外されていたチームが入れば、除外は外す。
  */
 export async function addMatch(
@@ -104,7 +104,7 @@ export async function deleteMatch(db: Db, input: { guildId: string; id: number }
   return { screenshotKeys: removed.flatMap((row) => (row.key === null ? [] : [row.key])) };
 }
 
-/** その日の、すべての組分け（マッチング処理済みかどうかに関係なく）。枠の時刻・追加した順 */
+/** その日の、すべての組分け（マッチング済みかどうかに関係なく）。対戦枠の時刻・追加した順 */
 export async function listMatchesOnDate(
   db: Db,
   input: { guildId: string; slotDate: string },
@@ -117,7 +117,7 @@ export async function listMatchesOnDate(
     .orderBy(asc(matchSlots.slotHour), asc(matches.id));
 }
 
-/** ID で組分けを探す（そのサーバーのものだけ）。枠の日付・時刻つき */
+/** ID で組分けを探す（そのサーバーのものだけ）。対戦枠の日付・時刻つき */
 export async function findMatch(
   db: Db,
   input: { guildId: string; id: number },
@@ -131,7 +131,7 @@ export async function findMatch(
   return row;
 }
 
-/** マッチング処理済みの対戦枠を、組み合わせつきで返す。slotDate を指定するとその日だけ。日付・時刻の順 */
+/** マッチング済みの対戦枠を、組分けつきで返す。slotDate を指定するとその日だけ。日付・時刻の順 */
 export async function listMatchedSlots(db: Db, input: { guildId: string; slotDate?: string }): Promise<MatchedSlot[]> {
   const where = and(
     eq(matchSlots.guildId, input.guildId),
@@ -160,7 +160,7 @@ export async function listMatchedSlots(db: Db, input: { guildId: string; slotDat
   }));
 }
 
-/** その対戦枠（日付 × 枠）で、そのチームが出る試合。なければ undefined（マッチングされていない・対戦していない） */
+/** その対戦枠（日付 × 対戦枠）で、そのチームが出る試合。なければ undefined（マッチングされていない・対戦していない） */
 export async function findMatchForTeam(
   db: Db,
   input: { guildId: string; slotDate: string; slotHour: number; teamId: number },
@@ -179,7 +179,7 @@ export async function findMatchForTeam(
   return rows.find((row) => row.teamAId === input.teamId || row.teamBId === input.teamId);
 }
 
-/** サーバーの、すべての組分け（枠の日付・時刻つき）。試合数と、固定点の判定（何試合目か）に使う。日付・時刻・ID の順 */
+/** サーバーの、すべての組分け（対戦枠の日付・時刻つき）。試合数と、固定点の判定（何試合目か）に使う。日付・時刻・ID の順 */
 export function listGuildMatches(
   db: Db,
   guildId: string,
@@ -209,7 +209,7 @@ export async function countMatchesByTeam(db: Db, guildId: string): Promise<Map<n
 
 /**
  * サーバーの、すべての組分けを削除する（試合数を 0 に戻す。得点のクリアで、勝利の記録と一緒に使う）。
- * 先に、その組分けの勝利の記録を、削除しておくこと（外部キー）。枠の「組まれなかったチーム」も、外す。
+ * 先に、その組分けの勝利の記録を、削除しておくこと（外部キー）。対戦枠の「組まれなかったチーム」も、外す。
  */
 export async function deleteAllMatches(db: Db, guildId: string): Promise<void> {
   const slots = await db.select({ id: matchSlots.id }).from(matchSlots).where(eq(matchSlots.guildId, guildId));
@@ -221,9 +221,9 @@ export async function deleteAllMatches(db: Db, guildId: string): Promise<void> {
 }
 
 /**
- * マッチング処理済みの対戦枠を、未マッチングに戻す（挙手は、そのまま残す）。
- * その枠の組分けと、その勝利の記録（無効なものも）を、すべて削除する。除外チームも外す。
- * 削除した勝利の画像の R2 キーと、削除した件数を返す（呼び出し側が、R2 からも消す）。処理済みの枠がなければ null。
+ * マッチング済みの対戦枠を、未マッチングに戻す（挙手は、そのまま残す）。
+ * その対戦枠の組分けと、その勝利の記録（無効なものも）を、すべて削除する。除外チームも外す。
+ * 削除した勝利の画像の R2 キーと、削除した件数を返す（呼び出し側が、R2 からも消す）。処理済みの対戦枠がなければ null。
  */
 export async function reopenMatchSlot(
   db: Db,
