@@ -28,7 +28,7 @@ const choose = async (menuName: string, item: string) => {
   fireEvent.click(await screen.findByRole("menuitem", { name: item }));
 };
 
-describe("勝利ログの画面: 絞り込みと並び替え", () => {
+describe("勝利記録の画面: 絞り込みと並び替え", () => {
   const wins = [
     record({ id: 3, teamName: "UT", match: { id: 9, teamA: "UT", teamB: "NGT" }, slotDate: "2026-10-09", points: 300, recordedByName: "bob", createdAt: at("2026-10-09T22:00:00") }),
     record({ id: 2, teamName: "KMU", match: { id: 8, teamA: "KMU", teamB: "ITF" }, slotDate: "2026-10-08", points: 200, recordedByName: "alice", createdAt: at("2026-10-08T22:00:00"), active: false }),
@@ -98,7 +98,7 @@ describe("勝利ログの画面: 絞り込みと並び替え", () => {
   });
 });
 
-describe("勝利ログの画面: 点数の修正", () => {
+describe("勝利記録の画面: 点数の修正", () => {
   it("「編集」で数字を直して保存できる（確認なし）。保存したあとは、表示に戻る。勝ったチームなどは送らない", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { body: { ok: true } } });
     renderApp("/wins");
@@ -142,7 +142,7 @@ describe("勝利ログの画面: 点数の修正", () => {
   });
 });
 
-describe("勝利ログの画面: 履歴", () => {
+describe("勝利記録の画面: 履歴", () => {
   it("記録を新しい順に、対戦枠・組分け・勝ったチーム・点数・記録した人つきで出し、画像へのリンクを付ける", async () => {
     installFakeBackend(apis());
     renderApp("/wins");
@@ -212,7 +212,7 @@ describe("勝利ログの画面: 履歴", () => {
   });
 });
 
-describe("勝利ログの画面: 得点をクリアする", () => {
+describe("勝利記録の画面: 得点をクリアする", () => {
   it("押しただけでは実行されず、確認で「削除を実行する」を押して初めて、すべての勝利の履歴を削除する", async () => {
     const backend = installFakeBackend({ ...apis(), "DELETE /api/wins": { body: { ok: true, screenshots: 0 } } });
     renderApp("/wins");

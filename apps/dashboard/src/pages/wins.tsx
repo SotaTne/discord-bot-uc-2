@@ -12,7 +12,7 @@ const REFRESH = [["scores"], ["wins"], ["board"]];
 export function WinsPage() {
   return (
     <>
-      <PageTitle>勝利ログ</PageTitle>
+      <PageTitle>勝利記録</PageTitle>
       <History />
       <ClearScores />
     </>

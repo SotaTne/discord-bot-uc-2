@@ -66,7 +66,7 @@ export function renderFeed(state: MockState) {
   </div>`;
 }
 
-/** 状態: チームごとの 挙手中・対戦数・勝利数・得点、マッチングログ、勝利ログ */
+/** 状態: チームごとの 挙手中・対戦数・勝利数・得点、マッチングログ、勝利記録 */
 export function renderStatePanel(state: MockState, snapshot: Snapshot, error: string | null) {
   if (!snapshot) {
     return html`<p class="notice error">worker の状態を取得できません: ${error ?? "不明なエラー"}</p>`;
@@ -122,7 +122,7 @@ export function renderStatePanel(state: MockState, snapshot: Snapshot, error: st
     </section>
 
     <section>
-      <h2>勝利ログ</h2>
+      <h2>勝利記録</h2>
       ${snapshot.wins.length === 0
         ? html`<p class="empty">まだありません</p>`
         : html`<ul class="log">

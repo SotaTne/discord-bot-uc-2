@@ -11,7 +11,7 @@ import { ErrorNote } from "../components/ui";
 const NAV = [
   { to: "/", label: "対戦枠" },
   { to: "/teams", label: "チーム" },
-  { to: "/wins", label: "勝利ログ" },
+  { to: "/wins", label: "勝利記録" },
   { to: "/settings", label: "設定" },
 ] as const;
 

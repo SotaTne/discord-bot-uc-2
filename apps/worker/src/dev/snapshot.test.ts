@@ -103,7 +103,7 @@ describe("buildDevSnapshot", () => {
     });
   });
 
-  describe("得点と勝利ログ", () => {
+  describe("得点と勝利記録", () => {
     it("勝利数と得点を、チームごとに出す。N 試合を超えた試合（6 試合目から）の勝利は、固定点で数える", async () => {
       for (let day = 1; day <= 7; day++) await win(seeded.kmuId, day, 10);
       await win(seeded.utId, 1, 60, { screenshotKey: "screenshots/x/a.png" });

@@ -174,8 +174,8 @@ describe("状態", () => {
     expect(lines(second)).toEqual(["除外 UT"]);
   });
 
-  it("勝利ログは、対戦枠・組分け・勝ったチーム・点数（入力 → 集計）・何試合目・画像を出す", async () => {
-    const [first] = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利ログ").querySelectorAll("li"));
+  it("勝利記録は、対戦枠・組分け・勝ったチーム・点数（入力 → 集計）・何試合目・画像を出す", async () => {
+    const [first] = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利記録").querySelectorAll("li"));
 
     expect(first?.querySelector(".when")?.textContent).toBe("10/06 21:00");
     expect(Array.from(first?.querySelectorAll("div") ?? []).map((line) => line.textContent?.replace(/\s+/g, " ").trim())).toEqual([
@@ -186,7 +186,7 @@ describe("状態", () => {
   });
 
   it("無効にした記録は、薄く表示して、（無効）と出す。何試合目かは出さない", async () => {
-    const items = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利ログ").querySelectorAll("li"));
+    const items = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利記録").querySelectorAll("li"));
 
     expect(items[0]?.className).toBe("");
     expect(items[1]?.className).toBe("dim");
@@ -200,7 +200,7 @@ describe("状態", () => {
     const page = await pageOf(await createTestMock({ snapshot: empty }));
 
     expect(sectionOf(page, "マッチングログ").textContent).toContain("まだありません");
-    expect(sectionOf(page, "勝利ログ").textContent).toContain("まだありません");
+    expect(sectionOf(page, "勝利記録").textContent).toContain("まだありません");
   });
 
   it("worker から状態を取れないときは、理由を出す", async () => {
