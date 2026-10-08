@@ -48,7 +48,7 @@ function History() {
   const [team, setTeam] = useState(ALL);
   const [date, setDate] = useState(ALL);
   const [recorder, setRecorder] = useState(ALL);
-  // 削除済みの扱い: すべて / 削除していないものだけ / 削除済みだけ（削除済みだけにすると、間違えて削除した記録を探して、元に戻せる）
+  // 削除済みの扱い: すべて / 削除済みを除く / 削除済みのみ（削除済みだけにすると、間違えて削除した記録を探して、元に戻せる）
   const [deletedFilter, setDeletedFilter] = useState<DeletedFilter>("all");
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
   const directionOf = (key: SortKey) => (sort?.key === key ? sort.direction : null);
@@ -90,8 +90,8 @@ function History() {
                   onChange={(value) => setDeletedFilter(value as DeletedFilter)}
                   data={[
                     { value: "all", label: "すべて" },
-                    { value: "active", label: "削除していない" },
-                    { value: "deleted", label: "削除済み" },
+                    { value: "active", label: "削除済みを除く" },
+                    { value: "deleted", label: "削除済みのみ" },
                   ]}
                 />
                 <Text c="dimmed" size="sm" role="status">

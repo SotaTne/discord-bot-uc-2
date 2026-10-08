@@ -71,7 +71,7 @@ describe("勝利記録の画面: 絞り込みと並び替え", () => {
     expect(screen.getByText("条件に合う記録がありません")).toBeTruthy();
   });
 
-  it("削除済みの扱いを、「すべて」「削除していない」「削除済み」から選べる。初期は、すべて", async () => {
+  it("削除済みの扱いを、「すべて」「削除済みを除く」「削除済みのみ」から選べる。初期は、すべて", async () => {
     installFakeBackend(apis(wins));
     renderApp("/wins");
     await screen.findByLabelText("チームで絞り込み");
@@ -79,11 +79,11 @@ describe("勝利記録の画面: 絞り込みと並び替え", () => {
 
     expect(ids()).toEqual(["3", "2", "1"]);
 
-    choose("削除していない");
+    choose("削除済みを除く");
     expect(ids()).toEqual(["3", "1"]);
     expect(screen.getByText("2件")).toBeTruthy();
 
-    choose("削除済み");
+    choose("削除済みのみ");
     expect(ids()).toEqual(["2"]);
     expect(screen.getByText("1件")).toBeTruthy();
 
