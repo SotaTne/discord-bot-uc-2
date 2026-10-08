@@ -92,6 +92,7 @@ th.num, td.num { text-align: right; padding-right: 0; padding-left: 12px; }
 .msg.private { background: var(--private); border-left-color: var(--accent); }
 .msg .meta { font-size: 11px; color: var(--muted); }
 .msg .body > div { overflow-wrap: anywhere; } .msg .blank { height: .6em; } .msg .h { font-weight: 600; margin: 2px 0; } .msg .h1 { font-size: 1.2em; } .msg .h2 { font-size: 1.08em; }
+.msg .sub { font-size: 12px; color: var(--muted); }
 .msg .actions { display: flex; gap: 6px; margin-top: 8px; }
 .log { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; }
 .log li { display: flex; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--rule); }

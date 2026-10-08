@@ -261,6 +261,17 @@ describe("Discord の画面", () => {
     expect(body.querySelector("script")).toBeNull();
   });
 
+  it("「-# 」で始まる行は、補足として、小さく薄く出す（記号は出さない）", async () => {
+    const mock = await createTestMock();
+    mock.state.addMessage({ channelId: mock.state.channelId, content: "**500pt**（1位）・2試合・1勝\n-# 試合数1を超えました。以降の試合は、勝つと100pt固定です" });
+
+    const body = (await pageOf(mock)).querySelector("#feed .msg .body")!;
+
+    expect(body.querySelector(".sub")?.textContent).toBe("試合数1を超えました。以降の試合は、勝つと100pt固定です");
+    expect(body.textContent).not.toContain("-#");
+    expect(body.querySelector("strong")?.textContent).toBe("500pt");
+  });
+
   it("確認のボタンが出て、押す操作（custom_id とメッセージ）を持つ。危険な操作は、赤いボタン", async () => {
     const mock = await createTestMock();
     const message = mock.state.addMessage({

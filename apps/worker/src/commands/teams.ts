@@ -8,7 +8,7 @@ import type { CommandHandler } from "./registry";
  * 得点の内訳の文面（試合数・勝利数。試合数が N を超えていれば、その旨）。例: 5試合・3勝・試合数5を超過しました
  * 試合数が N を超えると、それ以降の試合で、勝っても、記録した点数に関係なく、固定点で数える。
  */
-export function scoreDetail(input: { matches: number; wins: number }, rule: { fixedAfterMatches: number }): string {
+function scoreDetail(input: { matches: number; wins: number }, rule: { fixedAfterMatches: number }): string {
   const exceeded = input.matches > rule.fixedAfterMatches ? `・試合数${rule.fixedAfterMatches}を超過しました` : "";
   return `${input.matches}試合・${input.wins}勝${exceeded}`;
 }

@@ -42,13 +42,15 @@ function renderInline(text: string) {
 /**
  * メッセージの本文。Discord の見え方に近づける。
  * - メンションは名前（@KMU）にする
- * - 行頭の # / ## / ### は見出し、**…** は太字、URL はリンクにする
+ * - 行頭の # / ## / ### は見出し、「-# 」は補足（小さく薄い字）、**…** は太字、URL はリンクにする
  * - それ以外の HTML は、エスケープされる
  */
 export function renderContent(text: string, state: MockState) {
   return renderMentions(text, state)
     .split("\n")
     .map((line) => {
+      // 「-# 」で始まる行は、小さく薄い字（補足）
+      if (line.startsWith("-# ")) return html`<div class="sub">${renderInline(line.slice(3))}</div>`;
       const heading = /^(#{1,3}) (.*)$/.exec(line);
       if (heading) return html`<div class="h h${heading[1]?.length}">${renderInline(heading[2] ?? "")}</div>`;
       return line === "" ? html`<div class="blank"></div>` : html`<div>${renderInline(line)}</div>`;
