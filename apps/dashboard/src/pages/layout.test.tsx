@@ -8,7 +8,7 @@ const homeApis = {
   "GET /api/teams": { body: TEAMS },
 };
 
-describe("ログイン済みの画面の枠", () => {
+describe("ログイン済みの画面の枠（レイアウト）", () => {
   it("ログインしていなければ、入り方を案内する（メニューは出さない）", async () => {
     installFakeBackend({ "GET /api/me": { status: 401, body: { error: "unauthorized" } } });
     renderApp("/");
@@ -22,8 +22,16 @@ describe("ログイン済みの画面の枠", () => {
     renderApp("/");
 
     const nav = await screen.findByRole("navigation", { name: "メニュー" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["枠", "チーム", "勝利", "設定"]);
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "勝利ログ", "設定"]);
     expect(await screen.findByRole("heading", { name: "10/07（水）" })).toBeTruthy();
+  });
+
+  it("ヘッダーに、いまの日付・曜日・時刻（JST）を出す。サーバーの時計に従う", async () => {
+    installFakeBackend({ ...loggedIn, ...homeApis });
+    renderApp("/");
+
+    // loggedIn のサーバーの時計は、2026-10-07 15:00（JST）
+    expect((await screen.findByLabelText("現在の日時")).textContent).toBe("10/07（水） 15:00");
   });
 
   it("メニューから、ほかのページへ移れる", async () => {

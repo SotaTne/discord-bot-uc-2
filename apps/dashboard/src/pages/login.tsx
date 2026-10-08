@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Container, Stack, Text, Title } from "@mantine/core";
+import { Alert, Button, Container, Paper, Stack, Text, Title } from "@mantine/core";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -24,7 +24,7 @@ export function LoginPage() {
 
   return (
     <Container size="xs" mt="xl">
-      <Card>
+      <Paper className="surface" p="md">
         <Stack>
           <Title order={1} size="h3">
             UC ダッシュボード
@@ -43,7 +43,7 @@ export function LoginPage() {
             </Alert>
           )}
         </Stack>
-      </Card>
+      </Paper>
     </Container>
   );
 }

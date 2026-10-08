@@ -1,19 +1,38 @@
-import { Box, Button, Card, Container, Group, Loader, Stack, Text, Title } from "@mantine/core";
+import { useEffect, useState } from "react";
+import { Box, Button, Container, Group, Loader, Paper, Stack, Text, Title } from "@mantine/core";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { ApiError, unwrap } from "../lib/errors";
+import { formatJstNow } from "../lib/format";
 import { useMe } from "../lib/queries";
 import { ErrorNote } from "../components/ui";
 
 const NAV = [
-  { to: "/", label: "枠" },
+  { to: "/", label: "対戦枠" },
   { to: "/teams", label: "チーム" },
-  { to: "/wins", label: "勝利" },
+  { to: "/wins", label: "勝利ログ" },
   { to: "/settings", label: "設定" },
 ] as const;
 
-/** ログイン済みの画面の枠。ログインしていなければ、入り方を案内する */
+/**
+ * いまの日時（JST）。サーバーの時計を基準にして、そこからの経過を足して進める（開発用に時計を動かしているときも、それに従う）。
+ * 取得し直したときに、サーバーの時計に合わせ直す。
+ */
+function Now({ serverNow, fetchedAt }: { serverNow: number; fetchedAt: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => tick((value) => value + 1), 5_000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <Text size="sm" c="dimmed" aria-label="現在の日時" style={{ whiteSpace: "nowrap" }}>
+      {formatJstNow(new Date(serverNow + (Date.now() - fetchedAt)))}
+    </Text>
+  );
+}
+
+/** ログイン済みの画面の枠（レイアウト）。ログインしていなければ、入り方を案内する */
 export function AppLayout() {
   const me = useMe();
   const navigate = useNavigate();
@@ -29,13 +48,13 @@ export function AppLayout() {
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  if (me.isPending) return <Loader size="sm" m="xl" mx="auto" display="block" aria-label="読み込み中" />;
+  if (me.isPending) return <Loader size="sm" m="xl" mx="auto" display="block" aria-label="読み込み中…" />;
 
   if (me.isError) {
     const unauthorized = me.error instanceof ApiError && me.error.status === 401;
     return (
       <Container size="xs" mt="xl">
-        <Card>
+        <Paper className="surface" p="md">
           <Stack>
             <Title order={1} size="h3">
               UC ダッシュボード
@@ -48,35 +67,43 @@ export function AppLayout() {
               <ErrorNote error={me.error} />
             )}
           </Stack>
-        </Card>
+        </Paper>
       </Container>
     );
   }
 
   return (
     <>
-      <Box component="header" py="xs" px="md" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
-        <Group justify="space-between" gap="md" maw={1000} mx="auto">
-          <Group gap="md">
-            <Text fw={700}>UC ダッシュボード</Text>
-            <Group component="nav" aria-label="メニュー" gap={4}>
+      <a className="skip-link" href="#main">
+        本文へ移動
+      </a>
+      <Box component="header" px="md" className="surface" style={{ borderRadius: 0, borderWidth: "0 0 1px 0" }}>
+        <Group justify="space-between" gap="md" maw={1040} mx="auto" wrap="nowrap">
+          <Group gap="lg" wrap="nowrap">
+            <Text fw={600} style={{ whiteSpace: "nowrap" }}>
+              UC ダッシュボード
+            </Text>
+            <Group component="nav" aria-label="メニュー" gap={0} wrap="nowrap">
               {NAV.map((item) => {
                 const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
                 return (
-                  <Button key={item.to} component={Link} to={item.to} variant={active ? "light" : "subtle"} color={active ? "indigo" : "gray"} {...(active ? { "aria-current": "page" as const } : {})}>
+                  <Link key={item.to} to={item.to} className="nav-link" {...(active ? { "aria-current": "page" as const } : {})}>
                     {item.label}
-                  </Button>
+                  </Link>
                 );
               })}
             </Group>
           </Group>
-          <Button variant="default" onClick={() => logout.mutate()} disabled={logout.isPending}>
-            ログアウト
-          </Button>
+          <Group gap="md" wrap="nowrap">
+            <Now serverNow={me.data.now} fetchedAt={me.dataUpdatedAt} />
+            <Button variant="subtle" color="gray" onClick={() => logout.mutate()} disabled={logout.isPending}>
+              ログアウト
+            </Button>
+          </Group>
         </Group>
       </Box>
-      <Container size={1000} py="md">
-        <Stack gap="md" component="main">
+      <Container size={1040} py="lg" component="main" id="main" tabIndex={-1} style={{ outline: "none" }}>
+        <Stack gap="lg">
           <Outlet />
         </Stack>
       </Container>
