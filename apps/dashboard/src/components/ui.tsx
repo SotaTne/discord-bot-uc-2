@@ -5,6 +5,7 @@ import { MAX_POINTS } from "@uc/api";
 import { api } from "../lib/api";
 import { errorMessage, unwrap } from "../lib/errors";
 import { useInvalidatingMutation } from "../lib/queries";
+import { validatePoints } from "../lib/settings-validation";
 
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
@@ -145,7 +146,8 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
     (value: number) => unwrap(api.wins[":id"].points.$put({ param: { id: String(input.winId) }, json: { points: value } })),
     [["board"], ["wins"], ["scores"]],
   );
-  const valid = draft !== null && /^\d+$/.test(draft) && Number(draft) <= MAX_POINTS;
+  const error = draft === null ? undefined : validatePoints(draft);
+  const valid = draft !== null && error === undefined;
   const submit = () => {
     if (valid) save.mutate(Number(draft), { onSuccess: () => setDraft(null) });
   };
@@ -175,6 +177,12 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
     controls:
       draft === null ? null : (
         <Group gap="xs" wrap="nowrap" justify="flex-end">
+          {/* 保存できない理由 */}
+          {error && (
+            <Text size="xs" c="red" role="alert">
+              {error}
+            </Text>
+          )}
           <Button size="xs" disabled={!valid || save.isPending} onClick={submit}>
             保存
           </Button>

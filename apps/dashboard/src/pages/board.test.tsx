@@ -270,7 +270,7 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     expect(backend.last("POST", "/api/matches/7/wins")?.form?.get("points")).toBe("100");
   });
 
-  it("点数が上限（100000）を超えると、追加できない", async () => {
+  it("点数が上限（100000）を超えると、追加できない。その理由を、入力欄の下と、ボタンの横に出す", async () => {
     installFakeBackend(apis([slot({ matches: [match()] })]));
     renderApp("/");
     const form = await openAddWin("KMU vs UT");
@@ -278,11 +278,29 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
     const add = form.getByRole("button", { name: "追加" }) as HTMLButtonElement;
 
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "100001" } });
+    fireEvent.change(form.getByLabelText("点数"), { target: { value: "10000000000000000000" } });
     expect(add.disabled).toBe(true);
+    expect(form.getByText("100000 以下にしてください")).toBeTruthy();
+    expect(form.getByText("追加するには、点数を直す")).toBeTruthy();
+
     fireEvent.change(form.getByLabelText("点数"), { target: { value: "100000" } });
     expect(add.disabled).toBe(false);
+    expect(form.queryByText("100000 以下にしてください")).toBeNull();
+    expect(form.queryByText(/追加するには/)).toBeNull();
   });
+
+  it("追加できないとき、足りないものを、ボタンの横に出す（勝ったチーム・点数・画像）", async () => {
+    installFakeBackend(apis([slot({ matches: [match()] })]));
+    renderApp("/");
+    const form = await openAddWin("KMU vs UT");
+
+    expect(form.getByText("追加するには、勝ったチームを選ぶ・点数を入力する・画像を選ぶ")).toBeTruthy();
+
+    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
+    fireEvent.change(form.getByLabelText("点数"), { target: { value: "50" } });
+    expect(form.getByText("追加するには、画像を選ぶ")).toBeTruthy();
+  });
+
 
   it("勝利があれば、勝ったチーム・点数・記録した人・画像を出す。記録フォームは出さない", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match({ win: win() })] })]));

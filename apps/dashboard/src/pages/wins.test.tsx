@@ -130,8 +130,11 @@ describe("勝利記録の画面: 点数の修正", () => {
     await choose("勝利#1の操作", "点数を編集");
     fireEvent.change(screen.getByLabelText("勝利#1の点数"), { target: { value: "100001" } });
     expect((screen.getByRole("button", { name: "保存" }) as HTMLButtonElement).disabled).toBe(true);
+    // 保存できない理由を、ボタンの横に出す
+    expect(screen.getByRole("alert").textContent).toBe("100000 以下にしてください");
     fireEvent.change(screen.getByLabelText("勝利#1の点数"), { target: { value: "100000" } });
     expect((screen.getByRole("button", { name: "保存" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("空・負・小数は保存できない。「キャンセル」で、何も送らずに戻る", async () => {

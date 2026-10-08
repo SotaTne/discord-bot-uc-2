@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MAX_POINTS } from "@uc/api";
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Async, ConfirmButton, ConfirmDialog, ErrorNote, RowMenu, ScreenshotLink, usePointsEditor, type RowMenuItem } from "../components/ui";
+import { validatePoints } from "../lib/settings-validation";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatDateWithWeekday, formatHour, formatJstDateTime, shiftDate } from "../lib/format";
@@ -442,8 +443,12 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
   // 勝つチームが、その組分けで N 試合目を超えているなら、入力は要らない（固定点で登録される）
   const matchNumber = teamId === "" ? null : teamId === match.teamA.id ? match.matchNumberA : match.matchNumberB;
   const fixed = rule !== null && matchNumber !== null && matchNumber > rule.fixedAfterMatches;
-  const pointsValid = fixed || (points !== "" && /^\d+$/.test(points) && Number(points) <= MAX_POINTS);
+  // 点数の入力が正しくないときは、入力欄の下に、理由を出す（空のときは、まだ入力していないだけなので、出さない）
+  const pointsError = fixed || points === "" ? undefined : validatePoints(points);
+  const pointsValid = fixed || (points !== "" && pointsError === undefined);
   const ready = teamId !== "" && pointsValid && image !== null;
+  // 追加できないとき、足りないものを、ボタンの横に出す
+  const missing = [teamId === "" && "勝ったチームを選ぶ", !pointsValid && pointsError === undefined && "点数を入力する", image === null && "画像を選ぶ"].filter((item): item is string => item !== false);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -478,7 +483,7 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
               description={`${matchNumber} 試合目（N=${rule.fixedAfterMatches} を超えています）。点数は、固定点の ${rule.fixedPoints}pt で登録されます`}
             />
           ) : (
-            <TextInput label="点数" name="points" type="number" min={0} max={MAX_POINTS} step={1} value={points} onChange={(event) => setPoints(event.target.value)} />
+            <TextInput label="点数" name="points" type="number" min={0} max={MAX_POINTS} step={1} value={points} error={pointsError ?? false} onChange={(event) => setPoints(event.target.value)} />
           )}
           <Input.Wrapper label="画像">
             <div>
@@ -493,6 +498,11 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
           </Input.Wrapper>
           <ErrorNote error={record.error} />
           <Group justify="flex-end" gap="xs">
+            {!ready && (missing.length > 0 || pointsError) && (
+              <Text size="xs" c="dimmed" mr="auto" role="status">
+                追加するには、{pointsError ? "点数を直す" : missing.join("・")}
+              </Text>
+            )}
             <Button variant="default" onClick={onClose}>
               キャンセル
             </Button>

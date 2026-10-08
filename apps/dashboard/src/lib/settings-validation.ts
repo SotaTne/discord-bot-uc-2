@@ -29,5 +29,8 @@ export const validateCutoffMinutes = (value: string) => integerInRange(value, 1,
 /** N（記録した点数で集計する試合数, 0〜100） */
 export const validateFixedAfterMatches = (value: string) => integerInRange(value, 0, 100);
 
+/** 勝利の点数（0〜MAX_POINTS）。入力欄の下に、押せない理由として出す */
+export const validatePoints = (value: string) => integerInRange(value, 0, MAX_POINTS);
+
 /** 固定点（0〜MAX_POINTS） */
 export const validateFixedPoints = (value: string) => integerInRange(value, 0, MAX_POINTS);
