@@ -162,9 +162,8 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               まだありません
             </Text>
           )}
-          {(slot.handups.length > 0 || !slot.matched) && (
-            // 挙手は、カードを格子状に並べる（チームが増えても、縦に長くならない）。チーム名の下に、誰がいつ挙手したかを小さく出す。
-            // 挙手の追加は、格子の最後の 1 マスにして、カードと幅をそろえる
+          {slot.handups.length > 0 && (
+            // 挙手は、カードを格子状に並べる（チームが増えても、縦に長くならない）。チーム名の下に、誰がいつ挙手したかを小さく出す
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
               {slot.handups.map((handup) => (
                 <Paper key={handup.id} withBorder px="sm" py={6}>
@@ -188,7 +187,12 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
                   </Group>
                 </Paper>
               ))}
-              {!slot.matched && <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />}
+            </SimpleGrid>
+          )}
+          {/* 挙手の追加は、カードの下に、間をあけて置く。幅は、カード 1 枚分にそろえる（カードの格子と同じ列の幅） */}
+          {!slot.matched && (
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs" mt="sm">
+              <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />
             </SimpleGrid>
           )}
           <ErrorNote error={withdraw.error} />
@@ -255,7 +259,7 @@ function AddHandup({ date, hour, candidates }: { date: string; hour: number; can
         if (teamId !== "") add.mutate(teamId, { onSuccess: () => setTeamId("") });
       }}
     >
-      <Group gap="xs" wrap="nowrap" h="100%" align="center">
+      <Group gap="xs" wrap="nowrap">
         <NativeSelect aria-label="挙手するチーム" style={{ flex: 1, minWidth: 0 }} value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions(candidates, "チームを選択")} />
         <Button type="submit" variant="light" disabled={teamId === "" || add.isPending}>
           挙手を追加
