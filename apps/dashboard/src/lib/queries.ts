@@ -16,7 +16,8 @@ export const keys = {
 } as const;
 
 export const useMe = () =>
-  useQuery({ queryKey: keys.me, queryFn: () => unwrap(api.me.$get()) });
+  // 1 分ごとに取り直して、ヘッダーの日時を、サーバーの時計に合わせ直す
+  useQuery({ queryKey: keys.me, queryFn: () => unwrap(api.me.$get()), refetchInterval: 60_000 });
 
 export const useSettings = () =>
   useQuery({ queryKey: keys.settings, queryFn: () => unwrap(api.settings.$get()) });
@@ -30,7 +31,7 @@ export const useSlots = () =>
 export const useTeams = () =>
   useQuery({ queryKey: keys.teams, queryFn: () => unwrap(api.teams.$get()) });
 
-/** 枠の画面（日付ごと）。日付を省略すると、今日。5秒ごとに、自動で取り直す（誰かが挙手すると、すぐ出る） */
+/** 対戦枠の画面（日付ごと）。日付を省略すると、今日。5秒ごとに、自動で取り直す（誰かが挙手すると、すぐ出る） */
 export const useBoard = (date: string | undefined) =>
   useQuery({
     queryKey: keys.board(date),
