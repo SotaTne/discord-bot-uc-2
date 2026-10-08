@@ -1,0 +1,238 @@
+import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchWinFormSchema } from "@uc/api";
+import { cutoffJobKey, jstDateOf, slotPhase } from "@uc/core";
+import {
+  addMatch,
+  claimJob,
+  findMatchSlot,
+  releaseJob,
+  reopenMatchSlot,
+  ensureHandup,
+  deleteMatch,
+  findMatch,
+  findSlot,
+  findTeamById,
+  getGuildSettings,
+  listHandupsOnDate,
+  listMatchesOnDate,
+  listMatchSlots,
+  listSlots,
+  listTeams,
+  listWins,
+  MatchTeamTakenError,
+} from "@uc/db";
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import { createDb } from "../db";
+import { createRestFromEnv } from "../discord";
+import { deleteScreenshots } from "../usecases/clear-scores";
+import { confirmMatching } from "../usecases/confirm-matching";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, recordWin } from "../usecases/record-win";
+import { teamNames } from "../usecases/team-names";
+import { nameOrId, userNames } from "../usecases/user-names";
+import { parseId, type ApiDeps, type ApiEnv } from "./types";
+
+/**
+ * 枠の画面（日付ごとの、枠 → 挙手・組分け・勝利）のための API。
+ * 挙手・マッチング・勝利が、枠を中心に、1つの画面で扱えるようにする。
+ */
+export function createBoardRoutes(deps: ApiDeps) {
+  return new Hono<ApiEnv>()
+    // その日の、枠ごとの状態: 受付の段階・挙手したチーム・組分け・組分けごとの勝利（有効な記録）・組まれなかったチーム
+    .get("/board", zValidator("query", dateQuerySchema), async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const now = deps.clock.now();
+      const date = c.req.valid("query").date ?? jstDateOf(now);
+
+      const [settings, slots, teams, matchSlots, handups, matches, allWins] = await Promise.all([
+        getGuildSettings(db, guildId),
+        listSlots(db, guildId),
+        listTeams(db, guildId, { includeDeleted: true }),
+        listMatchSlots(db, { guildId, slotDate: date }),
+        listHandupsOnDate(db, { guildId, slotDate: date }),
+        listMatchesOnDate(db, { guildId, slotDate: date }),
+        listWins(db, guildId),
+      ]);
+      const wins = allWins.filter((win) => win.slotDate === date);
+
+      const rest = createRestFromEnv(c.env);
+      const nameOf = await teamNames(rest, guildId, teams);
+      const people = await userNames(rest, guildId, [...handups.map((h) => h.raisedBy), ...wins.map((w) => w.recordedBy)]);
+      const team = (id: number) => ({ id, name: nameOf.get(id) ?? String(id) });
+
+      return c.json({
+        date,
+        today: jstDateOf(now),
+        slots: slots.map((slot) => {
+          const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
+          return {
+            hour: slot.hour,
+            phase: slotPhase(now, date, slot.hour, settings),
+            matched: matchSlot?.status === "matched",
+            excluded: matchSlot?.excludedTeamId == null ? null : team(matchSlot.excludedTeamId),
+            handups: handups
+              .filter((handup) => handup.slotHour === slot.hour)
+              .map((handup) => ({
+                id: handup.id,
+                team: team(handup.teamId),
+                raisedByName: nameOrId(people, handup.raisedBy) ?? handup.raisedBy,
+                createdAt: handup.createdAt,
+              })),
+            matches: matches
+              .filter((match) => match.slotHour === slot.hour)
+              .map((match) => {
+                const ofMatch = wins.filter((win) => win.matchId === match.id);
+                const active = ofMatch.find((win) => win.active);
+                return {
+                  id: match.id,
+                  teamA: team(match.teamAId),
+                  teamB: team(match.teamBId),
+                  // 有効な勝利の記録（1つの組分けに、1件まで）。削除した記録は、ここには出さない
+                  win: active
+                    ? {
+                        id: active.id,
+                        team: team(active.teamId),
+                        points: active.points,
+                        recordedByName: nameOrId(people, active.recordedBy) ?? active.recordedBy,
+                        createdAt: active.createdAt,
+                        hasScreenshot: active.screenshotKey !== null,
+                      }
+                    : null,
+                  deletedWins: ofMatch.length - (active ? 1 : 0),
+                };
+              }),
+          };
+        }),
+      });
+    })
+
+    // 管理者が、組分けを追加する。2チームの挙手は、自動で付く（すでにあれば、そのまま）
+    .post("/matches", zValidator("json", matchInputSchema), async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId, userId } = c.get("auth");
+      const input = c.req.valid("json");
+      const now = deps.clock.now();
+
+      for (const teamId of [input.teamAId, input.teamBId]) {
+        if (!(await findTeamById(db, guildId, teamId))) return c.json({ error: "team_not_found" as const }, 404);
+      }
+      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+
+      const slotDate = input.slotDate ?? jstDateOf(now);
+      try {
+        const id = await addMatch(db, { guildId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId, createdAt: now.getTime() });
+        for (const teamId of [input.teamAId, input.teamBId]) {
+          await ensureHandup(db, { guildId, slotDate, slotHour: input.slotHour, teamId, raisedBy: userId, createdAt: now.getTime() });
+        }
+        return c.json({ id }, 201);
+      } catch (error) {
+        if (error instanceof MatchTeamTakenError) return c.json({ error: "team_already_matched" as const }, 409);
+        throw error;
+      }
+    })
+
+    // 組分けを削除する。その組分けの勝利の記録（無効なものも）と、画像も、あわせて削除する
+    .delete("/matches/:id", async (c) => {
+      const id = parseId(c.req.param("id"));
+      if (id === null) return c.json({ error: "invalid_id" as const }, 400);
+
+      const deleted = await deleteMatch(createDb(c.env.DB), { guildId: c.get("auth").guildId, id });
+      if (!deleted) return c.json({ error: "not_found" as const }, 404);
+      await deleteScreenshots(c.env.SCREENSHOTS, deleted.screenshotKeys);
+      return c.json({ ok: true as const });
+    })
+
+    // 管理者が、枠のマッチングを、いま確定する（cron の締切と同じ処理）。挙手を組み、結果を Discord に投稿する。
+    // cron と同じ「実行する権利」を取るので、締切の時刻になっても、二重には実行されない
+    .post("/match-slots/confirm", zValidator("json", matchSlotInputSchema), async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const input = c.req.valid("json");
+      const now = deps.clock.now();
+      const slotDate = input.slotDate ?? jstDateOf(now);
+
+      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+      if ((await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched") {
+        return c.json({ error: "slot_matched" as const }, 409);
+      }
+      const key = cutoffJobKey(slotDate, input.slotHour);
+      if (!(await claimJob(db, guildId, key, now.getTime()))) return c.json({ error: "slot_matched" as const }, 409);
+
+      try {
+        const settings = await getGuildSettings(db, guildId);
+        await confirmMatching(
+          { db, rest: createRestFromEnv(c.env) },
+          { guildId, channelId: settings.channelId, slotDate, slotHour: input.slotHour, now },
+        );
+        return c.json({ ok: true as const });
+      } catch (error) {
+        await releaseJob(db, guildId, key);
+        throw error;
+      }
+    })
+
+    // マッチング済みの枠を、未マッチングに戻す。その枠の組分けと勝利（無効なものも）と画像を削除する。挙手は残る
+    .post("/match-slots/reopen", zValidator("json", matchSlotInputSchema), async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const input = c.req.valid("json");
+      const now = deps.clock.now();
+      const slotDate = input.slotDate ?? jstDateOf(now);
+
+      const reopened = await reopenMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
+      if (!reopened) return c.json({ error: "slot_not_matched" as const }, 409);
+      await deleteScreenshots(c.env.SCREENSHOTS, reopened.screenshotKeys);
+
+      // 締切の時刻の前なら、cron が、あらためて自動で確定できるように、権利を返す。過ぎていれば、管理者が確定するまで、そのまま
+      const settings = await getGuildSettings(db, guildId);
+      if (slotPhase(now, slotDate, input.slotHour, settings) !== "closed") {
+        await releaseJob(db, guildId, cutoffJobKey(slotDate, input.slotHour));
+      }
+      return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, deletedWins: reopened.deletedWins });
+    })
+
+    // 組分けに、勝利を記録する（画像つきの multipart/form-data）。有効な記録は、1つの組分けに1件まで
+    .post("/matches/:id/wins", async (c) => {
+      const id = parseId(c.req.param("id"));
+      if (id === null) return c.json({ error: "invalid_id" as const }, 400);
+      const db = createDb(c.env.DB);
+      const { guildId, userId } = c.get("auth");
+
+      const match = await findMatch(db, { guildId, id });
+      if (!match) return c.json({ error: "not_found" as const }, 404);
+
+      const form = await c.req.parseBody();
+      const parsed = matchWinFormSchema.safeParse({ teamId: form.teamId, points: form.points });
+      if (!parsed.success) return c.json({ error: "invalid_input" as const }, 400);
+      if (parsed.data.teamId !== match.teamAId && parsed.data.teamId !== match.teamBId) {
+        return c.json({ error: "team_not_in_match" as const }, 400);
+      }
+
+      const image = form.image;
+      if (!(image instanceof File)) return c.json({ error: "image_required" as const }, 400);
+      if (!(image.type in IMAGE_EXTENSIONS)) return c.json({ error: "unsupported_image" as const }, 400);
+      if (image.size > MAX_IMAGE_BYTES) return c.json({ error: "image_too_large" as const }, 400);
+
+      const team = await findTeamById(db, guildId, parsed.data.teamId);
+      if (!team) return c.json({ error: "team_not_found" as const }, 404);
+
+      try {
+        const { id: winId } = await recordWin(
+          { db, bucket: c.env.SCREENSHOTS, now: deps.clock.now().getTime() },
+          {
+            guildId,
+            userId,
+            team,
+            matchId: match.id,
+            points: parsed.data.points,
+            image: { bytes: await image.arrayBuffer(), contentType: image.type },
+          },
+        );
+        const report = await describeWin(db, { guildId, teamId: team.id, id: winId });
+        return c.json({ id: winId, slotDate: match.slotDate, ...report }, 201);
+      } catch (error) {
+        if (error instanceof WinExistsError) return c.json({ error: "win_exists" as const }, 409);
+        throw error;
+      }
+    });
+}
