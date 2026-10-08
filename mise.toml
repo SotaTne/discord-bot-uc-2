@@ -1,0 +1,4 @@
+# ツールのバージョンはここで固定する（package.json の packageManager / engines と揃えること）
+[tools]
+node = "24.21.0"
+pnpm = "11.28.5"

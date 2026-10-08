@@ -1,0 +1,41 @@
+packages:
+  - apps/*
+  - packages/*
+
+# 依存のバージョンはここだけで管理する（各 package.json は "catalog:" で参照する）
+catalog:
+  "@hono/node-server": 2.1.3
+  "@hono/zod-validator": 0.9.1
+  "@mantine/core": 9.7.1
+  "@mantine/hooks": 9.7.1
+  "@tanstack/react-query": 5.104.1
+  "@tanstack/react-router": 1.170.41
+  "@testing-library/dom": 10.4.2
+  "@testing-library/react": 16.3.3
+  "@types/jsdom": 30.0.0
+  "@types/node": 24.19.1
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@vitejs/plugin-react": 6.1.2
+  drizzle-kit: 0.31.11
+  drizzle-orm: 0.45.3
+  hono: 4.13.13
+  jsdom: 30.1.2
+  react: 19.3.0
+  react-dom: 19.3.0
+  tsx: 4.23.15
+  turbo: 2.11.7
+  typescript: 6.0.3
+  vite: 8.3.3
+  vitest: 4.1.11
+  wrangler: 4.148.0
+  zod: 4.6.5
+
+# インストール時にビルドスクリプトの実行を許可する依存（それ以外は実行されない）
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - miniflare@5.20261006.0-alpha
+  - wrangler@4.148.0

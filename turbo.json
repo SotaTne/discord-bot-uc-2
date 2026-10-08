@@ -1,0 +1,28 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["mise.toml", "pnpm-workspace.yaml", "tsconfig.base.json"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    // worker の API の型（宣言ファイル）。dashboard が Hono RPC で参照する
+    "build:types": {
+      "outputs": ["dist/types/**"]
+    },
+    "typecheck": {},
+    // build:types と typecheck は、どちらも wrangler types で同じファイル（worker-configuration.d.ts）を書く。
+    // 同時に走ると、書きかけのファイルを読んで失敗するので、順に走らせる
+    "@uc/worker#typecheck": {
+      "dependsOn": ["@uc/worker#build:types"]
+    },
+    "@uc/dashboard#typecheck": {
+      "dependsOn": ["@uc/worker#build:types"]
+    },
+    "test": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
