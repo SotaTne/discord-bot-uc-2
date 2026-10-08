@@ -32,7 +32,8 @@ export const theme = createTheme({
     // 説明は、入力欄の下に出す（説明が折り返しても、横に並べた入力欄の高さがずれない）
     TextInput: { defaultProps: { size: "sm", autoComplete: "off", inputWrapperOrder: ["label", "input", "description", "error"] } },
     Menu: { defaultProps: { transitionProps: { duration: 0 } } },
-    Modal: { defaultProps: { transitionProps: { duration: 0 } } },
+    // ダイアログの右上の×は、読み上げでも分かるように、名前を付ける
+    Modal: { defaultProps: { transitionProps: { duration: 0 }, closeButtonProps: { "aria-label": "閉じる" } } },
     Popover: { defaultProps: { transitionProps: { duration: 0 } } },
   },
 });

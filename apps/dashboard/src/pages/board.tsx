@@ -497,15 +497,13 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
             </div>
           </Input.Wrapper>
           <ErrorNote error={record.error} />
-          <Group justify="flex-end" gap="xs">
+          {/* やめるときは、右上の×・外側を押す・Esc で閉じる（キャンセルのボタンは置かない） */}
+          <Group justify="flex-end" gap="xs" wrap="nowrap">
             {!ready && (missing.length > 0 || pointsError) && (
               <Text size="xs" c="dimmed" mr="auto" role="status">
                 追加するには、{pointsError ? "点数を直す" : missing.join("・")}
               </Text>
             )}
-            <Button variant="default" onClick={onClose}>
-              キャンセル
-            </Button>
             <Button type="submit" disabled={!ready || record.isPending}>
               追加
             </Button>

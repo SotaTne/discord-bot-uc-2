@@ -289,6 +289,18 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     expect(form.queryByText(/追加するには/)).toBeNull();
   });
 
+  it("勝利を追加するダイアログに、キャンセルのボタンはない（右上の×・外側・Esc で閉じる）。閉じても、何も送らない", async () => {
+    const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "POST /api/matches/7/wins": { status: 201, body: { id: 3 } } });
+    renderApp("/");
+    const form = await openAddWin("KMU vs UT");
+
+    expect(form.queryByRole("button", { name: "キャンセル" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+
+    await waitFor(() => expect(screen.queryByRole("form", { name: "KMU vs UTの勝利を追加" })).toBeNull());
+    expect(backend.count("POST", "/api/matches/7/wins")).toBe(0);
+  });
+
   it("追加できないとき、足りないものを、ボタンの横に出す（勝ったチーム・点数・画像）", async () => {
     installFakeBackend(apis([slot({ matches: [match()] })]));
     renderApp("/");
