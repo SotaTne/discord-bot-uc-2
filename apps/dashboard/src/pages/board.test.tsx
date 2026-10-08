@@ -36,14 +36,14 @@ const apis = (slots: unknown[] = [slot()]) => ({
 });
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
-describe("枠の画面: 日付", () => {
-  it("今日の枠が、枠ごとのカードで並ぶ。日付と曜日が出る", async () => {
+describe("対戦枠の画面: 日付", () => {
+  it("今日の対戦枠が、対戦枠ごとのカードで並ぶ。日付と曜日が出る", async () => {
     installFakeBackend(apis([slot({ hour: 21 }), slot({ hour: 22 })]));
     renderApp("/");
 
     expect(await screen.findByRole("heading", { name: "10/07（水）" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "21:00の枠" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "22:00の枠" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "21:00の対戦枠" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "22:00の対戦枠" })).toBeTruthy();
   });
 
   it("◀ ▶ で日を移れる。今日でないときだけ、「今日」で戻れる", async () => {
@@ -76,11 +76,11 @@ describe("枠の画面: 日付", () => {
     installFakeBackend(apis([]));
     renderApp("/");
 
-    expect(await screen.findByText(/試合の時刻が登録されていません/)).toBeTruthy();
+    expect(await screen.findByText(/試合時刻が登録されていません/)).toBeTruthy();
   });
 });
 
-describe("枠の画面: 受付の段階", () => {
+describe("対戦枠の画面: 受付の段階", () => {
   it.each([
     ["before-open", false, "募集開始前"],
     ["open", false, "受付中"],
@@ -90,17 +90,18 @@ describe("枠の画面: 受付の段階", () => {
     installFakeBackend(apis([slot({ phase, matched })]));
     renderApp("/");
 
-    expect((await card("21:00の枠")).getByText(label)).toBeTruthy();
+    expect((await card("21:00の対戦枠")).getByText(label)).toBeTruthy();
   });
 });
 
-describe("枠の画面: 挙手", () => {
+describe("対戦枠の画面: 挙手", () => {
   it("挙手したチームを、人と時刻つきで出す。取り消せる", async () => {
     const backend = installFakeBackend({ ...apis([slot({ handups: [handup()] })]), "DELETE /api/handups/1": { body: { ok: true } } });
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     expect(within21.getAllByText("KMU").length).toBeGreaterThan(0);
+    // チーム名の下に、誰がいつ挙手したかが出る
     expect(within21.getByText(/alice・10\/07 15:00/)).toBeTruthy();
 
     fireEvent.click(within21.getByRole("button", { name: "KMUの21:00の挙手を取り消す" }));
@@ -109,51 +110,51 @@ describe("枠の画面: 挙手", () => {
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
   });
 
-  it("まだ挙手していないチームを選んで、代理で挙手できる（その日・その枠で）", async () => {
+  it("まだ挙手していないチームを選んで、代理で挙手できる（その日・その対戦枠で）", async () => {
     const backend = installFakeBackend({ ...apis([slot({ handups: [handup()] })]), "POST /api/handups": { status: 201, body: { id: 9 } } });
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
-    const options = within(await within21.findByLabelText("挙手を追加")).getAllByRole("option").map((option) => option.textContent);
+    const within21 = await card("21:00の対戦枠");
+    const options = within(await within21.findByLabelText("挙手するチーム")).getAllByRole("option").map((option) => option.textContent);
     expect(options).toEqual(["チームを選択", "UT"]);
 
-    fireEvent.change(await within21.findByLabelText("挙手を追加"), { target: { value: "2" } });
-    fireEvent.click((await within21.findByRole("button", { name: "追加" })));
+    fireEvent.change(await within21.findByLabelText("挙手するチーム"), { target: { value: "2" } });
+    fireEvent.click((await within21.findByRole("button", { name: "挙手を追加" })));
 
     await waitFor(() => expect(backend.last("POST", "/api/handups")?.json).toEqual({ teamId: 2, slotHour: 21, slotDate: "2026-10-07" }));
   });
 
-  it("マッチング済みの枠では、挙手の追加も取り消しも出さない", async () => {
+  it("マッチング済みの対戦枠では、挙手の追加も取り消しも出さない", async () => {
     installFakeBackend(apis([slot({ matched: true, handups: [handup()], matches: [match()] })]));
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     expect(within21.getAllByText("KMU").length).toBeGreaterThan(0);
     // 挙手を追加する欄は、チームの一覧を取るまで出ない。取れたあとも、出さない
     await screen.findAllByText("KMU vs UT");
     expect(within21.queryByRole("button", { name: /挙手を取り消す/ })).toBeNull();
-    expect(within21.queryByLabelText("挙手を追加")).toBeNull();
+    expect(within21.queryByLabelText("挙手するチーム")).toBeNull();
   });
 
   it("追加に失敗したら、理由を出す", async () => {
     installFakeBackend({ ...apis(), "POST /api/handups": { status: 409, body: { error: "already_raised" } } });
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
-    fireEvent.change(await within21.findByLabelText("挙手を追加"), { target: { value: "1" } });
-    fireEvent.click((await within21.findByRole("button", { name: "追加" })));
+    const within21 = await card("21:00の対戦枠");
+    fireEvent.change(await within21.findByLabelText("挙手するチーム"), { target: { value: "1" } });
+    fireEvent.click((await within21.findByRole("button", { name: "挙手を追加" })));
 
     expect((await within21.findByRole("alert")).textContent).toContain("すでに挙手しています");
   });
 });
 
-describe("枠の画面: 組分けの追加", () => {
+describe("対戦枠の画面: 組分けの追加", () => {
   it("2チームを選んで、組分けを追加できる（挙手は、自動で付く）", async () => {
     const backend = installFakeBackend({ ...apis(), "POST /api/matches": { status: 201, body: { id: 7 } } });
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
-    fireEvent.change(await within21.findByLabelText("21:00の組分けを追加（1チーム目）"), { target: { value: "1" } });
+    const within21 = await card("21:00の対戦枠");
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
     fireEvent.change(await within21.findByLabelText("2チーム目"), { target: { value: "2" } });
     fireEvent.click((await within21.findByRole("button", { name: "組分けを追加" })));
 
@@ -167,11 +168,11 @@ describe("枠の画面: 組分けの追加", () => {
     installFakeBackend(apis());
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     const add = (await within21.findByRole("button", { name: "組分けを追加" })) as HTMLButtonElement;
     expect(add.disabled).toBe(true);
 
-    fireEvent.change(await within21.findByLabelText("21:00の組分けを追加（1チーム目）"), { target: { value: "1" } });
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
     expect(within(await within21.findByLabelText("2チーム目")).getAllByRole("option").map((o) => o.textContent)).toEqual(["チームを選択", "UT"]);
     expect(add.disabled).toBe(true);
 
@@ -183,7 +184,7 @@ describe("枠の画面: 組分けの追加", () => {
     installFakeBackend(apis([slot({ matches: [match()] })]));
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     expect(within21.queryByLabelText("2チーム目")).toBeNull();
   });
 
@@ -191,8 +192,8 @@ describe("枠の画面: 組分けの追加", () => {
     installFakeBackend({ ...apis(), "POST /api/matches": { status: 409, body: { error: "team_already_matched" } } });
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
-    fireEvent.change(await within21.findByLabelText("21:00の組分けを追加（1チーム目）"), { target: { value: "1" } });
+    const within21 = await card("21:00の対戦枠");
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
     fireEvent.change(await within21.findByLabelText("2チーム目"), { target: { value: "2" } });
     fireEvent.click((await within21.findByRole("button", { name: "組分けを追加" })));
 
@@ -200,12 +201,12 @@ describe("枠の画面: 組分けの追加", () => {
   });
 });
 
-describe("枠の画面: 組分けと勝利", () => {
+describe("対戦枠の画面: 組分けと勝利", () => {
   it("組分け（AA vs BB）を出し、組まれなかったチームも出す", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match()], excluded: { id: 3, name: "NGT" } })]));
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     expect(within21.getByText("KMU vs UT")).toBeTruthy();
     expect(within21.getByText("組まれなかったチーム: NGT")).toBeTruthy();
   });
@@ -214,14 +215,14 @@ describe("枠の画面: 組分けと勝利", () => {
     const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "POST /api/matches/7/wins": { status: 201, body: { id: 3 } } });
     renderApp("/");
 
-    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を記録" }));
-    const button = form.getByRole("button", { name: "勝利を記録" }) as HTMLButtonElement;
+    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を追加" }));
+    const button = form.getByRole("button", { name: "勝利を追加" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(within(form.getByLabelText("勝ったチーム")).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択", "KMU", "UT"]);
+    expect(within(form.getByLabelText("勝ったチーム")).getAllByRole("option").map((o) => o.textContent)).toEqual(["勝ったチーム", "KMU", "UT"]);
 
     fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "2" } });
     fireEvent.change(form.getByLabelText("点数"), { target: { value: "452" } });
-    fireEvent.change(form.getByLabelText("スクリーンショット"), { target: { files: [new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] } });
+    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] } });
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
 
@@ -237,15 +238,16 @@ describe("枠の画面: 組分けと勝利", () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match({ win: win() })] })]));
     renderApp("/");
 
-    const within21 = await card("21:00の枠");
-    expect(within21.getByText(/勝ち:/).textContent).toContain("UT");
+    const within21 = await card("21:00の対戦枠");
+    // 組分けの 1 行に、勝利チーム・点数・記録・画像が並ぶ
+    expect(within21.getByText("452pt").closest("tr")!.textContent).toContain("UT");
     expect(within21.getByText("452pt")).toBeTruthy();
     expect(within21.getByText(/管理者さん・10\/07 21:30/)).toBeTruthy();
     // 画像は、別のページには移らず、ポップアップで表示する
     expect(within21.queryByRole("link", { name: "画像" })).toBeNull();
     fireEvent.click(within21.getByRole("button", { name: "画像" }));
-    expect(screen.getByRole("img", { name: "勝利#3のスクリーンショット" }).getAttribute("src")).toBe("/api/screenshots/3");
-    expect(within21.queryByRole("form", { name: /の勝利を記録/ })).toBeNull();
+    expect(screen.getByRole("img", { name: "勝利#3の画像" }).getAttribute("src")).toBe("/api/screenshots/3");
+    expect(within21.queryByRole("form", { name: /の勝利を追加/ })).toBeNull();
   });
 
   it("勝利を削除すると、記録フォームに戻る（削除して、記録し直せる）", async () => {
@@ -268,11 +270,11 @@ describe("枠の画面: 組分けと勝利", () => {
     });
     renderApp("/");
 
-    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を記録" }));
+    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を追加" }));
     fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
     fireEvent.change(form.getByLabelText("点数"), { target: { value: "10" } });
-    fireEvent.change(form.getByLabelText("スクリーンショット"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
-    fireEvent.click(form.getByRole("button", { name: "勝利を記録" }));
+    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
+    fireEvent.click(form.getByRole("button", { name: "勝利を追加" }));
 
     expect((await screen.findAllByRole("alert"))[0]?.textContent).toContain("すでに勝利が記録されています");
   });
@@ -280,36 +282,36 @@ describe("枠の画面: 組分けと勝利", () => {
   it("勝利のある組分けを削除するときは、勝利も消えることを、確認に出す（削除済みの勝利も数える）", async () => {
     installFakeBackend(apis([slot({ matches: [match({ win: win(), deletedWins: 1 })] })]));
     renderApp("/");
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
 
     fireEvent.click(await within21.findByRole("button", { name: "組分けを削除" }));
 
-    expect(within21.getByRole("button", { name: "勝利2件も削除して、実行する" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "勝利2件も削除して、実行する" })).toBeTruthy();
   });
 
   it("組分けの削除は、確認してから実行する", async () => {
     const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "DELETE /api/matches/7": { body: { ok: true } } });
     renderApp("/");
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
 
     fireEvent.click((await within21.findByRole("button", { name: "組分けを削除" })));
     expect(backend.count("DELETE", "/api/matches/7")).toBe(0);
-    fireEvent.click(within21.getByRole("button", { name: "削除を実行する" }));
+    fireEvent.click(screen.getByRole("button", { name: "削除を実行する" }));
 
     await waitFor(() => expect(backend.count("DELETE", "/api/matches/7")).toBe(1));
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
   });
 });
 
-describe("枠の画面: マッチングの確定とやり直し", () => {
-  it("未マッチングの枠には「マッチング処理を実行する」が出る。確認してから実行して、日付も送る", async () => {
+describe("対戦枠の画面: マッチングの確定とやり直し", () => {
+  it("未マッチングの対戦枠には「マッチング処理を実行する」が出る。確認してから実行して、日付も送る", async () => {
     const backend = installFakeBackend({ ...apis([slot()]), "POST /api/match-slots/confirm": { body: { ok: true } } });
     renderApp("/");
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
 
     fireEvent.click(await within21.findByRole("button", { name: "マッチング処理を実行する" }));
     expect(backend.count("POST", "/api/match-slots/confirm")).toBe(0);
-    // 重い操作は、画面の中央のダイアログで確認する（枠の外に出る）
+    // 重い操作は、画面の中央のダイアログで確認する（対戦枠の外に出る）
     expect(screen.getByRole("dialog", { name: "マッチング処理を実行する" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "実行して、投稿する" }));
 
@@ -318,13 +320,13 @@ describe("枠の画面: マッチングの確定とやり直し", () => {
     expect(within21.queryByRole("button", { name: "やり直す" })).toBeNull();
   });
 
-  it("マッチング済みの枠には「やり直す」が出る（確定は出ない）。消える組分けと勝利の件数を、確認に出す", async () => {
+  it("マッチング済みの対戦枠には「やり直す」が出る（確定は出ない）。消える組分けと勝利の件数を、確認に出す", async () => {
     const backend = installFakeBackend({
       ...apis([slot({ matched: true, matches: [match({ win: win() }), match({ id: 8, deletedWins: 1 })] })]),
       "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 2, deletedWins: 2 } },
     });
     renderApp("/");
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
     expect(within21.queryByRole("button", { name: "マッチング処理を実行する" })).toBeNull();
 
     fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
@@ -335,10 +337,10 @@ describe("枠の画面: マッチングの確定とやり直し", () => {
     expect(backend.last("POST", "/api/match-slots/reopen")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07" });
   });
 
-  it("組分けも勝利もない枠は、件数を出さずに「やり直しを実行する」だけ", async () => {
+  it("組分けも勝利もない対戦枠は、件数を出さずに「やり直しを実行する」だけ", async () => {
     installFakeBackend(apis([slot({ matched: true })]));
     renderApp("/");
-    const within21 = await card("21:00の枠");
+    const within21 = await card("21:00の対戦枠");
 
     fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
     expect(screen.getByRole("button", { name: "やり直しを実行する" })).toBeTruthy();
