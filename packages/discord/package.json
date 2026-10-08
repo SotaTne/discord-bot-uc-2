@@ -1,0 +1,20 @@
+{
+  "name": "@uc/discord",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "register-commands": "tsx --env-file-if-exists=../../apps/worker/.dev.vars scripts/register-commands.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
