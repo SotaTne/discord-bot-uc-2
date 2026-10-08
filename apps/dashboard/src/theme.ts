@@ -30,7 +30,7 @@ export const theme = createTheme({
     // 表の中では、文字を折り返さない（幅が足りないときは、表のスクロールで見る）
     Table: { defaultProps: { verticalSpacing: "xs", highlightOnHover: true, style: { whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" } } },
     // 説明は、入力欄の下に出す（説明が折り返しても、横に並べた入力欄の高さがずれない）
-    TextInput: { defaultProps: { size: "sm", autoComplete: "off", inputWrapperOrder: ["label", "input", "description", "error"] } },
+    TextInput: { defaultProps: { size: "sm", autoComplete: "off", styles: { error: { whiteSpace: "nowrap" } }, inputWrapperOrder: ["label", "input", "description", "error"] } },
     Menu: { defaultProps: { transitionProps: { duration: 0 } } },
     // ダイアログの右上の×は、読み上げでも分かるように、名前を付ける
     Modal: { defaultProps: { transitionProps: { duration: 0 }, closeButtonProps: { "aria-label": "閉じる" } } },

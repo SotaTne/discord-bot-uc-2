@@ -81,6 +81,24 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect((await save()).disabled).toBe(true);
   });
 
+  it("変更したあとの「キャンセル」（文字のリンク）で、入力を、保存した値に戻す。何も送らない。変更がなければ、出ない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
+    renderApp("/settings");
+    await screen.findByRole("region", { name: "投稿と募集" });
+    expect(region("投稿と募集").queryByRole("button", { name: "キャンセル" })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "9" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "キャンセル" }));
+
+    expect((screen.getByLabelText("締切（試合の何分前）") as HTMLInputElement).value).toBe("7");
+    expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
+    expect(region("投稿と募集").queryByRole("button", { name: "キャンセル" })).toBeNull();
+    expect(backend.count("PUT", "/api/settings")).toBe(0);
+    // 得点の集計には、触れていない
+    expect(region("得点の集計").queryByRole("button", { name: "キャンセル" })).toBeNull();
+  });
+
   it("範囲を外れた入力は、その場で理由を出して、保存できない（API には送らない）", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
     renderApp("/settings");

@@ -1,5 +1,5 @@
 import { handupDeadline, formatJstTime } from "@uc/core";
-import { Badge, Button, Checkbox, CloseButton, Group, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Badge, Button, Checkbox, CloseButton, Group, Stack, Text, TextInput } from "@mantine/core";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Async, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
@@ -68,7 +68,7 @@ function SettingRow({ title, description, children }: { title: string; descripti
 }
 
 /** 保存の行。変更があって、入力に問題がないときだけ、保存できる。状態（未保存の変更 / 保存した）を、横に出す */
-function SaveRow({ pending, saved, dirty, valid, error }: { pending: boolean; saved: boolean; dirty: boolean; valid: boolean; error: unknown }) {
+function SaveRow({ pending, saved, dirty, valid, error, onCancel }: { pending: boolean; saved: boolean; dirty: boolean; valid: boolean; error: unknown; onCancel: () => void }) {
   return (
     <>
       <Group>
@@ -76,9 +76,15 @@ function SaveRow({ pending, saved, dirty, valid, error }: { pending: boolean; sa
           保存する
         </Button>
         {dirty && (
-          <Text size="sm" c="dimmed" role="status">
-            保存していない変更があります
-          </Text>
+          <>
+            <Text size="sm" c="dimmed" role="status">
+              保存していない変更があります
+            </Text>
+            {/* 入力を、保存したときの値に戻す。ボタンではなく、文字で出す */}
+            <Anchor component="button" type="button" size="sm" onClick={onCancel}>
+              キャンセル
+            </Anchor>
+          </>
         )}
         {!dirty && saved && (
           <Text role="status" c="green" size="sm">
@@ -159,7 +165,18 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
           </SettingRow>
         </Stack>
         <Stack mt="md">
-          <SaveRow pending={save.isPending} saved={save.isSuccess} dirty={dirty} valid={valid} error={save.error} />
+          <SaveRow
+            pending={save.isPending}
+            saved={save.isSuccess}
+            dirty={dirty}
+            valid={valid}
+            error={save.error}
+            onCancel={() => {
+              setChannelId(initial.channelId ?? "");
+              setRecruitHour(String(initial.recruitHour));
+              setCutoffMinutes(String(initial.cutoffMinutes));
+            }}
+          />
         </Stack>
       </form>
     </Section>
@@ -210,7 +227,17 @@ function ScoreRule({ initial }: { initial: SettingsValues }) {
           </SettingRow>
         </Stack>
         <Stack mt="md">
-          <SaveRow pending={save.isPending} saved={save.isSuccess} dirty={dirty} valid={valid} error={save.error} />
+          <SaveRow
+            pending={save.isPending}
+            saved={save.isSuccess}
+            dirty={dirty}
+            valid={valid}
+            error={save.error}
+            onCancel={() => {
+              setFixedAfterMatches(String(initial.fixedAfterMatches));
+              setFixedPoints(String(initial.fixedPoints));
+            }}
+          />
         </Stack>
       </form>
     </Section>
