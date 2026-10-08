@@ -1,0 +1,26 @@
+{
+  "name": "@uc/mock",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "setup-dev": "tsx src/setup.ts",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@uc/api": "workspace:*",
+    "@uc/discord": "workspace:*",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@types/jsdom": "catalog:",
+    "@types/node": "catalog:",
+    "@uc/db": "workspace:*",
+    "jsdom": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
