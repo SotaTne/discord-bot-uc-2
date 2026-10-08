@@ -5,6 +5,15 @@ import { loadScores } from "../usecases/scores";
 import type { CommandHandler } from "./registry";
 
 /**
+ * 得点の内訳の文面（試合数・勝利数。試合数が N を超えていれば、その旨）。例: 5試合・3勝・試合数5を超過しました
+ * 試合数が N を超えると、それ以降の試合で、勝っても、記録した点数に関係なく、固定点で数える。
+ */
+export function scoreDetail(input: { matches: number; wins: number }, rule: { fixedAfterMatches: number }): string {
+  const exceeded = input.matches > rule.fixedAfterMatches ? `・試合数${rule.fixedAfterMatches}を超過しました` : "";
+  return `${input.matches}試合・${input.wins}勝${exceeded}`;
+}
+
+/**
  * 得点の一覧の文面を作る（純粋な関数）。チームは、ロールのメンションで表す（Discord が、ロールの名前で見せる）。得点の高い順で、同点は同じ順位（1位, 1位, 3位）。
  * 有効な勝利のないチームは 0pt として並べる。
  */
@@ -32,9 +41,7 @@ export function formatScoreboard(
   const lines = rows.map((row, index) => {
     if (row.total !== previousTotal) rank = index + 1;
     previousTotal = row.total;
-    // 試合数が N を超えると、それ以降の試合で、勝っても、記録した点数に関係なく、固定点で数える
-    const exceeded = row.matches > rule.fixedAfterMatches ? `・試合数${rule.fixedAfterMatches}を超過しました` : "";
-    return `${rank}位 <@&${row.roleId}> ${row.total}pt（${row.matches}試合・${row.wins}勝${exceeded}）`;
+    return `${rank}位 <@&${row.roleId}> ${row.total}pt（${scoreDetail(row, rule)}）`;
   });
   return ["# チームの得点", ...lines].join("\n");
 }
