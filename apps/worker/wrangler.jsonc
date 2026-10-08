@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "uc-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+
+  // ダッシュボード（apps/dashboard のビルド成果物）を同じ Worker から配信する。
+  // Cookie の SameSite=Strict と同一オリジンを成り立たせるため。
+  "assets": {
+    "directory": "../dashboard/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/interactions", "/dev/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "uc-bot",
+      // ローカル開発では使われない。デプロイ前に `wrangler d1 create uc-bot` の値に置き換える
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../../packages/db/migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "SCREENSHOTS",
+      "bucket_name": "uc-bot-screenshots"
+    }
+  ],
+
+  // 毎分起動する。募集開始の投稿と、試合の K 分前の締切（マッチングの確定）を、時刻が来ていれば行う
+  "triggers": { "crons": ["* * * * *"] }
+}

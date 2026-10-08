@@ -1,0 +1,37 @@
+{
+  "name": "@uc/worker",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": {
+      "types": "./dist/types/routes/api.d.ts"
+    }
+  },
+  "scripts": {
+    "dev": "mkdir -p ../dashboard/dist && wrangler dev --port 8787",
+    "tunnel": "ngrok http 8787 ${NGROK_URL:+--url=$NGROK_URL}",
+    "db:migrate": "wrangler d1 migrations apply uc-bot --local",
+    "db:seed": "wrangler d1 execute uc-bot --local --file=.wrangler/dev-seed.sql",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types",
+    "build:types": "wrangler types && tsc -p tsconfig.types.json",
+    "typecheck": "wrangler types && tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "catalog:",
+    "@uc/api": "workspace:*",
+    "@uc/core": "workspace:*",
+    "@uc/db": "workspace:*",
+    "@uc/discord": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

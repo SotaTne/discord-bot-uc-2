@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // wrangler types が生成する worker-configuration.d.ts に、ランタイムの型が入っている
+    "types": []
+  },
+  "include": ["src", "worker-configuration.d.ts", "vitest.config.ts"]
+}

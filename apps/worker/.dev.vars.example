@@ -1,0 +1,9 @@
+# ローカル開発用。コピーして .dev.vars にする（.dev.vars は git に入れない）
+#   cp .dev.vars.example .dev.vars
+#
+# 開発時は、apps/mock が出す公開鍵に合わせる。本番の値は wrangler secret put で設定する。
+DISCORD_PUBLIC_KEY=
+DISCORD_BOT_TOKEN=dev-token
+DISCORD_APPLICATION_ID=100000000000000001
+# 開発時はモックの Discord REST に向ける。本番では設定しない
+DISCORD_API_BASE=http://localhost:8788/api/v10
