@@ -157,13 +157,15 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             {slotAction}
           </Group>
           <ErrorNote error={confirm.error ?? reopen.error} />
-          {slot.handups.length === 0 ? (
+          {slot.handups.length === 0 && slot.matched && (
             <Text c="dimmed" size="sm">
               まだありません
             </Text>
-          ) : (
-            // 挙手は、カードを格子状に並べる（チームが増えても、縦に長くならない）。チーム名の下に、誰がいつ挙手したかを小さく出す
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs">
+          )}
+          {(slot.handups.length > 0 || !slot.matched) && (
+            // 挙手は、カードを格子状に並べる（チームが増えても、縦に長くならない）。チーム名の下に、誰がいつ挙手したかを小さく出す。
+            // 挙手の追加は、格子の最後の 1 マスにして、カードと幅をそろえる
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
               {slot.handups.map((handup) => (
                 <Paper key={handup.id} withBorder px="sm" py={6}>
                   <Group justify="space-between" wrap="nowrap" gap="xs">
@@ -186,9 +188,9 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
                   </Group>
                 </Paper>
               ))}
+              {!slot.matched && <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />}
             </SimpleGrid>
           )}
-          {!slot.matched && <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />}
           <ErrorNote error={withdraw.error} />
         </Stack>
 
@@ -247,14 +249,15 @@ function AddHandup({ date, hour, candidates }: { date: string; hour: number; can
 
   return (
     <form
+      style={{ minWidth: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
         if (teamId !== "") add.mutate(teamId, { onSuccess: () => setTeamId("") });
       }}
     >
-      <Group gap="xs">
-        <NativeSelect aria-label="挙手するチーム" w={180} value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions(candidates, "チームを選択")} />
-        <Button type="submit" disabled={teamId === "" || add.isPending}>
+      <Group gap="xs" wrap="nowrap" h="100%" align="center">
+        <NativeSelect aria-label="挙手するチーム" style={{ flex: 1, minWidth: 0 }} value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions(candidates, "チームを選択")} />
+        <Button type="submit" variant="light" disabled={teamId === "" || add.isPending}>
           挙手を追加
         </Button>
       </Group>
