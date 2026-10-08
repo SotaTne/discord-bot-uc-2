@@ -81,7 +81,7 @@ export function renderApp(path = "/") {
 }
 
 /** ログイン済みの、最低限の API（/api/me） */
-export const loggedIn = { "GET /api/me": { body: { guildId: "200000000000000001", userId: "500000000000000005" } } } as const;
+export const loggedIn = { "GET /api/me": { body: { guildId: "200000000000000001", userId: "500000000000000005", now: Date.parse("2026-10-07T15:00:00+09:00") } } } as const;
 
 /** 画面のテストで使う、共通のデータ */
 export const TEAMS = {

@@ -1,4 +1,64 @@
-/* 画面の見た目は Mantine（theme.ts）に任せる。ここには、部品では表せないものだけを置く */
+/* 見た目の決めごとは theme.ts（Mantine）に置く。ここには、部品では表せないものだけを置く */
+
+:root {
+  --paper: light-dark(#f5f6f8, #12151a);
+  --surface: light-dark(#ffffff, #1a1e25);
+  --rule: light-dark(#e1e4ea, #2b3039);
+  --ink-muted: light-dark(#646c7a, #98a1b0);
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--mantine-color-text);
+  font-variant-numeric: tabular-nums;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 押せるものは、ダブルタップで拡大されない */
+button, a, summary, [role="button"] { touch-action: manipulation; }
+
+/* 面: 影をつけず、細い線で区切る */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--mantine-radius-md);
+}
+
+/* 本文へ移動（キーボードで、最初に Tab を押すと出る） */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -48px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--mantine-radius-sm);
+}
+.skip-link:focus-visible { top: 12px; }
+
+/* ヘッダーのメニュー: 今いるページに、下線を引く */
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+.nav-link:hover { color: var(--mantine-color-text); }
+.nav-link[aria-current="page"] { color: var(--mantine-color-text); border-bottom-color: var(--mantine-color-primary-filled); }
+
+/* 対戦枠: 進行表。時刻を目印にして、左に置く */
+.slot { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 24px; padding: 20px 20px; }
+.slot + .slot { border-top: 1px solid var(--rule); }
+.slot-time { font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .slot { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
 
 /* 無効な行: 要素ごとではなく、行全体に1本の線を引いて、薄くする（操作のボタンの列は、そのまま） */
 .struck td:not(:last-child) {
@@ -6,5 +66,7 @@
   background: linear-gradient(transparent calc(50% - 0.5px), currentColor calc(50% - 0.5px), currentColor calc(50% + 0.5px), transparent calc(50% + 0.5px));
 }
 
-/* 表が画面より広いときは、表の中だけ横に動かす */
-.table-scroll { overflow-x: auto; }
+/* 並び替えができる見出し: 押せることが分かるように、触れたときに背景を付ける */
+.sortable { cursor: pointer; border-radius: 4px; padding: 2px 6px; margin: -2px -6px; }
+.sortable:hover { background: var(--mantine-color-default-hover); }
+.sortable:focus-visible { outline: 2px solid var(--mantine-color-primary-filled); outline-offset: 2px; }

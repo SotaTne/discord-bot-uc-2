@@ -13,7 +13,14 @@ const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: "/login"
 // ログイン済みの画面は、共通の枠（AppLayout）の中に表示する。
 // path は、Link の型チェックのために、1つずつ文字列リテラルで書く（ヘルパーにまとめると、型が string に広がる）
 const appRoute = createRoute({ getParentRoute: () => rootRoute, id: "app", component: AppLayout });
-const boardRoute = createRoute({ getParentRoute: () => appRoute, path: "/", component: BoardPage });
+// 見ている日付は、URL（?date=YYYY-MM-DD）に持つ。再読み込みしても、同じ日が開く。省略は、今日
+const boardRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/",
+  component: BoardPage,
+  validateSearch: (search: Record<string, unknown>): { date?: string } =>
+    typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? { date: search.date } : {},
+});
 const teamsRoute = createRoute({ getParentRoute: () => appRoute, path: "/teams", component: TeamsPage });
 const winsRoute = createRoute({ getParentRoute: () => appRoute, path: "/wins", component: WinsPage });
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: "/settings", component: SettingsPage });
