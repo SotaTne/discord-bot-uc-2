@@ -1,9 +1,11 @@
-import { Badge, Button, Checkbox, CloseButton, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
-import { useState, type FormEvent } from "react";
+import { handupDeadline, formatJstTime } from "@uc/core";
+import { Badge, Button, Checkbox, CloseButton, Group, Stack, Text, TextInput } from "@mantine/core";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Async, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
-import { formatHour } from "../lib/format";
+import { formatHour, todayJst } from "../lib/format";
+import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
 import { useInvalidatingMutation, useSettings, useSlots } from "../lib/queries";
 import { Sessions } from "./sessions";
 
@@ -46,14 +48,39 @@ function useSaveSettings(initial: SettingsValues) {
   return save;
 }
 
-function SaveRow({ pending, saved, error }: { pending: boolean; saved: boolean; error: unknown }) {
+/** 設定の 1 項目。左に、項目の名前と説明、右に、入力欄を置く（入力欄ごとに説明を付けると、横に並べたときに、高さがずれるため） */
+function SettingRow({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return (
+    <div className="setting-row">
+      <div>
+        <Text fw={500} size="sm">
+          {title}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+      </div>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+/** 保存の行。変更があって、入力に問題がないときだけ、保存できる。状態（未保存の変更 / 保存した）を、横に出す */
+function SaveRow({ pending, saved, dirty, valid, error }: { pending: boolean; saved: boolean; dirty: boolean; valid: boolean; error: unknown }) {
   return (
     <>
       <Group>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !dirty || !valid}>
           保存する
         </Button>
-        {saved && (
+        {dirty && (
+          <Text size="sm" c="dimmed" role="status">
+            保存していない変更があります
+          </Text>
+        )}
+        {!dirty && saved && (
           <Text role="status" c="green" size="sm">
             保存しました
           </Text>
@@ -64,36 +91,75 @@ function SaveRow({ pending, saved, error }: { pending: boolean; saved: boolean; 
   );
 }
 
+const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
 /** Discord への投稿（募集開始・マッチング結果）の設定 */
 function PostSettings({ initial }: { initial: SettingsValues }) {
+  const slots = useSlots();
   const [channelId, setChannelId] = useState(initial.channelId ?? "");
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
   const save = useSaveSettings(initial);
 
+  const errors = {
+    channelId: validateChannelId(channelId),
+    recruitHour: validateRecruitHour(recruitHour),
+    cutoffMinutes: validateCutoffMinutes(cutoffMinutes),
+  };
+  const valid = !errors.channelId && !errors.recruitHour && !errors.cutoffMinutes;
+  const dirty =
+    channelId.trim() !== (initial.channelId ?? "") || recruitHour.trim() !== String(initial.recruitHour) || cutoffMinutes.trim() !== String(initial.cutoffMinutes);
+
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!valid) return;
     save.mutate({ channelId: channelId.trim() === "" ? null : channelId.trim(), recruitHour: Number(recruitHour), cutoffMinutes: Number(cutoffMinutes) });
   }
+
+  // 今の入力で、今日の予定がどうなるか（保存する前に、確かめられる）
+  const today = todayJst();
+  const schedule =
+    !errors.recruitHour && !errors.cutoffMinutes
+      ? (slots.data?.slots ?? []).map((slot) => ({ hour: slot.hour, cutoff: formatJstTime(handupDeadline(today, slot.hour, Number(cutoffMinutes))) }))
+      : null;
 
   return (
     <Section title="投稿と募集">
       <form onSubmit={submit}>
-        <Stack maw={560}>
-          <TextInput
-            label="投稿先のチャンネル ID"
-            name="channelId"
-            spellCheck={false}
-            description="募集開始とマッチング結果を投稿します（空にすると投稿しません）"
-            value={channelId}
-            onChange={(event) => setChannelId(event.target.value)}
-            inputMode="numeric"
-          />
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput label="募集開始時刻（JST）" name="recruitHour" description="この時（0〜23）に募集を始めます" type="number" min={0} max={23} value={recruitHour} onChange={(event) => setRecruitHour(event.target.value)} />
-            <TextInput label="締切（試合の何分前）" name="cutoffMinutes" description="この時刻に挙手を締め切ります" type="number" min={1} max={180} value={cutoffMinutes} onChange={(event) => setCutoffMinutes(event.target.value)} />
-          </SimpleGrid>
-          <SaveRow pending={save.isPending} saved={save.isSuccess} error={save.error} />
+        <Stack gap={0}>
+          <SettingRow title="投稿先のチャンネル" description="募集開始とマッチング結果を投稿します。空にすると、投稿しません">
+            <TextInput aria-label="投稿先のチャンネル ID" name="channelId" placeholder="チャンネル ID" spellCheck={false} inputMode="numeric" w={280} value={channelId} error={errors.channelId ?? false} onChange={(event) => setChannelId(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="募集開始時刻" description="この時（0〜23, JST）に、その日の募集を始めます">
+            <TextInput aria-label="募集開始時刻（JST）" name="recruitHour" type="number" min={0} max={23} w={120} value={recruitHour} error={errors.recruitHour ?? false} onChange={(event) => setRecruitHour(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="締切" description="試合の何分前に、挙手を締め切って、マッチング処理を行うか">
+            <TextInput aria-label="締切（試合の何分前）" name="cutoffMinutes" type="number" min={1} max={180} w={120} value={cutoffMinutes} error={errors.cutoffMinutes ?? false} onChange={(event) => setCutoffMinutes(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="今日の予定" description="いまの入力で計算します（保存する前に確かめられます）">
+            {schedule === null ? (
+              <Text size="sm" c="dimmed">
+                入力を直すと、予定が出ます
+              </Text>
+            ) : (
+              <Stack gap={2} aria-label="今日の予定">
+                <Text size="sm">{pad(Number(recruitHour))} に募集を開始</Text>
+                {schedule.map((item) => (
+                  <Text key={item.hour} size="sm">
+                    {pad(item.hour)} の試合は、{item.cutoff} に締切
+                  </Text>
+                ))}
+                {schedule.length === 0 && (
+                  <Text size="sm" c="dimmed">
+                    試合時刻が登録されていません
+                  </Text>
+                )}
+              </Stack>
+            )}
+          </SettingRow>
+        </Stack>
+        <Stack mt="md">
+          <SaveRow pending={save.isPending} saved={save.isSuccess} dirty={dirty} valid={valid} error={save.error} />
         </Stack>
       </form>
     </Section>
@@ -106,29 +172,45 @@ function ScoreRule({ initial }: { initial: SettingsValues }) {
   const [fixedPoints, setFixedPoints] = useState(String(initial.fixedPoints));
   const save = useSaveSettings(initial);
 
+  const errors = { fixedAfterMatches: validateFixedAfterMatches(fixedAfterMatches), fixedPoints: validateFixedPoints(fixedPoints) };
+  const valid = !errors.fixedAfterMatches && !errors.fixedPoints;
+  const dirty = fixedAfterMatches.trim() !== String(initial.fixedAfterMatches) || fixedPoints.trim() !== String(initial.fixedPoints);
+
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!valid) return;
     save.mutate({ fixedAfterMatches: Number(fixedAfterMatches), fixedPoints: Number(fixedPoints) });
   }
 
   return (
     <Section title="得点の集計">
       <form onSubmit={submit}>
-        <Stack maw={560}>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput
-              label="N（記録した点数で集計する試合数）"
-              name="fixedAfterMatches"
-              description="N 試合目までは記録した点数、N+1 試合目からは固定点で集計します"
-              type="number"
-              min={0}
-              max={100}
-              value={fixedAfterMatches}
-              onChange={(event) => setFixedAfterMatches(event.target.value)}
-            />
-            <TextInput label="固定点" name="fixedPoints" description="N 試合を超えた試合で勝ったときの点数" type="number" min={0} value={fixedPoints} onChange={(event) => setFixedPoints(event.target.value)} />
-          </SimpleGrid>
-          <SaveRow pending={save.isPending} saved={save.isSuccess} error={save.error} />
+        <Stack gap={0}>
+          <SettingRow title="N（記録した点数で集計する試合数）" description="勝ったとき、N 試合目までは、記録した点数で集計します">
+            <TextInput aria-label="N（記録した点数で集計する試合数）" name="fixedAfterMatches" type="number" min={0} max={100} w={120} value={fixedAfterMatches} error={errors.fixedAfterMatches ?? false} onChange={(event) => setFixedAfterMatches(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="固定点" description="N 試合を超えた試合（N+1 試合目から）で勝ったときの点数">
+            <TextInput aria-label="固定点" name="fixedPoints" type="number" min={0} w={120} value={fixedPoints} error={errors.fixedPoints ?? false} onChange={(event) => setFixedPoints(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="集計の例" description="いまの入力で計算します">
+            {valid ? (
+              <Stack gap={2}>
+                <Text size="sm">
+                  {Number(fixedAfterMatches) === 0 ? "すべての試合で" : `1〜${fixedAfterMatches} 試合目で勝つと`}、{Number(fixedAfterMatches) === 0 ? "勝つと" : ""}記録した点数
+                </Text>
+                <Text size="sm">
+                  {Number(fixedAfterMatches) + 1} 試合目からは、勝つと {fixedPoints}pt 固定
+                </Text>
+              </Stack>
+            ) : (
+              <Text size="sm" c="dimmed">
+                入力を直すと、例が出ます
+              </Text>
+            )}
+          </SettingRow>
+        </Stack>
+        <Stack mt="md">
+          <SaveRow pending={save.isPending} saved={save.isSuccess} dirty={dirty} valid={valid} error={save.error} />
         </Stack>
       </form>
     </Section>

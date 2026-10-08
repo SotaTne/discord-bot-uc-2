@@ -36,8 +36,16 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect((screen.getByLabelText(/これまでのログインをすべて失効させる/) as HTMLInputElement).checked).toBe(false);
   });
 
-  it("「投稿と募集」だけを保存しても、ほかの項目は、いまの値のまま送る。チャンネルを空にすると null", async () => {
-    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
+  it("「投稿と募集」だけを保存しても、ほかの項目は、いまの値のまま送る。チャンネルを空にすると null。保存すると、「保存しました」と出る", async () => {
+    let current = { ...SETTINGS };
+    const backend = installFakeBackend({
+      ...apis(),
+      "GET /api/settings": () => ({ body: current }),
+      "PUT /api/settings": (request) => {
+        current = { ...current, ...(request.json as object) };
+        return { body: { ok: true } };
+      },
+    });
     renderApp("/settings");
     fireEvent.change(await screen.findByLabelText(/投稿先のチャンネル ID/), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "10" } });
@@ -54,6 +62,56 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       fixedPoints: 100,
       revokeSessionsOnReissue: false,
     });
+  });
+
+  it("変更がないときは、保存できない。変更すると、「保存していない変更があります」と出て、保存できる", async () => {
+    installFakeBackend(apis());
+    renderApp("/settings");
+    await screen.findByRole("region", { name: "得点の集計" });
+    const save = async () => (await region("得点の集計").findByRole("button", { name: "保存する" })) as HTMLButtonElement;
+
+    expect((await save()).disabled).toBe(true);
+    expect(region("得点の集計").queryByText("保存していない変更があります")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
+    expect((await save()).disabled).toBe(false);
+    expect(region("得点の集計").getByText("保存していない変更があります")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "100" } });
+    expect((await save()).disabled).toBe(true);
+  });
+
+  it("範囲を外れた入力は、その場で理由を出して、保存できない（API には送らない）", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
+    renderApp("/settings");
+    fireEvent.change(await screen.findByLabelText("募集開始時刻（JST）"), { target: { value: "24" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText(/投稿先のチャンネル ID/), { target: { value: "12345" } });
+
+    const post = region("投稿と募集");
+    expect(post.getByText("23 以下にしてください")).toBeTruthy();
+    expect(post.getByText("1 以上にしてください")).toBeTruthy();
+    expect(post.getByText(/チャンネル ID（15〜25 桁の数字）/)).toBeTruthy();
+    expect((post.getByRole("button", { name: "保存する" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(backend.count("PUT", "/api/settings")).toBe(0);
+  });
+
+  it("「今日の予定」に、いまの入力で、募集開始と各試合時刻の締切を出す（保存する前に確かめられる）", async () => {
+    installFakeBackend(apis());
+    renderApp("/settings");
+
+    const schedule = await screen.findByLabelText("今日の予定");
+    expect(schedule.textContent).toContain("12:00 に募集を開始");
+    expect(schedule.textContent).toContain("21:00 の試合は、20:53 に締切");
+    expect(schedule.textContent).toContain("22:00 の試合は、21:53 に締切");
+
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "15" } });
+    fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "9" } });
+    expect(screen.getByLabelText("今日の予定").textContent).toContain("09:00 に募集を開始");
+    expect(screen.getByLabelText("今日の予定").textContent).toContain("21:00 の試合は、20:45 に締切");
+
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "x" } });
+    expect(screen.queryByLabelText("今日の予定")).toBeNull();
   });
 
   it("「得点の集計」を保存すると、N と固定点だけが変わる", async () => {
@@ -78,15 +136,16 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(region("ログイン").queryByRole("button", { name: "保存する" })).toBeNull();
   });
 
-  it("入力が不正で保存できなかったら、そのセクションに、入力の確認を促す", async () => {
+  it("API が入力を受け付けなかったら、そのセクションに、入力の確認を促す", async () => {
     installFakeBackend({ ...apis(), "PUT /api/settings": { status: 400, body: { success: false, error: { name: "ZodError" } } } });
     renderApp("/settings");
 
-    await screen.findByLabelText("固定点");
+    fireEvent.change(await screen.findByLabelText("固定点"), { target: { value: "80" } });
     fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
 
     expect((await region("得点の集計").findByRole("alert")).textContent).toContain("入力内容を確認してください");
   });
+
 });
 
 describe("設定の画面: 試合時刻", () => {
