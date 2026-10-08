@@ -24,14 +24,14 @@ export type AdminSlotStatus = {
   phase: HandupPhase;
   /** 挙手 */
   handups: Handup[];
-  /** マッチング処理済みなら、その結果 */
+  /** マッチング済みなら、その結果 */
   matched: MatchedSlot | null;
 };
 
 /** 今日の、すべてのチームの挙手状況とマッチング結果の文面を作る（純粋な関数）。チームは、ロールのメンションで表す */
 export function formatAdminStatus(input: { slotDate: string; teams: Team[]; slots: AdminSlotStatus[] }): string {
   const header = `# 挙手状況（${input.slotDate}）`;
-  if (input.slots.length === 0) return `${header}\n試合枠が登録されていません`;
+  if (input.slots.length === 0) return `${header}\n試合時刻が登録されていません`;
 
   const mention = (teamId: number) => {
     const team = input.teams.find((t) => t.id === teamId);

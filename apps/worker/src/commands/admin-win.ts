@@ -5,7 +5,7 @@ import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } f
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
 import { editDeferredResponse } from "./deferred";
 import { teamMention } from "./caller";
-import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, recordWin, type WinReport } from "../usecases/record-win";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, addWin, type WinReport } from "../usecases/add-win";
 import type { CommandContext, CommandHandler } from "./registry";
 
 type WinInput = {
@@ -14,7 +14,7 @@ type WinInput = {
   team: Team;
   slotDate: string;
   slotHour: number;
-  /** 勝った試合（その枠で、そのチームが出る組分け） */
+  /** 勝った試合（その対戦枠で、そのチームが出る組分け） */
   matchId: number;
   /** 組分けの相手のチーム（結果の文面に、組分けを出すため） */
   opponent: Team | null;
@@ -23,7 +23,7 @@ type WinInput = {
 };
 
 /**
- * /uc-admin-win time team-role point image [date]: 勝利を記録する（管理者のみ）。
+ * /uc-admin-win time team-role point image [date]: 勝利を追加する（管理者のみ）。
  * 画像の取得と保存に時間がかかるので、まず「考え中」を返して、結果はあとで返信を編集して伝える。
  */
 export const adminWin: CommandHandler = async (context) => {
@@ -47,16 +47,16 @@ export const adminWin: CommandHandler = async (context) => {
   if (dateText !== null && !dateSchema.safeParse(dateText).success) {
     return ephemeralMessage("日付は YYYY-MM-DD の形式で、実在する日付を指定してください");
   }
-  // 日付を省略したときは、今より前で一番直近の、その時刻の枠
+  // 日付を省略したときは、今より前で一番直近の、その時刻の対戦枠
   const slotDate = dateText ?? resolveRecentSlotDate(clock.now(), hour);
 
   const [team] = await findTeamsByRoleIds(db, guildId, [roleId]);
   if (!team) return ephemeralMessage("チームとして登録されていないロールです");
   if (!(await findSlot(db, guildId, hour))) {
-    return ephemeralMessage(`${hour}時の試合枠は登録されていません`);
+    return ephemeralMessage(`${hour}時の試合時刻は登録されていません`);
   }
 
-  // 勝利は、マッチングで組まれた試合に紐づく。その枠に、そのチームの試合がなければ、記録できない
+  // 勝利は、マッチングで組まれた試合に紐づく。その対戦枠に、そのチームの試合がなければ、記録できない
   const match = await findMatchForTeam(db, { guildId, slotDate, slotHour: hour, teamId: team.id });
   if (!match) {
     return ephemeralMessage(
@@ -66,7 +66,7 @@ export const adminWin: CommandHandler = async (context) => {
 
   // 有効な記録は、1つの組分けに1件まで。間違えたときは、ダッシュボードで削除してから、記録し直す
   if (await hasActiveWin(db, match.matchId)) {
-    return ephemeralMessage("その組分けには、すでに勝利が記録されています。ダッシュボードの「枠」で削除してから、記録し直してください");
+    return ephemeralMessage("その組分けには、すでに勝利が記録されています。ダッシュボードの「対戦枠」で削除してから、記録し直してください");
   }
 
   const opponentId = match.teamAId === team.id ? match.teamBId : match.teamAId;
@@ -108,7 +108,7 @@ async function saveAndSummarize(context: CommandContext, input: WinInput): Promi
   if (!response.ok) throw new Error(`画像を取得できませんでした: ${response.status}`);
   const bytes = await response.arrayBuffer();
 
-  const { id } = await recordWin(
+  const { id } = await addWin(
     { db, bucket: env.SCREENSHOTS, now: clock.now().getTime() },
     { ...input, image: { bytes, contentType: input.attachment.contentType } },
   );
@@ -118,8 +118,8 @@ async function saveAndSummarize(context: CommandContext, input: WinInput): Promi
 
 function winMessage(input: WinInput, report: WinReport): string {
   const lines = [
-    // 枠（日付 × 時刻）だけでは、同じ枠の別の組分けと区別できないので、組分け（誰と誰か）も出す
-    `${teamMention(input.team)} ${input.slotDate} ${input.slotHour}時（${input.opponent ? `${teamMention(input.team)} vs ${teamMention(input.opponent)}` : "組分け"}）の勝利を記録しました（${input.points}pt）`,
+    // 対戦枠（日付 × 時刻）だけでは、同じ対戦枠の別の組分けと区別できないので、組分け（誰と誰か）も出す
+    `${teamMention(input.team)} ${input.slotDate} ${input.slotHour}時（${input.opponent ? `${teamMention(input.team)} vs ${teamMention(input.opponent)}` : "組分け"}）の勝利を追加しました（${input.points}pt）`,
   ];
   if (report.matchNumber !== null) {
     lines.push(

@@ -45,7 +45,7 @@ describe("対戦枠の状態（時刻ではなく、状態で挙手の受付を�
     expect(await findMatchSlot(seeded.db, slot)).toMatchObject({ status: "matched", matchedAt: jst("2026-10-07T20:53:00").getTime() });
   });
 
-  it("処理済みの枠は、時計を受付時間に戻しても、挙手も取り消しも受け付けない。マッチング結果も変わらない", async () => {
+  it("処理済みの対戦枠は、時計を受付時間に戻しても、挙手も取り消しも受け付けない。マッチング結果も変わらない", async () => {
     await raise(ALICE, "2026-10-07T15:00:00");
     await raise(CAROL, "2026-10-07T15:01:00");
     await tick("2026-10-07T20:53:00");
@@ -67,17 +67,17 @@ describe("対戦枠の状態（時刻ではなく、状態で挙手の受付を�
     expect(posted.filter((text) => text.includes("21"))).toHaveLength(1);
   });
 
-  it("ほかの枠は、まだ受け付ける（枠ごとに、状態を持つ）", async () => {
+  it("ほかの対戦枠は、まだ受け付ける（対戦枠ごとに、状態を持つ）", async () => {
     await tick("2026-10-07T20:53:00");
 
     const response = await handup(
       commandContext(seeded.db, commandInteraction({ name: "uc-handup", userId: ALICE, options: [timeOption(22)] }), jst("2026-10-07T15:00:00")),
     );
 
-    expect(contentOf(response)).toContain("22時の試合に応募しました");
+    expect(contentOf(response)).toContain("22時の試合に挙手しました");
   });
 
-  it("/uc-status は、処理済みの枠を「マッチング済み」と見せる", async () => {
+  it("/uc-status は、処理済みの対戦枠を「マッチング済み」と見せる", async () => {
     await raise(ALICE, "2026-10-07T15:00:00");
     await tick("2026-10-07T20:53:00");
 

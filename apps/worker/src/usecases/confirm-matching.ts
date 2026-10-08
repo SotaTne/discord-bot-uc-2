@@ -12,7 +12,7 @@ import type { DiscordRest } from "@uc/discord";
 import { matchingMessage } from "../scheduled/messages";
 
 /**
- * その対戦枠の挙手を打ち切って（マッチング処理済みにして）、マッチングを確定し、結果を保存して投稿する。
+ * その対戦枠の挙手を打ち切って（マッチング済みにして）、マッチングを確定し、結果を保存して投稿する。
  * cron の締切と、管理者の手動の確定の、どちらからも使う。管理者が先に追加した組分けがあれば、そのチームは自動のマッチングから外し、組分けは残して、投稿にも含める。
  */
 export async function confirmMatching(
@@ -21,7 +21,7 @@ export async function confirmMatching(
 ) {
   const { db } = deps;
 
-  // まず対戦枠を「マッチング処理済み」にして、挙手を受け付けなくする。そのあとで、挙手を読む。
+  // まず対戦枠を「マッチング済み」にして、挙手を受け付けなくする。そのあとで、挙手を読む。
   // （投稿に失敗してやり直しても、挙手はもう変わらないので、同じ結果になる）
   const slot = await ensureMatchSlot(db, { ...input, createdAt: input.now.getTime() });
   await markMatchSlotMatched(db, { id: slot.id, matchedAt: input.now.getTime() });
@@ -49,7 +49,7 @@ export async function confirmMatching(
     now: input.now.getTime(),
   });
 
-  // 投稿するのは、この枠の、すべての組分け（管理者が追加した分も含む）
+  // 投稿するのは、この対戦枠の、すべての組分け（管理者が追加した分も含む）
   const all = await inThisSlot();
   const announced: MatchingResult =
     all.length === 0

@@ -10,14 +10,14 @@ const PHASE_LABEL: Record<HandupPhase, string> = {
   closed: "締切",
 };
 
-/** matched: その日の対戦枠が、マッチング処理済み（時刻に関係なく、挙手を受け付けない） */
+/** matched: その日の対戦枠が、マッチング済み（時刻に関係なく、挙手を受け付けない） */
 export type SlotStatus = { hour: number; phase: HandupPhase; handups: Handup[]; matched?: boolean };
 
 /** 自チームの挙手状況の文面を作る（純粋な関数） */
 export function formatStatus(input: { team: Team; slotDate: string; slots: SlotStatus[] }): string {
   const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）`;
   if (input.slots.length === 0) {
-    return `${header}\n試合枠が登録されていません`;
+    return `${header}\n試合時刻が登録されていません`;
   }
 
   const lines = input.slots.map(({ hour, phase, handups, matched }) => {

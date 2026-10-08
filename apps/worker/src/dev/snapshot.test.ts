@@ -35,7 +35,7 @@ const win = (teamId: number, day: number, points: number, extra: { screenshotKey
   });
 
 describe("buildDevSnapshot", () => {
-  it("何もなければ、設定・枠・チームだけが入った、空の状態を返す", async () => {
+  it("何もなければ、設定・対戦枠・チームだけが入った、空の状態を返す", async () => {
     const result = await snapshot();
 
     expect(result).toMatchObject({
@@ -58,7 +58,7 @@ describe("buildDevSnapshot", () => {
   });
 
   describe("挙手", () => {
-    it("今日の挙手を、枠・挙手の順に、チーム名つきで返す。取り消した挙手・別の日の挙手は含めない", async () => {
+    it("今日の挙手を、対戦枠・挙手の順に、チーム名つきで返す。取り消した挙手・別の日の挙手は含めない", async () => {
       const { db, kmuId, utId } = seeded;
       await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: "alice", createdAt: 10 });
       await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: utId, raisedBy: "carol", createdAt: 20 });
@@ -68,7 +68,7 @@ describe("buildDevSnapshot", () => {
       const { handups, teamStats } = await snapshot();
 
       expect(handups.map((h) => [h.slotHour, h.teamName, h.raisedBy])).toEqual([[22, "KMU", "alice"]]);
-      // 挙手中（取り消されていない）の枠だけが、チームごとに数えられる
+      // 挙手中（取り消されていない）の対戦枠だけが、チームごとに数えられる
       expect(teamStats.find((t) => t.name === "KMU")?.activeHandups).toEqual([22]);
       expect(teamStats.find((t) => t.name === "UT")?.activeHandups).toEqual([]);
     });
@@ -89,7 +89,7 @@ describe("buildDevSnapshot", () => {
       const ngt = await createTeam(db, { guildId: GUILD_ID, roleId: "r3", createdAt: 1 });
       await saveMatchResult(db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: ngt, pairs: [[kmuId, utId]], now: 1 });
       await saveMatchResult(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[kmuId, ngt]], now: 2 });
-      // 挙手が1チームだけで、組めなかった枠（除外には数えない）
+      // 挙手が1チームだけで、組めなかった対戦枠（除外には数えない）
       await saveMatchResult(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, excludedTeamId: utId, pairs: [], now: 3 });
 
       const { rounds, teamStats } = await snapshot();
@@ -136,7 +136,7 @@ describe("buildDevSnapshot", () => {
       expect(on.wins.find((w) => w.id === first)).toMatchObject({ active: true, countedPoints: 80, matchNumber: 1 });
     });
 
-    it("勝利には、組分け（試合の2チーム）と、枠（日付・時刻）がつく", async () => {
+    it("勝利には、組分け（試合の2チーム）と、対戦枠（日付・時刻）がつく", async () => {
       await win(seeded.kmuId, 1, 80);
 
       const [first] = (await snapshot()).wins;

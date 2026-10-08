@@ -65,7 +65,7 @@ export async function buildDevSnapshot(input: {
     for (const win of score.wins) counted.set(win.id, { matchNumber: win.matchNumber, points: win.points });
   }
 
-  // 締切のジョブは、対戦枠がマッチング処理済みなら、済んでいる
+  // 締切のジョブは、対戦枠がマッチング済みなら、済んでいる
   const matchedKeys = new Set(
     matchSlotsToday.filter((slot) => slot.status === "matched").map((slot) => `cutoff:${today}:${slot.slotHour}`),
   );
@@ -117,7 +117,7 @@ export async function buildDevSnapshot(input: {
           .map((handup) => handup.slotHour),
         // 試合数: 対戦した組分けの数（管理者が追加した、マッチング前の組分けも含む）
         matches: matchCounts.get(team.id) ?? 0,
-        // 奇数のために除外された回数（挙手が1チームだけで、組めなかった枠は、数えない）
+        // 奇数のために除外された回数（挙手が1チームだけで、組めなかった対戦枠は、数えない）
         excluded: rounds.filter((round) => round.excludedTeamId === team.id && round.pairs.length > 0).length,
         wins: score?.wins.length ?? 0,
         total: score?.total ?? 0,

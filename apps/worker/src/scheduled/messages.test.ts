@@ -16,9 +16,9 @@ describe("recruitMessage", () => {
 });
 
 describe("matchingMessage", () => {
-  it("組み合わせを、チームのロールのメンションで出す（ロールの名前で見え、通知もされる）", () => {
+  it("組分けを、チームのロールのメンションで出す（ロールの名前で見え、通知もされる）", () => {
     const text = matchingMessage({ hour: 21, teamById, result: { kind: "matched", pairs: [["1", "2"]], excluded: null } });
-    expect(text).toBe(["## 試合 (時間:21時) の組み合わせ:", "- <@&role1> vs <@&role2>"].join("\n"));
+    expect(text).toBe(["## 試合 (時間:21時) の組分け:", "- <@&role1> vs <@&role2>"].join("\n"));
   });
 
   it("奇数で除外されたチームも、理由つきで出す", () => {

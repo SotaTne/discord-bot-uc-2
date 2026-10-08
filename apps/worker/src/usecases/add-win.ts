@@ -35,10 +35,10 @@ export type RecordWinInput = {
 };
 
 /**
- * 勝利を記録する（コマンドとダッシュボードで共通）。
+ * 勝利を追加する（コマンドとダッシュボードで共通）。
  * 画像を R2 に保存してから記録し、記録に失敗したら、保存した画像は消す。
  */
-export async function recordWin(
+export async function addWin(
   deps: { db: Db; bucket: R2Bucket; now: number },
   input: RecordWinInput,
 ): Promise<{ id: number; screenshotKey: string }> {

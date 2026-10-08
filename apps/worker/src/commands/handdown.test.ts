@@ -52,7 +52,7 @@ describe("/uc-handdown", () => {
     expect(await seeded.db.query.handups.findMany()).toEqual([]);
   });
 
-  it("挙手 → 取り消し → 挙手 を繰り返しても、そのチームの行は、いつも1件以下（同じチーム・枠が重ならない）", async () => {
+  it("挙手 → 取り消し → 挙手 を繰り返しても、そのチームの行は、いつも1件以下（同じチーム・対戦枠が重ならない）", async () => {
     const rows = () => seeded.db.query.handups.findMany();
 
     await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(21)] });
@@ -73,13 +73,13 @@ describe("/uc-handdown", () => {
     expect(await seeded.db.query.handups.findMany()).toHaveLength(1);
   });
 
-  it("取り消した後は、同じ枠にもう一度挙手できる", async () => {
+  it("取り消した後は、同じ対戦枠にもう一度挙手できる", async () => {
     await call(handup, { name: "uc-handup", options: [timeOption(21)] });
     await call(handdown, { name: "uc-handdown", options: [timeOption(21)] });
 
     const again = await call(handup, { name: "uc-handup", userId: BOB, options: [timeOption(21)] });
 
-    expect(contentOf(again)).toContain("21時の試合に応募しました");
+    expect(contentOf(again)).toContain("21時の試合に挙手しました");
     expect((await active(seeded.kmuId))?.raisedBy).toBe(BOB);
   });
 
@@ -124,7 +124,7 @@ describe("/uc-handdown", () => {
 
     it("登録されていない時刻", async () => {
       const response = await call(handdown, { name: "uc-handdown", options: [timeOption(20)] });
-      expect(contentOf(response)).toBe("20時の試合枠は登録されていません");
+      expect(contentOf(response)).toBe("20時の試合時刻は登録されていません");
     });
   });
 });

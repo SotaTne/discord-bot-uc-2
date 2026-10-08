@@ -15,7 +15,7 @@ export async function deleteScreenshots(bucket: R2Bucket, keys: string[]): Promi
 /**
  * 得点のクリア（コマンドとダッシュボードで共通）: すべての勝利の記録と、組分け（試合数）を削除する（履歴も 0 になる）。
  * 組分けも消すのは、試合数が、固定点（N 試合を超えた試合）の判定に使われるため（残すと、クリアしても、超過が続く）。
- * 挙手と、枠は、残る。
+ * 挙手と、対戦枠は、残る。
  * 記録に使った画像も、R2 から消す。画像の削除に失敗しても、記録の削除は取り消さない（ログに残す）。
  */
 export async function clearScores(deps: { db: Db; bucket: R2Bucket }, guildId: string): Promise<{ screenshots: number }> {

@@ -31,7 +31,7 @@ const call = (
 ) => handler(commandContext(seeded.db, commandInteraction(input), now));
 
 describe("/uc-status", () => {
-  it("自チームの、枠ごとの挙手状況と受付の段階を返す（取り消した枠は、未挙手に戻る）", async () => {
+  it("自チームの、対戦枠ごとの挙手状況と受付の段階を返す（取り消した対戦枠は、未挙手に戻る）", async () => {
     await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(21)] }, jst("2026-10-07T14:05:00"));
     await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(23)] }, jst("2026-10-07T14:06:00"));
     await call(handdown, { name: "uc-handdown", userId: BOB, options: [timeOption(23)] }, jst("2026-10-07T14:10:00"));
@@ -93,9 +93,9 @@ describe("/uc-status", () => {
 describe("formatStatus", () => {
   const team = { id: 1, guildId: GUILD_ID, roleId: KMU_ROLE, createdAt: 1, deletedAt: null } satisfies Team;
 
-  it("試合枠が登録されていなければ、その旨を返す", () => {
+  it("試合時刻が登録されていなければ、その旨を返す", () => {
     expect(formatStatus({ team, slotDate: "2026-10-07", slots: [] })).toBe(
-      `<@&${KMU_ROLE}> の挙手状況（2026-10-07）\n試合枠が登録されていません`,
+      `<@&${KMU_ROLE}> の挙手状況（2026-10-07）\n試合時刻が登録されていません`,
     );
   });
 

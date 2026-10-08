@@ -17,7 +17,7 @@ import {
 import { adminWin } from "./admin-win";
 
 let seeded: Awaited<ReturnType<typeof createSeededDb>>;
-/** KMU と UT が対戦する、マッチング処理済みの枠 */
+/** KMU と UT が対戦する、マッチング済みの対戦枠 */
 const played = (slotDate: string, slotHour: number) =>
   saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate, slotHour, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
 
@@ -57,7 +57,7 @@ function run(
 }
 
 describe("/uc-admin-win", () => {
-  it("勝利を記録する。まず「考え中」を返し、結果は返信の編集で伝える（記録者・画像・点数が残る）", async () => {
+  it("勝利を追加する。まず「考え中」を返し、結果は返信の編集で伝える（記録者・画像・点数が残る）", async () => {
     const { response, kit } = await run();
 
     expect(response.type).toBe(5);
@@ -70,7 +70,7 @@ describe("/uc-admin-win", () => {
     expect(kit.edits[0]?.token).toBe("test-token");
     expect(kit.edits[0]?.content).toBe(
       [
-        `<@&${KMU_ROLE}> 2026-10-07 21時（<@&${KMU_ROLE}> vs <@&${UT_ROLE}>）の勝利を記録しました（80pt）`,
+        `<@&${KMU_ROLE}> 2026-10-07 21時（<@&${KMU_ROLE}> vs <@&${UT_ROLE}>）の勝利を追加しました（80pt）`,
         "- 3試合目: 集計は80ptです",
       ].join("\n"),
     );
@@ -90,11 +90,11 @@ describe("/uc-admin-win", () => {
       return (await listWins(seeded.db, GUILD_ID))[0]?.slotDate;
     };
 
-    it("省略すると、今より前で一番直近のその時刻の枠（始まっている枠は今日）", async () => {
+    it("省略すると、今より前で一番直近のその時刻の対戦枠（始まっている対戦枠は今日）", async () => {
       expect(await savedDate(adminInteraction({ name: "x", options: options(21), attachments: attachments() }))).toBe("2026-10-07");
     });
 
-    it("省略したとき、今日の枠がまだなら前日になる", async () => {
+    it("省略したとき、今日の対戦枠がまだなら前日になる", async () => {
       expect(await savedDate(adminInteraction({ name: "x", options: options(23), attachments: attachments() }))).toBe("2026-10-06");
     });
 
@@ -119,7 +119,7 @@ describe("/uc-admin-win", () => {
   });
 
   describe("勝利は、マッチングで組まれた試合に紐づく", () => {
-    it("記録した勝利は、その枠でそのチームが出る試合に紐づく", async () => {
+    it("記録した勝利は、その対戦枠でそのチームが出る試合に紐づく", async () => {
       const { kit } = await run();
       await kit.flush();
 
@@ -143,7 +143,7 @@ describe("/uc-admin-win", () => {
 
       const again = await run();
       expect(contentOf(again.response)).toBe(
-        "その組分けには、すでに勝利が記録されています。ダッシュボードの「枠」で削除してから、記録し直してください",
+        "その組分けには、すでに勝利が記録されています。ダッシュボードの「対戦枠」で削除してから、記録し直してください",
       );
       expect(again.response.type).toBe(4);
       expect(again.kit.r2.objects.size).toBe(0);
@@ -155,7 +155,7 @@ describe("/uc-admin-win", () => {
       expect(await listWins(seeded.db, GUILD_ID)).toHaveLength(2);
     });
 
-    it("マッチングされていない枠には、記録できない（何も保存しない）", async () => {
+    it("マッチングされていない対戦枠には、記録できない（何も保存しない）", async () => {
       const interaction = adminInteraction({ name: "x", options: options(22, [{ name: "date", type: 3, value: "2026-10-07" }]), attachments: attachments() });
 
       expect(await refused(interaction)).toBe(
@@ -163,7 +163,7 @@ describe("/uc-admin-win", () => {
       );
     });
 
-    it("その枠で対戦していないチーム（除外されたチームなど）には、記録できない", async () => {
+    it("その対戦枠で対戦していないチーム（除外されたチームなど）には、記録できない", async () => {
       await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, excludedTeamId: seeded.kmuId, pairs: [], now: 1 });
       const interaction = adminInteraction({ name: "x", options: options(22, [{ name: "date", type: 3, value: "2026-10-07" }]), attachments: attachments() });
 
@@ -212,9 +212,9 @@ describe("/uc-admin-win", () => {
       );
     });
 
-    it("登録されていない試合枠", async () => {
+    it("登録されていない試合時刻", async () => {
       expect(await rejected(adminInteraction({ name: "x", options: options(20), attachments: attachments() }))).toBe(
-        "20時の試合枠は登録されていません",
+        "20時の試合時刻は登録されていません",
       );
     });
 
@@ -256,7 +256,7 @@ describe("結果の返信（deferred の編集）", () => {
 
     expect(kit.sleeps).toEqual([300, 600]);
     expect(kit.edits).toHaveLength(1);
-    expect(kit.edits[0]?.content).toContain("勝利を記録しました");
+    expect(kit.edits[0]?.content).toContain("勝利を追加しました");
   });
 
   it("404 が続いても、5回で諦める（記録そのものは済んでいる）", async () => {

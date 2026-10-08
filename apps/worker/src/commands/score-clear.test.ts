@@ -53,7 +53,7 @@ describe("/uc-admin-score-clear（確認の表示）", () => {
     expect(contentOf(response)).toContain("すべてのチームの得点と、勝利の履歴（画像を含む）、組分け（試合数）を削除します");
     expect(response.data?.flags).toBe(64);
     expect(response.data?.components?.[0]?.components.map((b) => [b.label, b.custom_id])).toEqual([
-      ["クリアする", "score-clear:confirm"],
+      ["全てクリア", "score-clear:confirm"],
       ["キャンセル", "score-clear:cancel"],
     ]);
     expect(await events()).toHaveLength(2);
@@ -61,7 +61,7 @@ describe("/uc-admin-score-clear（確認の表示）", () => {
 });
 
 describe("確認のボタン", () => {
-  it("「クリアする」で、すべての勝利・打ち消しを削除して、メッセージを置き換える（ボタンは消える）。画像も消える", async () => {
+  it("「全てクリア」で、すべての勝利・打ち消しを削除して、メッセージを置き換える（ボタンは消える）。画像も消える", async () => {
     const kit = commandKit(seeded.db, clickAs("score-clear:confirm"), NOW);
     const key = await seedHistory(kit.r2);
     expect(kit.r2.objects.has(key)).toBe(true);

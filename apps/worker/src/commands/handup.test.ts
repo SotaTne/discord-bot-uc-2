@@ -35,12 +35,12 @@ describe("/uc-handup", () => {
   it("受付時間内なら挙手でき、チームのメンションつきで返す（本人にだけ見える）", async () => {
     const response = await run({ name: "uc-handup", options: [timeOption(21)] });
 
-    expect(contentOf(response)).toBe(`<@&${KMU_ROLE}> 21時の試合に応募しました`);
+    expect(contentOf(response)).toBe(`<@&${KMU_ROLE}> 21時の試合に挙手しました`);
     expect(response.data?.flags).toBe(64);
     expect(response.data?.allowed_mentions).toEqual({ parse: [] });
   });
 
-  it("挙手はチーム単位で保存される（日付・枠・チーム・挙手した人・時刻）", async () => {
+  it("挙手はチーム単位で保存される（日付・対戦枠・チーム・挙手した人・時刻）", async () => {
     await run({ name: "uc-handup", userId: ALICE, options: [timeOption(21)] });
 
     const rows = await listTeamHandupsOnDate(seeded.db, {
@@ -56,7 +56,7 @@ describe("/uc-handup", () => {
     });
   });
 
-  it("同じチームの別の人が、同じ枠にもう一度挙手しようとすると「すでに挙手」", async () => {
+  it("同じチームの別の人が、同じ対戦枠にもう一度挙手しようとすると「すでに挙手」", async () => {
     await run({ name: "uc-handup", userId: ALICE, options: [timeOption(21)] });
     const response = await run({ name: "uc-handup", userId: BOB, options: [timeOption(21)] });
 
@@ -65,7 +65,7 @@ describe("/uc-handup", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("別の枠や、別のチームなら挙手できる", async () => {
+  it("別の対戦枠や、別のチームなら挙手できる", async () => {
     await run({ name: "uc-handup", options: [timeOption(21)] });
 
     const otherSlot = await run({ name: "uc-handup", options: [timeOption(22)] });
@@ -76,8 +76,8 @@ describe("/uc-handup", () => {
       options: [timeOption(21)],
     });
 
-    expect(contentOf(otherSlot)).toContain("22時の試合に応募しました");
-    expect(contentOf(otherTeam)).toContain("21時の試合に応募しました");
+    expect(contentOf(otherSlot)).toContain("22時の試合に挙手しました");
+    expect(contentOf(otherTeam)).toContain("21時の試合に挙手しました");
   });
 
   describe("挙手できないとき", () => {
@@ -97,7 +97,7 @@ describe("/uc-handup", () => {
 
     it("登録されていない時刻", async () => {
       const response = await run({ name: "uc-handup", options: [timeOption(20)] });
-      expect(contentOf(response)).toBe("20時の試合枠は登録されていません");
+      expect(contentOf(response)).toBe("20時の試合時刻は登録されていません");
     });
 
     it("募集開始前", async () => {

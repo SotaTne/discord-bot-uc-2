@@ -22,7 +22,7 @@ export function matchingMessage(input: {
     const team = teamById.get(id);
     return team ? `<@&${team.roleId}>` : id;
   };
-  const lines = [`## 試合 (時間:${hour}時) の組み合わせ:`];
+  const lines = [`## 試合 (時間:${hour}時) の組分け:`];
   for (const [a, b] of result.pairs) {
     lines.push(`- ${mention(a)} vs ${mention(b)}`);
   }

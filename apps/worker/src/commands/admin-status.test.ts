@@ -40,7 +40,7 @@ describe("/uc-admin-status", () => {
     expect(contentOf(response)).toBe("サーバー内で実行してください");
   });
 
-  it("枠ごとに、すべてのチームの挙手を、挙手した人と時刻つきで出す（本人にだけ見える）", async () => {
+  it("対戦枠ごとに、すべてのチームの挙手を、挙手した人と時刻つきで出す（本人にだけ見える）", async () => {
     await raise(seeded.kmuId, 21, ALICE, "2026-10-07T15:00:00");
     await raise(seeded.utId, 21, CAROL, "2026-10-07T15:05:00");
 
@@ -73,7 +73,7 @@ describe("/uc-admin-status", () => {
     expect(closed).toContain("## 21時 ・締切（マッチング待ち）\n挙手なし");
   });
 
-  it("マッチング済みの枠は、結果（組み合わせ・組まれなかったチーム）を出す", async () => {
+  it("マッチング済みの対戦枠は、結果（組分け・組まれなかったチーム）を出す", async () => {
     await raise(seeded.kmuId, 21, ALICE, "2026-10-07T15:00:00");
     await raise(seeded.utId, 21, CAROL, "2026-10-07T15:05:00");
     await runScheduled({
@@ -88,7 +88,7 @@ describe("/uc-admin-status", () => {
     expect(text).toContain("## 22時 ・受付中");
   });
 
-  it("挙手が足りずに組めなかった枠は、その旨を出す", async () => {
+  it("挙手が足りずに組めなかった対戦枠は、その旨を出す", async () => {
     await runScheduled({
       db: seeded.db,
       rest: { createMessage: async () => ({ id: "1" }) },
@@ -98,11 +98,11 @@ describe("/uc-admin-status", () => {
     expect(contentOf(await run("2026-10-07T21:00:00"))).toContain("## 21時 ・マッチング済み\n挙手がありませんでした");
   });
 
-  it("試合枠が登録されていなければ、その旨を出す", async () => {
+  it("試合時刻が登録されていなければ、その旨を出す", async () => {
     const { createTestDb } = await import("@uc/db/testing");
     const empty = createTestDb();
     const response = await adminStatus(commandContext(empty, adminInteraction({ name: "uc-admin-status" }), jst("2026-10-07T15:00:00")));
 
-    expect(contentOf(response)).toBe("# 挙手状況（2026-10-07）\n試合枠が登録されていません");
+    expect(contentOf(response)).toBe("# 挙手状況（2026-10-07）\n試合時刻が登録されていません");
   });
 });

@@ -21,7 +21,7 @@ export const scoreClear: CommandHandler = async ({ interaction }) => {
       "削除すると、1試合目からやり直しになり、元に戻せません。",
     ].join("\n"),
     confirmId: CONFIRM_ID,
-    confirmLabel: "クリアする",
+    confirmLabel: "全てクリア",
     cancelId: CANCEL_ID,
   });
 };

@@ -51,7 +51,7 @@ export const fakeRoleRest = {
 /** JST の日時（例: "2026-10-07T15:00:00"）から Date を作る */
 export const jst = (text: string) => new Date(`${text}+09:00`);
 
-/** チーム（KMU, UT）と、試合枠（21, 22, 23 時）を登録したテスト用の DB */
+/** チーム（KMU, UT）と、試合時刻（21, 22, 23 時）を登録したテスト用の DB */
 export async function createSeededDb() {
   const db = createTestDb();
   const kmuId = await createTeam(db, { guildId: GUILD_ID, roleId: KMU_ROLE, createdAt: 1 });
@@ -63,7 +63,7 @@ export async function createSeededDb() {
 }
 
 /**
- * テスト用: 勝利を記録する。その日・枠にそのチームの試合がなければ、（マッチング処理済みの枠として）作る。
+ * テスト用: 勝利を追加する。その日・対戦枠にそのチームの試合がなければ、（マッチング済みの対戦枠として）作る。
  * 相手は、ほかのチームのうち、先頭のもの。
  */
 export async function insertWinInSlot(

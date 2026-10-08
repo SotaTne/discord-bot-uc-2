@@ -7,7 +7,7 @@ import { checkAcceptingSlot } from "./slot-access";
 
 const ALREADY_RAISED = "すでに挙手しています";
 
-/** /uc-handup time: 自チームの挙手をする（チームごとに、日・枠で1件） */
+/** /uc-handup time: 自チームの挙手をする（チームごとに、日・対戦枠で1件） */
 export const handup: CommandHandler = async ({ interaction, clock, db }) => {
   const hour = getIntegerOption(interaction, "time");
   if (hour === null) {
@@ -42,5 +42,5 @@ export const handup: CommandHandler = async ({ interaction, clock, db }) => {
     throw error;
   }
 
-  return ephemeralMessage(`${teamMention(team)} ${hour}時の試合に応募しました`);
+  return ephemeralMessage(`${teamMention(team)} ${hour}時の試合に挙手しました`);
 };

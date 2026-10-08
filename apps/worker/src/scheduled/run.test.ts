@@ -106,7 +106,7 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
     expect(posted).toHaveLength(1);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組み合わせ:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"),
+      ["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"),
     );
     expect(posted[0]?.allowedMentions).toEqual({ parse: ["roles"] });
 
@@ -157,7 +157,7 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(await listMatchedSlots(seeded.db, { guildId: GUILD_ID })).toMatchObject([{ slotHour: 21, pairs: [], excludedTeamId: null }]);
   });
 
-  it("枠ごとに別々の締切で確定する", async () => {
+  it("対戦枠ごとに別々の締切で確定する", async () => {
     await raise("KMU", KMU_ROLE, 22, 100);
     await raise("UT", UT_ROLE, 22, 200);
 
@@ -166,7 +166,7 @@ describe("試合の K 分前の締切とマッチング", () => {
 
     expect(posted.map((p) => p.content.split("\n")[0])).toEqual([
       "## 試合 (時間:21時)",
-      "## 試合 (時間:22時) の組み合わせ:",
+      "## 試合 (時間:22時) の組分け:",
     ]);
   });
 
@@ -214,7 +214,7 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     const [slot] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07" });
     expect(slot?.pairs.map((pair) => [pair.teamAId, pair.teamBId])).toEqual([[seeded.kmuId, seeded.utId], [ngt, itf]]);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組み合わせ:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`, "- <@&r-ngt> vs <@&r-itf>"].join("\n"),
+      ["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`, "- <@&r-ngt> vs <@&r-itf>"].join("\n"),
     );
   });
 
@@ -236,7 +236,7 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
 
     await tick("2026-10-07T20:53:00");
 
-    expect(posted[0]?.content).toBe(["## 試合 (時間:21時) の組み合わせ:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"));
+    expect(posted[0]?.content).toBe(["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"));
   });
 
   it("投稿に失敗してやり直しても、組分けは重複しない。勝利が紐づいた組分けの ID も、変わらない", async () => {
