@@ -33,7 +33,13 @@ export async function renderPage(input: PageInput) {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#12151a" media="(prefers-color-scheme: dark)" />
         <title>疑似 Discord</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" />
         <style>${raw(STYLES)}</style>
       </head>
       <body>

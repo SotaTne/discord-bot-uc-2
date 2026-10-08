@@ -185,12 +185,12 @@ describe("状態", () => {
     expect(first?.querySelector("a")?.getAttribute("href")).toBe("/ui/screenshot/2");
   });
 
-  it("無効にした記録は、薄く表示して、（無効）と出す。何試合目かは出さない", async () => {
+  it("削除した記録は、薄く表示して、（削除済み）と出す。何試合目かは出さない", async () => {
     const items = Array.from(sectionOf(await pageOf(await createTestMock()), "勝利記録").querySelectorAll("li"));
 
     expect(items[0]?.className).toBe("");
     expect(items[1]?.className).toBe("dim");
-    expect(items[1]?.textContent).toContain("（無効）");
+    expect(items[1]?.textContent).toContain("（削除済み）");
     expect(items[1]?.textContent).not.toContain("試合目");
     expect(items[1]?.querySelector("a")).toBeNull();
   });
