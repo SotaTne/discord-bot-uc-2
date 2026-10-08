@@ -1,6 +1,6 @@
 import { resolveRecentSlotDate } from "@uc/core";
 import { findMatchForTeam, findSlot, hasActiveWin, findTeamById, findTeamsByRoleIds, type Team } from "@uc/db";
-import { dateSchema } from "@uc/api";
+import { MAX_POINTS, dateSchema } from "@uc/api";
 import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } from "@uc/discord";
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
 import { editDeferredResponse } from "./deferred";
@@ -42,7 +42,7 @@ export const adminWin: CommandHandler = async (context) => {
   if (hour === null || points === null || !roleId || !attachmentId) {
     return ephemeralMessage("必須のオプションが指定されていません");
   }
-  if (points < 0) return ephemeralMessage("点数は0以上で指定してください");
+  if (points < 0 || points > MAX_POINTS) return ephemeralMessage(`点数は0〜${MAX_POINTS}で指定してください`);
 
   if (dateText !== null && !dateSchema.safeParse(dateText).success) {
     return ephemeralMessage("日付は YYYY-MM-DD の形式で、実在する日付を指定してください");
@@ -119,7 +119,7 @@ async function saveAndSummarize(context: CommandContext, input: WinInput): Promi
 function winMessage(input: WinInput, report: WinReport): string {
   const lines = [
     // 対戦枠（日付 × 時刻）だけでは、同じ対戦枠の別の組分けと区別できないので、組分け（誰と誰か）も出す
-    `${teamMention(input.team)} ${input.slotDate} ${input.slotHour}時（${input.opponent ? `${teamMention(input.team)} vs ${teamMention(input.opponent)}` : "組分け"}）の勝利を追加しました（${input.points}pt）`,
+    `${teamMention(input.team)} ${input.slotDate} ${input.slotHour}時（${input.opponent ? `${teamMention(input.team)} vs ${teamMention(input.opponent)}` : "組分け"}）の勝利を追加しました（${report.countedPoints ?? input.points}pt）`,
   ];
   if (report.matchNumber !== null) {
     lines.push(

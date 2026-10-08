@@ -1,6 +1,7 @@
 import { Alert, Anchor, Box, Button, CloseButton, Group, Image, Loader, Menu, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { MAX_POINTS } from "@uc/api";
 import { api } from "../lib/api";
 import { errorMessage, unwrap } from "../lib/errors";
 import { useInvalidatingMutation } from "../lib/queries";
@@ -144,7 +145,7 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
     (value: number) => unwrap(api.wins[":id"].points.$put({ param: { id: String(input.winId) }, json: { points: value } })),
     [["board"], ["wins"], ["scores"]],
   );
-  const valid = draft !== null && /^\d+$/.test(draft);
+  const valid = draft !== null && /^\d+$/.test(draft) && Number(draft) <= MAX_POINTS;
   const submit = () => {
     if (valid) save.mutate(Number(draft), { onSuccess: () => setDraft(null) });
   };
@@ -160,6 +161,7 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
           <TextInput
             type="number"
             min={0}
+            max={MAX_POINTS}
             step={1}
             size="xs"
             value={draft}

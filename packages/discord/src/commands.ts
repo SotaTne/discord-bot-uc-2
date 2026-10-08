@@ -80,6 +80,8 @@ export const commands: CommandDefinition[] = [
         type: OptionType.Integer,
         required: true,
         min_value: 0,
+        // @uc/api の MAX_POINTS と同じ値（worker のテストで、そろっていることを確かめる）
+        max_value: 100000,
       },
       {
         name: "image",

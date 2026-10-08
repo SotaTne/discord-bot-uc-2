@@ -113,6 +113,17 @@ describe("勝利記録の画面: 点数の修正", () => {
     await waitFor(() => expect(screen.queryByLabelText("勝利#1の点数")).toBeNull());
   });
 
+  it("点数が上限（100000）を超えると、保存できない", async () => {
+    installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { body: { ok: true } } });
+    renderApp("/wins");
+
+    await choose("勝利#1の操作", "点数を編集");
+    fireEvent.change(screen.getByLabelText("勝利#1の点数"), { target: { value: "100001" } });
+    expect((screen.getByRole("button", { name: "保存" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("勝利#1の点数"), { target: { value: "100000" } });
+    expect((screen.getByRole("button", { name: "保存" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("空・負・小数は保存できない。「キャンセル」で、何も送らずに戻る", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { body: { ok: true } } });
     renderApp("/wins");

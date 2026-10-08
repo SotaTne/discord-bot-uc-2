@@ -1,5 +1,5 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchWinFormSchema } from "@uc/api";
-import { cutoffJobKey, jstDateOf, slotPhase } from "@uc/core";
+import { cutoffJobKey, jstDateOf, matchNumbers, slotPhase } from "@uc/core";
 import {
   addMatch,
   claimJob,
@@ -14,6 +14,7 @@ import {
   getGuildSettings,
   listHandupsOnDate,
   listMatchesOnDate,
+  listGuildMatches,
   listMatchSlots,
   listSlots,
   listTeams,
@@ -24,6 +25,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
+import { toCoreMatches } from "../scoring/events";
 import { deleteScreenshots } from "../usecases/clear-scores";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, addWin } from "../usecases/add-win";
@@ -44,7 +46,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       const now = deps.clock.now();
       const date = c.req.valid("query").date ?? jstDateOf(now);
 
-      const [settings, slots, teams, matchSlots, handups, matches, allWins] = await Promise.all([
+      const [settings, slots, teams, matchSlots, handups, matches, allWins, guildMatches] = await Promise.all([
         getGuildSettings(db, guildId),
         listSlots(db, guildId),
         listTeams(db, guildId, { includeDeleted: true }),
@@ -52,7 +54,10 @@ export function createBoardRoutes(deps: ApiDeps) {
         listHandupsOnDate(db, { guildId, slotDate: date }),
         listMatchesOnDate(db, { guildId, slotDate: date }),
         listWins(db, guildId),
+        listGuildMatches(db, guildId),
       ]);
+      // チームごとの「その組分けは、何試合目か」。N 試合を超える試合は、勝つと、固定点で登録される（画面の入力の案内に使う）
+      const numbers = matchNumbers(toCoreMatches(guildMatches));
       const wins = allWins.filter((win) => win.slotDate === date);
 
       const rest = createRestFromEnv(c.env);
@@ -63,6 +68,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       return c.json({
         date,
         today: jstDateOf(now),
+        rule: { fixedAfterMatches: settings.fixedAfterMatches, fixedPoints: settings.fixedPoints },
         slots: slots.map((slot) => {
           const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
           return {
@@ -87,6 +93,9 @@ export function createBoardRoutes(deps: ApiDeps) {
                   id: match.id,
                   teamA: team(match.teamAId),
                   teamB: team(match.teamBId),
+                  /** 各チームの、その組分けは何試合目か */
+                  matchNumberA: numbers.get(`${match.teamAId}#${match.id}`) ?? 0,
+                  matchNumberB: numbers.get(`${match.teamBId}#${match.id}`) ?? 0,
                   // 有効な勝利の記録（1つの組分けに、1件まで）。削除した記録は、ここには出さない
                   win: active
                     ? {
@@ -217,7 +226,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       if (!team) return c.json({ error: "team_not_found" as const }, 404);
 
       try {
-        const { id: winId } = await addWin(
+        const { id: winId, points } = await addWin(
           { db, bucket: c.env.SCREENSHOTS, now: deps.clock.now().getTime() },
           {
             guildId,
@@ -229,7 +238,7 @@ export function createBoardRoutes(deps: ApiDeps) {
           },
         );
         const report = await describeWin(db, { guildId, teamId: team.id, id: winId });
-        return c.json({ id: winId, slotDate: match.slotDate, ...report }, 201);
+        return c.json({ id: winId, points, slotDate: match.slotDate, ...report }, 201);
       } catch (error) {
         if (error instanceof WinExistsError) return c.json({ error: "win_exists" as const }, 409);
         throw error;

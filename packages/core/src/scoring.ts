@@ -73,6 +73,14 @@ export function matchNumbers(matches: readonly PlayedMatch[]): Map<string, numbe
   return numbers;
 }
 
+/**
+ * 勝利を登録するときの点数。N 試合を超えた試合（matchNumber > N）で勝つと、入力が何点でも、固定点で登録する。
+ * （集計の規則と同じ。入力した点数ではなく、規則で整えたあとの点数を、記録に残す）
+ */
+export function pointsToRegister(input: { points: number; matchNumber: number | null }, rule: ScoreRule): number {
+  return input.matchNumber !== null && input.matchNumber > rule.fixedAfterMatches ? rule.fixedPoints : input.points;
+}
+
 /** チームごとの得点を返す。有効な勝利を持たないチームは結果に含まれない（呼び出し側は、0 点として扱う）。 */
 export function calculateScores(
   wins: readonly Win[],

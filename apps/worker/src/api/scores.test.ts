@@ -177,15 +177,32 @@ describe("PUT /api/wins/:id/points（点数の修正）", () => {
     expect((await events()).find((e) => e.id === id)).toMatchObject({ points: 95, teamName: "KMU", active: true });
   });
 
-  it("N 試合を超えた試合の点数を直しても、集計は固定点のまま（生点は、履歴に残る）", async () => {
+  it("N 試合を超えた試合の点数は、入力が何点でも、固定点で登録される（返事にも、登録した点数が入る）", async () => {
     await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, fixedAfterMatches: 1 }, 1);
     await seedWin(h.seeded.kmuId, 1, 80);
     const second = await seedWin(h.seeded.kmuId, 2, 80);
 
-    await setPoints(second, 10);
+    const result = await h.json<{ points: number }>(`/api/wins/${second}/points`, { method: "PUT", cookie, body: { points: 5000 } });
 
+    expect(result.body.points).toBe(100);
     expect(await totalOf("KMU")).toBe(80 + 100);
-    expect((await events()).find((e) => e.id === second)?.points).toBe(10);
+    expect((await events()).find((e) => e.id === second)?.points).toBe(100);
+  });
+
+  it("N 試合目までの点数は、入力のまま登録される", async () => {
+    const id = await seedWin(h.seeded.kmuId, 1, 80);
+
+    const result = await h.json<{ points: number }>(`/api/wins/${id}/points`, { method: "PUT", cookie, body: { points: 5000 } });
+
+    expect(result.body.points).toBe(5000);
+    expect(await totalOf("KMU")).toBe(5000);
+  });
+
+  it("点数の上限（100000）を超えると 400", async () => {
+    const id = await seedWin(h.seeded.kmuId, 1, 80);
+
+    expect((await setPoints(id, 100_000)).status).toBe(200);
+    expect((await setPoints(id, 100_001)).status).toBe(400);
   });
 
   it("無効な記録も直せる（得点には数えない）", async () => {

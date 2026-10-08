@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateScores, matchNumbers, type PlayedMatch, type Win } from "./scoring";
+import { calculateScores, matchNumbers, pointsToRegister, type PlayedMatch, type Win } from "./scoring";
 
 let nextId = 0;
 const resetIds = () => {
@@ -153,5 +153,24 @@ describe("calculateScores", () => {
     const orphan: Win = { id: 1, matchId: 999, teamId: "A", points: 33, active: true };
 
     expect(calculateScores([orphan], []).get("A")?.total).toBe(33);
+  });
+});
+
+describe("pointsToRegister（登録する点数）", () => {
+  const rule = { fixedAfterMatches: 5, fixedPoints: 100 };
+
+  it("N 試合目までは、入力した点数のまま", () => {
+    expect(pointsToRegister({ points: 5000, matchNumber: 5 }, rule)).toBe(5000);
+    expect(pointsToRegister({ points: 7, matchNumber: 1 }, rule)).toBe(7);
+  });
+
+  it("N 試合を超えた試合は、入力が何点でも、固定点", () => {
+    expect(pointsToRegister({ points: 5000, matchNumber: 6 }, rule)).toBe(100);
+    expect(pointsToRegister({ points: 0, matchNumber: 9 }, rule)).toBe(100);
+  });
+
+  it("何試合目か分からないときは、入力のまま。N が 0 なら、1 試合目から固定点", () => {
+    expect(pointsToRegister({ points: 5000, matchNumber: null }, rule)).toBe(5000);
+    expect(pointsToRegister({ points: 5000, matchNumber: 1 }, { fixedAfterMatches: 0, fixedPoints: 80 })).toBe(80);
   });
 });

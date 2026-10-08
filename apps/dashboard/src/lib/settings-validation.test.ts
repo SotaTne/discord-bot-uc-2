@@ -23,6 +23,7 @@ describe("設定の入力の検証", () => {
     expect(validateFixedAfterMatches("101")).toBe("100 以下にしてください");
     expect(validateFixedPoints("0")).toBeUndefined();
     expect(validateFixedPoints("100000")).toBeUndefined();
+    expect(validateFixedPoints("100001")).toBe("100000 以下にしてください");
     expect(validateFixedPoints("abc")).toBe("0 以上の整数を入力してください");
   });
 

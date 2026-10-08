@@ -19,7 +19,7 @@ import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { toCoreWins } from "../scoring/events";
 import { clearScores } from "../usecases/clear-scores";
-import { loadScores } from "../usecases/scores";
+import { loadScores, pointsForWin } from "../usecases/scores";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
 import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, addWin } from "../usecases/add-win";
@@ -107,8 +107,14 @@ export function createScoreRoutes(deps: ApiDeps) {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
 
-      const updated = await updateWinPoints(createDb(c.env.DB), { guildId: c.get("auth").guildId, id, points: c.req.valid("json").points });
-      return updated ? c.json({ ok: true as const }) : c.json({ error: "not_found" as const }, 404);
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const win = await findWin(db, guildId, id);
+      if (!win) return c.json({ error: "not_found" as const }, 404);
+      // N 試合を超えた試合は、入力が何点でも、固定点で登録する
+      const points = await pointsForWin(db, guildId, { teamId: win.teamId, matchId: win.matchId, points: c.req.valid("json").points });
+      await updateWinPoints(db, { guildId, id, points });
+      return c.json({ ok: true as const, points });
     })
 
     // 得点のクリア: すべての勝利の記録を削除する（履歴も 0 になる。画像も消す）

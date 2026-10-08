@@ -16,7 +16,7 @@ const slot = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const handup = (over: Record<string, unknown> = {}) => ({ id: 1, team: KMU, raisedByName: "alice", createdAt: at("2026-10-07T15:00:00"), ...over });
-const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, win: null, deletedWins: 0, ...over });
+const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 1, matchNumberB: 1, win: null, deletedWins: 0, ...over });
 const win = (over: Record<string, unknown> = {}) => ({
   id: 3,
   team: UT,
@@ -27,7 +27,8 @@ const win = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, slots } });
+const rule = { fixedAfterMatches: 5, fixedPoints: 100 };
+const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, rule, slots } });
 const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
   "GET /api/board": board(slots),
@@ -243,6 +244,44 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     expect(sent?.get("points")).toBe("452");
     expect((sent?.get("image") as File).name).toBe("shot.png");
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
+  });
+
+  it("N 試合を超える試合で勝つチームを選ぶと、点数の入力は要らず、固定点で登録されることを案内する", async () => {
+    const backend = installFakeBackend({
+      ...apis([slot({ matches: [match({ matchNumberA: 3, matchNumberB: 6 })] })]),
+      "POST /api/matches/7/wins": { status: 201, body: { id: 3, points: 100 } },
+    });
+    renderApp("/");
+    const form = await openAddWin("KMU vs UT");
+    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
+
+    // KMU は 3 試合目（N=5 以内）: 点数を入力する
+    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
+    expect((form.getByLabelText("点数") as HTMLInputElement).disabled).toBe(false);
+    expect((form.getByRole("button", { name: "追加" }) as HTMLButtonElement).disabled).toBe(true);
+
+    // UT は 6 試合目（N=5 を超える）: 入力は要らない。固定点で登録される
+    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "2" } });
+    expect((form.getByLabelText("点数") as HTMLInputElement).disabled).toBe(true);
+    expect(form.getByText(/固定点の 100pt で登録されます/)).toBeTruthy();
+    fireEvent.click(form.getByRole("button", { name: "追加" }));
+
+    await waitFor(() => expect(backend.count("POST", "/api/matches/7/wins")).toBe(1));
+    expect(backend.last("POST", "/api/matches/7/wins")?.form?.get("points")).toBe("100");
+  });
+
+  it("点数が上限（100000）を超えると、追加できない", async () => {
+    installFakeBackend(apis([slot({ matches: [match()] })]));
+    renderApp("/");
+    const form = await openAddWin("KMU vs UT");
+    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
+    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
+    const add = form.getByRole("button", { name: "追加" }) as HTMLButtonElement;
+
+    fireEvent.change(form.getByLabelText("点数"), { target: { value: "100001" } });
+    expect(add.disabled).toBe(true);
+    fireEvent.change(form.getByLabelText("点数"), { target: { value: "100000" } });
+    expect(add.disabled).toBe(false);
   });
 
   it("勝利があれば、勝ったチーム・点数・記録した人・画像を出す。記録フォームは出さない", async () => {

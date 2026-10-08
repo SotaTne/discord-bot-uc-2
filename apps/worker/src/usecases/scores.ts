@@ -1,4 +1,4 @@
-import { calculateScores, type TeamScore } from "@uc/core";
+import { calculateScores, matchNumbers, pointsToRegister, type TeamScore } from "@uc/core";
 import { getGuildSettings, listGuildMatches, listWins, type Db } from "@uc/db";
 import { toCoreMatches, toCoreWins } from "../scoring/events";
 
@@ -15,4 +15,14 @@ export async function loadScores(db: Db, guildId: string) {
     for (const teamId of [match.teamAId, match.teamBId]) matchCounts.set(teamId, (matchCounts.get(teamId) ?? 0) + 1);
   }
   return { settings, scores, matchCounts, wins };
+}
+
+/**
+ * 勝利を登録するときの点数。N 試合を超えた試合で勝ったときは、入力が何点でも、固定点にする。
+ * （入力した点数ではなく、規則で整えたあとの点数を、記録に残す）
+ */
+export async function pointsForWin(db: Db, guildId: string, input: { teamId: number; matchId: number; points: number }): Promise<number> {
+  const [settings, matches] = await Promise.all([getGuildSettings(db, guildId), listGuildMatches(db, guildId)]);
+  const matchNumber = matchNumbers(toCoreMatches(matches)).get(`${input.teamId}#${input.matchId}`) ?? null;
+  return pointsToRegister({ points: input.points, matchNumber }, settings);
 }

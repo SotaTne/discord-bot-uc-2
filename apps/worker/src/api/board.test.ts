@@ -180,6 +180,40 @@ describe("DELETE /api/matches/:id（組分けの削除）", () => {
   });
 });
 
+describe("N 試合を超えた試合の勝利", () => {
+  it("組分けには、各チームの何試合目かと、集計の規則（N と固定点）が付く。画面の入力の案内に使う", async () => {
+    await h.json("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21, slotDate: "2026-10-05" } });
+    const second = await kmuVsUt(22);
+
+    const { body } = await h.json<{ rule: { fixedAfterMatches: number; fixedPoints: number }; slots: { hour: number; matches: { id: number; matchNumberA: number; matchNumberB: number }[] }[] }>("/api/board", { cookie });
+
+    expect(body.rule).toEqual({ fixedAfterMatches: 5, fixedPoints: 100 });
+    expect(body.slots.find((slot) => slot.hour === 22)?.matches).toMatchObject([{ id: second, matchNumberA: 2, matchNumberB: 2 }]);
+  });
+
+  it("N 試合を超えた試合で勝つと、入力が何点でも、固定点で登録される。N 試合目までは、入力のまま", async () => {
+    const { saveGuildSettings, defaultGuildSettings } = await import("@uc/db");
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, fixedAfterMatches: 1 }, 1);
+    const first = await kmuVsUt(21);
+    const second = await kmuVsUt(22);
+
+    const a = await addWin(first, { teamId: String(h.seeded.kmuId), points: "5000" });
+    const b = await addWin(second, { teamId: String(h.seeded.kmuId), points: "5000" });
+
+    expect(a.body).toMatchObject({ points: 5000, fixed: false, countedPoints: 5000 });
+    expect(b.body).toMatchObject({ points: 100, fixed: true, countedPoints: 100 });
+    const slots = (await board()).slots;
+    expect(slots.find((slot) => slot.hour === 22)?.matches[0]?.win?.points).toBe(100);
+  });
+
+  it("点数の上限（100000）を超えると 400", async () => {
+    const matchId = await kmuVsUt();
+
+    expect((await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "100001" })).status).toBe(400);
+    expect((await addWin(matchId, { teamId: String(h.seeded.kmuId), points: "100000" })).status).toBe(201);
+  });
+});
+
 describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", () => {
   it("勝ったチームと点数と画像で、記録できる。集計での扱いが返る。記録者は、管理者", async () => {
     const matchId = await kmuVsUt();

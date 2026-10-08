@@ -4,7 +4,7 @@ import {
   type Db,
   type Team,
 } from "@uc/db";
-import { loadScores } from "./scores";
+import { loadScores, pointsForWin } from "./scores";
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 export const IMAGE_EXTENSIONS: Record<string, string> = {
@@ -41,7 +41,7 @@ export type RecordWinInput = {
 export async function addWin(
   deps: { db: Db; bucket: R2Bucket; now: number },
   input: RecordWinInput,
-): Promise<{ id: number; screenshotKey: string }> {
+): Promise<{ id: number; screenshotKey: string; points: number }> {
   // 有効な記録は、1つの組分けに1件まで（間違えたときは、削除してから、記録し直す）
   if (await hasActiveWin(deps.db, input.matchId)) throw new WinExistsError();
 
@@ -53,16 +53,18 @@ export async function addWin(
   await deps.bucket.put(screenshotKey, input.image.bytes, { httpMetadata: { contentType: input.image.contentType } });
 
   try {
+    // N 試合を超えた試合は、入力が何点でも、固定点で登録する
+    const points = await pointsForWin(deps.db, input.guildId, { teamId: input.team.id, matchId: input.matchId, points: input.points });
     const id = await insertWin(deps.db, {
       guildId: input.guildId,
       teamId: input.team.id,
       matchId: input.matchId,
-      points: input.points,
+      points,
       screenshotKey,
       recordedBy: input.userId,
       createdAt: deps.now,
     });
-    return { id, screenshotKey };
+    return { id, screenshotKey, points };
   } catch (error) {
     await deps.bucket.delete(screenshotKey);
     throw error;

@@ -25,12 +25,15 @@ export const teamInputSchema = z.object({
   roleId: snowflakeSchema,
 });
 
+/** 点数の上限（勝利の点数・固定点）。桁あふれと、入力ミスを防ぐ。Discord のコマンドの max_value と同じ値 */
+export const MAX_POINTS = 100_000;
+
 export const settingsInputSchema = z.object({
   channelId: snowflakeSchema.nullable(),
   recruitHour: hourSchema,
   cutoffMinutes: z.number().int().min(1).max(180),
   fixedAfterMatches: z.number().int().min(0).max(100),
-  fixedPoints: z.number().int().min(0),
+  fixedPoints: z.number().int().min(0).max(MAX_POINTS),
   revokeSessionsOnReissue: z.boolean(),
 });
 
@@ -70,14 +73,14 @@ export const matchSlotInputSchema = z.object({
 export const matchWinFormSchema = z.object({
   /** 勝ったチーム。その組分けの、2チームのどちらか */
   teamId: z.coerce.number().int().positive(),
-  points: z.coerce.number().int().min(0),
+  points: z.coerce.number().int().min(0).max(MAX_POINTS),
 });
 
 /** 勝利の記録を、有効にする / 無効にする */
 export const winActiveInputSchema = z.object({ active: z.boolean() });
 
 /** 勝利の記録の、点数（生の点数）の修正 */
-export const winPointsInputSchema = z.object({ points: z.number().int().min(0) });
+export const winPointsInputSchema = z.object({ points: z.number().int().min(0).max(MAX_POINTS) });
 
 /** ログインリンクのトークン（フラグメントで渡される） */
 export const loginInputSchema = z.object({

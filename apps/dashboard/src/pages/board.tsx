@@ -1,6 +1,7 @@
 import { ActionIcon, Anchor, Badge, Button, CloseButton, FileButton, Group, Input, Modal, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { MAX_POINTS } from "@uc/api";
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Async, ConfirmButton, ConfirmDialog, ErrorNote, RowMenu, ScreenshotLink, usePointsEditor, type RowMenuItem } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
@@ -9,6 +10,9 @@ import { useBoard, useInvalidatingMutation, useTeams } from "../lib/queries";
 
 /** 対戦枠の画面で更新したあとに、取り直すデータ */
 const REFRESH = [["board"], ["wins"], ["scores"]];
+
+/** 得点の集計の規則（N と固定点）。勝利を追加するダイアログが、N 試合を超える試合かどうかの案内に使う */
+const RuleContext = createContext<{ fixedAfterMatches: number; fixedPoints: number } | null>(null);
 
 type Board = Awaited<ReturnType<typeof useBoard>["data"]> & object;
 type Slot = Board["slots"][number];
@@ -71,11 +75,13 @@ export function BoardPage() {
             <Text c="dimmed">試合時刻が登録されていません。設定で追加してください。</Text>
           ) : (
             // 進行表: 対戦枠を、時刻の順に、1 つの面に並べる（細い線で区切る）
-            <div className="surface">
-              {data.slots.map((slot) => (
-                <SlotCard key={slot.hour} date={data.date} slot={slot} />
-              ))}
-            </div>
+            <RuleContext.Provider value={data.rule}>
+              <div className="surface">
+                {data.slots.map((slot) => (
+                  <SlotCard key={slot.hour} date={data.date} slot={slot} />
+                ))}
+              </div>
+            </RuleContext.Provider>
           )
         }
       </Async>
@@ -431,15 +437,20 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
     (form: FormData) => unwrap(api.matches[":id"].wins.$post({ param: { id: String(match.id) } }, { init: { body: form } })),
     REFRESH,
   );
-  const ready = teamId !== "" && points !== "" && image !== null;
+  const rule = useContext(RuleContext);
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
+  // 勝つチームが、その組分けで N 試合目を超えているなら、入力は要らない（固定点で登録される）
+  const matchNumber = teamId === "" ? null : teamId === match.teamA.id ? match.matchNumberA : match.matchNumberB;
+  const fixed = rule !== null && matchNumber !== null && matchNumber > rule.fixedAfterMatches;
+  const pointsValid = fixed || (points !== "" && /^\d+$/.test(points) && Number(points) <= MAX_POINTS);
+  const ready = teamId !== "" && pointsValid && image !== null;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!ready) return;
     const form = new FormData();
     form.set("teamId", String(teamId));
-    form.set("points", points);
+    form.set("points", fixed && rule ? String(rule.fixedPoints) : points);
     form.set("image", image);
     record.mutate(form, {
       onSuccess: () => {
@@ -457,7 +468,18 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
       <form onSubmit={submit} aria-label={`${label}の勝利を追加`}>
         <Stack gap="md">
           <NativeSelect label="勝ったチーム" value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions([match.teamA, match.teamB], "選択してください")} />
-          <TextInput label="点数" name="points" type="number" min={0} step={1} value={points} onChange={(event) => setPoints(event.target.value)} />
+          {fixed && rule ? (
+            <TextInput
+              label="点数"
+              name="points"
+              value={`${rule.fixedPoints}`}
+              readOnly
+              disabled
+              description={`${matchNumber} 試合目（N=${rule.fixedAfterMatches} を超えています）。点数は、固定点の ${rule.fixedPoints}pt で登録されます`}
+            />
+          ) : (
+            <TextInput label="点数" name="points" type="number" min={0} max={MAX_POINTS} step={1} value={points} onChange={(event) => setPoints(event.target.value)} />
+          )}
           <Input.Wrapper label="画像">
             <div>
               <FileButton resetRef={resetFile} onChange={setImage} accept="image/png,image/jpeg,image/webp,image/gif" inputProps={{ "aria-label": "画像" }}>

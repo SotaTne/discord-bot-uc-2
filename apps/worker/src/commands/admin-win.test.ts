@@ -1,4 +1,6 @@
-import { findMatchForTeam, listWins, saveMatchResult, setWinActive } from "@uc/db";
+import { MAX_POINTS } from "@uc/api";
+import { defaultGuildSettings, findMatchForTeam, listWins, saveGuildSettings, saveMatchResult, setWinActive } from "@uc/db";
+import { commands } from "@uc/discord";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ADMIN_USER,
@@ -81,6 +83,22 @@ describe("/uc-admin-win", () => {
     });
     expect(kit.r2.objects.get(event?.screenshotKey ?? "")).toEqual({ contentType: "image/png", bytes: 4 });
     expect(event?.screenshotKey).toMatch(new RegExp(`^screenshots/${GUILD_ID}/[0-9a-f-]{36}\\.png$`));
+  });
+
+  it("N 試合を超えた試合で勝つと、入力が何点でも、固定点で登録して、返信にも、その点を出す", async () => {
+    // beforeEach で、KMU は 3 試合目。N を 2 にする
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, fixedAfterMatches: 2 }, 1);
+    const { kit } = await run(adminInteraction({ name: "x", options: options(21, [], 5000), attachments: attachments() }));
+    await kit.flush();
+
+    expect(kit.edits[0]?.content).toContain("の勝利を追加しました（100pt）");
+    expect(kit.edits[0]?.content).toContain("- 3試合目: 2試合を超えているので、集計は一律100ptになります");
+    expect((await listWins(seeded.db, GUILD_ID))[0]?.points).toBe(100);
+  });
+
+  it("コマンドの点数の上限（max_value）は、API の上限（MAX_POINTS）と同じ", () => {
+    const option = commands.find((command) => command.name === "uc-admin-win")?.options?.find((o) => o.name === "point");
+    expect(option?.max_value).toBe(MAX_POINTS);
   });
 
   describe("日付", () => {
@@ -192,7 +210,13 @@ describe("/uc-admin-win", () => {
 
     it("点数が負", async () => {
       expect(await rejected(adminInteraction({ name: "x", options: options(21, [], -1), attachments: attachments() }))).toBe(
-        "点数は0以上で指定してください",
+        "点数は0〜100000で指定してください",
+      );
+    });
+
+    it("点数が上限（100000）を超える", async () => {
+      expect(await rejected(adminInteraction({ name: "x", options: options(21, [], 100_001), attachments: attachments() }))).toBe(
+        "点数は0〜100000で指定してください",
       );
     });
 
