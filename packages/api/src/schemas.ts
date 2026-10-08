@@ -56,7 +56,7 @@ export const matchInputSchema = z
   })
   .refine((value) => value.teamAId !== value.teamBId, { message: "別のチームを選んでください", path: ["teamBId"] });
 
-/** 対戦枠（日付 × 枠）の指定。マッチングの確定と、やり直しに使う */
+/** 対戦枠（日付 × 対戦枠）の指定。マッチングの確定と、やり直しに使う */
 export const matchSlotInputSchema = z.object({
   slotHour: hourSchema,
   /** 省略すると今日 */

@@ -22,7 +22,7 @@ export function handupDeadline(slotDate: string, slotHour: number, cutoffMinutes
 
 /**
  * `/uc-admin-win` で日付を省略したときの日付。
- * 「今より前で、一番直近のその時刻の枠」の日付（JST）を返す。
+ * 「今より前で、一番直近のその時刻の対戦枠」の日付（JST）を返す。
  */
 export function resolveRecentSlotDate(now: Date, slotHour: number): string {
   const today = jstDateOf(now);
@@ -43,10 +43,10 @@ export type HandupWindow = {
 export type HandupPhase = "before-open" | "open" | "closed";
 
 /**
- * 指定した日の枠の挙手が、今どの段階か。
+ * 指定した日の対戦枠の挙手が、今どの段階か。
  * その日の募集開始時刻から、試合開始の K 分前までが受付時間。
- * 枠は、募集開始時刻より後の同じ日の時刻であることを前提にする。
- * 過去の日の枠は、いつも「締切後」、未来の日の枠は、いつも「募集開始前」。
+ * 対戦枠は、募集開始時刻より後の同じ日の時刻であることを前提にする。
+ * 過去の日の対戦枠は、いつも「締切後」、未来の日の対戦枠は、いつも「募集開始前」。
  */
 export function slotPhase(now: Date, slotDate: string, slotHour: number, window: HandupWindow): HandupPhase {
   assertHour(window.recruitHour);
@@ -58,12 +58,12 @@ export function slotPhase(now: Date, slotDate: string, slotHour: number, window:
   return "closed";
 }
 
-/** 今日の枠の挙手が、今どの段階か（slotPhase の、日付が今日のとき） */
+/** 今日の対戦枠の挙手が、今どの段階か（slotPhase の、日付が今日のとき） */
 export function handupPhase(now: Date, slotHour: number, window: HandupWindow): HandupPhase {
   return slotPhase(now, jstDateOf(now), slotHour, window);
 }
 
-/** 今、その枠の挙手を受け付けているか */
+/** 今、その対戦枠の挙手を受け付けているか */
 export function isAcceptingHandups(now: Date, slotHour: number, window: HandupWindow): boolean {
   return handupPhase(now, slotHour, window) === "open";
 }

@@ -62,7 +62,7 @@ describe("teamInputSchema", () => {
 });
 
 describe("matchInputSchema（組分けの追加）", () => {
-  it("2チーム・枠の時刻があれば、通る。日付は省略できる", () => {
+  it("2チーム・対戦枠の時刻があれば、通る。日付は省略できる", () => {
     expect(matchInputSchema.safeParse({ teamAId: 1, teamBId: 2, slotHour: 21 }).success).toBe(true);
     expect(matchInputSchema.safeParse({ teamAId: 1, teamBId: 2, slotHour: 21, slotDate: "2026-10-07" }).success).toBe(true);
   });

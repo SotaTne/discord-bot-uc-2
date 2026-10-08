@@ -5,7 +5,7 @@ const jst = (text: string) => new Date(`${text}+09:00`);
 const plan = { date: "2026-10-07", recruitHour: 12, cutoffMinutes: 7, slotHours: [23, 21, 22] };
 
 describe("scheduledJobsForDate", () => {
-  it("募集開始と、枠ごとの締切を、時刻順に返す（キーは job_runs と同じ形式）", () => {
+  it("募集開始と、対戦枠ごとの締切を、時刻順に返す（キーは job_runs と同じ形式）", () => {
     const jobs = scheduledJobsForDate(plan);
 
     expect(jobs.map((j) => [j.key, j.kind, j.slotHour])).toEqual([
@@ -32,7 +32,7 @@ describe("scheduledJobsForDate", () => {
     expect(jobs[1]?.from).toEqual(jst("2026-10-07T20:30:00"));
   });
 
-  it("枠がなければ、募集開始だけ。渡した配列は書き換えない", () => {
+  it("対戦枠がなければ、募集開始だけ。渡した配列は書き換えない", () => {
     expect(scheduledJobsForDate({ ...plan, slotHours: [] }).map((j) => j.key)).toEqual(["recruit:2026-10-07"]);
     const hours = [23, 21];
     scheduledJobsForDate({ ...plan, slotHours: hours });

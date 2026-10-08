@@ -27,7 +27,7 @@ const season = (pointsList: number[]) => {
 };
 
 describe("matchNumbers（そのチームの、何試合目か）", () => {
-  it("チームごとに、枠の日付・時刻の順に、1 から数える（勝ち負けに関係なく。記録した順ではない）", () => {
+  it("チームごとに、対戦枠の日付・時刻の順に、1 から数える（勝ち負けに関係なく。記録した順ではない）", () => {
     const late = matchOn(3, ["A", "B"]);
     const early = matchOn(1, ["A", "C"]);
     const sameDayEvening = matchOn(1, ["A", "D"], 23);
@@ -40,7 +40,7 @@ describe("matchNumbers（そのチームの、何試合目か）", () => {
     expect(numbers.get(`B#${late.id}`)).toBe(1);
   });
 
-  it("同じ枠の組分けは、ID の順", () => {
+  it("同じ対戦枠の組分けは、ID の順", () => {
     const first = { ...matchOn(1, ["A", "B"]), id: 5 };
     const second = { ...matchOn(1, ["A", "C"]), id: 9 };
 

@@ -35,19 +35,19 @@ describe("slotStart / handupDeadline", () => {
 });
 
 describe("resolveRecentSlotDate", () => {
-  it("今日の枠がもう始まっていれば今日", () => {
+  it("今日の対戦枠がもう始まっていれば今日", () => {
     expect(resolveRecentSlotDate(jst("2026-10-07T22:30:00"), 21)).toBe("2026-10-07");
   });
 
-  it("枠の開始ちょうどは、その日として扱う", () => {
+  it("対戦枠の開始ちょうどは、その日として扱う", () => {
     expect(resolveRecentSlotDate(jst("2026-10-07T21:00:00"), 21)).toBe("2026-10-07");
   });
 
-  it("今日の枠がまだなら、前日", () => {
+  it("今日の対戦枠がまだなら、前日", () => {
     expect(resolveRecentSlotDate(jst("2026-10-07T22:30:00"), 23)).toBe("2026-10-06");
   });
 
-  it("日付が変わった後でも、前日の遅い枠を指せる", () => {
+  it("日付が変わった後でも、前日の遅い対戦枠を指せる", () => {
     expect(resolveRecentSlotDate(jst("2026-10-08T00:30:00"), 23)).toBe("2026-10-07");
   });
 
@@ -75,7 +75,7 @@ describe("isAcceptingHandups", () => {
     expect(isAcceptingHandups(jst("2026-10-07T20:53:00"), 21, window)).toBe(false);
   });
 
-  it("枠ごとに打ち切り時刻が違う", () => {
+  it("対戦枠ごとに打ち切り時刻が違う", () => {
     const now = jst("2026-10-07T21:30:00");
     expect(isAcceptingHandups(now, 21, window)).toBe(false);
     expect(isAcceptingHandups(now, 22, window)).toBe(true);
@@ -112,12 +112,12 @@ describe("slotPhase（日付を指定した、受付の段階）", () => {
   const window = { recruitHour: 12, cutoffMinutes: 7 };
   const now = jst("2026-10-07T15:00:00");
 
-  it("その日の枠は、handupPhase と同じ", () => {
+  it("その日の対戦枠は、handupPhase と同じ", () => {
     expect(slotPhase(now, "2026-10-07", 21, window)).toBe("open");
     expect(slotPhase(jst("2026-10-07T21:00:00"), "2026-10-07", 21, window)).toBe("closed");
   });
 
-  it("過去の日の枠は、いつも締切後。未来の日の枠は、いつも募集開始前", () => {
+  it("過去の日の対戦枠は、いつも締切後。未来の日の対戦枠は、いつも募集開始前", () => {
     expect(slotPhase(now, "2026-10-06", 21, window)).toBe("closed");
     expect(slotPhase(now, "2026-10-08", 21, window)).toBe("before-open");
     expect(slotPhase(jst("2026-10-07T23:59:00"), "2026-10-08", 21, window)).toBe("before-open");

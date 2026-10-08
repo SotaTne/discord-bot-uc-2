@@ -2,7 +2,7 @@
  * 得点は、勝利の記録と、組分け（試合）から、毎回導き直す。
  *
  * ルール:
- * - チームの試合数は、そのチームが入った組分けの数（勝ち負けに関係なく）。試合は、枠の日付・時刻の順に、1 試合目、2 試合目…と数える。
+ * - チームの試合数は、そのチームが入った組分けの数（勝ち負けに関係なく）。試合は、対戦枠の日付・時刻の順に、1 試合目、2 試合目…と数える。
  * - 勝ったときの点数は、N 試合目までは、記録した点数（生点）。N を超えた試合（N+1 試合目から）は、生点に関係なく、固定点。
  * - 負けた試合は、点が入らない（試合数には、数える）。
  *
@@ -21,11 +21,11 @@ export type Win = {
   active: boolean;
 };
 
-/** 組分け（試合）。2チームが、ある日の、ある枠で、対戦する */
+/** 組分け（試合）。2チームが、ある日の、ある対戦枠で、対戦する */
 export type PlayedMatch = {
   id: number;
   teamIds: [teamId: string, teamId: string];
-  /** 枠の日付（JST, YYYY-MM-DD） */
+  /** 対戦枠の日付（JST, YYYY-MM-DD） */
   slotDate: string;
   slotHour: number;
 };
@@ -56,7 +56,7 @@ export type TeamScore = {
   wins: ScoredWin[];
 };
 
-/** そのチームの試合を、枠の日付・時刻の順（同じ枠なら ID の順）に並べる */
+/** そのチームの試合を、対戦枠の日付・時刻の順（同じ対戦枠なら ID の順）に並べる */
 const byTime = (a: PlayedMatch, b: PlayedMatch) =>
   a.slotDate.localeCompare(b.slotDate) || a.slotHour - b.slotHour || a.id - b.id;
 

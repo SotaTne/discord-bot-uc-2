@@ -18,12 +18,12 @@ export type DevSnapshot = {
     fixedAfterMatches: number;
     fixedPoints: number;
   };
-  /** 登録されている試合枠の時刻 */
+  /** 登録されている試合時刻 */
   slots: number[];
-  /** 今日の対戦枠の状態（まだ作られていない枠は、ない）。matched は、マッチング処理済みで、挙手を受け付けない */
+  /** 今日の対戦枠の状態（まだ作られていない対戦枠は、ない）。matched は、マッチング済みで、挙手を受け付けない */
   matchSlots: { slotHour: number; status: "open" | "matched" }[];
   teams: { id: number; name: string; roleId: string }[];
-  /** 今日の挙手（取り消した挙手は、残らない）。枠・挙手の順 */
+  /** 今日の挙手（取り消した挙手は、残らない）。対戦枠・挙手の順 */
   handups: {
     id: number;
     slotHour: number;
@@ -32,11 +32,11 @@ export type DevSnapshot = {
     raisedBy: string;
     createdAt: number;
   }[];
-  /** チームごとの、挙手中の枠・対戦数・除外された回数・勝利数・得点 */
+  /** チームごとの、挙手中の対戦枠・対戦数・除外された回数・勝利数・得点 */
   teamStats: {
     teamId: number;
     name: string;
-    /** 今日、挙手中（取り消されていない）の枠の時刻 */
+    /** 今日、挙手中（取り消されていない）の対戦枠の時刻 */
     activeHandups: number[];
     /** マッチングで組まれた対戦の数（これまでの合計） */
     matches: number;
@@ -59,7 +59,7 @@ export type DevSnapshot = {
     id: number;
     /** 勝ったチーム */
     teamName: string;
-    /** 組分け（試合）の2チーム。枠（日付 × 時刻）の中の、どの組み合わせかを表す */
+    /** 組分け（試合）の2チーム。対戦枠（日付 × 時刻）の中の、どの組分けかを表す */
     match: { a: string; b: string };
     slotDate: string;
     slotHour: number;
