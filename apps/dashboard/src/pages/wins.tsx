@@ -1,6 +1,6 @@
 import { Button, Checkbox, Group, NativeSelect, Table, Text } from "@mantine/core";
 import { useState } from "react";
-import { ACTION_BUTTON_WIDTH, Async, ConfirmButton, ErrorNote, PageTitle, ScreenshotLink, Section, SortableTh, nextSort, usePointsEditor, type SortDirection } from "../components/ui";
+import { Async, ConfirmButton, ErrorNote, PageTitle, RowMenu, ScreenshotLink, Section, SortableTh, nextSort, usePointsEditor, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, formatJstDateTime } from "../lib/format";
@@ -121,7 +121,7 @@ function History() {
   );
 }
 
-/** 1件の記録。点数の編集・削除（元に戻す）は、同じ列に、並べる */
+/** 1件の記録。操作（点数の編集・削除・元に戻す）は、右端の「操作 ▾」メニューに入れる */
 function WinRow({ win, pending, onToggle }: { win: WinRecord; pending: boolean; onToggle: () => void }) {
   const edit = usePointsEditor({ winId: win.id, points: win.points, label: `勝利#${win.id}` });
   return (
@@ -148,11 +148,17 @@ function WinRow({ win, pending, onToggle }: { win: WinRecord; pending: boolean; 
         )}
       </Table.Td>
       <Table.Td>
-        {edit.actions(
-          <Button variant="default" w={ACTION_BUTTON_WIDTH} disabled={pending} onClick={onToggle}>
-            {win.active ? "削除" : "元に戻す"}
-          </Button>,
-        )}
+        <Group justify="flex-end" wrap="nowrap">
+          {edit.controls ?? (
+            <RowMenu
+              label={`勝利#${win.id}の操作`}
+              items={[
+                { label: "点数を編集", onClick: edit.start },
+                { label: win.active ? "勝利を削除" : "勝利を元に戻す", onClick: onToggle, disabled: pending },
+              ]}
+            />
+          )}
+        </Group>
         <ErrorNote error={edit.error} />
       </Table.Td>
     </Table.Tr>

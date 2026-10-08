@@ -1,4 +1,4 @@
-import { Alert, Anchor, Box, Button, CloseButton, Group, Image, Loader, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
+import { Alert, Anchor, Box, Button, CloseButton, Group, Image, Loader, Menu, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { api } from "../lib/api";
@@ -131,14 +131,12 @@ export function HourSelect(props: { value: number | ""; hours: number[]; onChang
   );
 }
 
-/** 行の操作ボタンの幅。押して文言が変わっても、並びの幅が変わらないように、そろえる */
-export const ACTION_BUTTON_WIDTH = 88;
-
 /**
- * 勝利の点数を、その場で編集する。「点数の表示（編集している間は入力欄）」と、「操作のボタンの並び」を分けて返す。
- * 点数は点数の列に、ボタンは、ほかの操作（削除など）と同じ列に、並べるため。勝ったチームと組分けは変わらない。
- * 操作のボタンの並びは、通常は「編集」と、渡された操作（削除など）。編集している間は、渡された操作を隠して、「保存」と「キャンセル」にする。
- * どちらも、幅は変わらない（押すたびに、左右の長さが変わらない）。
+ * 勝利の点数を、その場で編集する。
+ * - points: 点数の列に置くもの（普段は点数。編集している間は、入力欄）
+ * - controls: 編集している間だけ出る「保存」「キャンセル」（操作の列に置く）。編集していなければ null
+ * - start: 編集を始める（行のメニューの「点数を編集」から呼ぶ）
+ * 勝ったチームと組分けは変わらない。
  */
 export function usePointsEditor(input: { winId: number; points: number; label: string }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -152,6 +150,8 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
   };
 
   return {
+    editing: draft !== null,
+    start: () => setDraft(String(input.points)),
     points: (
       <Box w={100}>
         {draft === null ? (
@@ -170,29 +170,84 @@ export function usePointsEditor(input: { winId: number; points: number; label: s
         )}
       </Box>
     ),
-    actions: (others: ReactNode) => (
-      <Group gap="xs" wrap="nowrap" w={ACTION_BUTTON_WIDTH * 2 + 8}>
-        {draft === null ? (
-          <>
-            <Button variant="default" size="xs" w={ACTION_BUTTON_WIDTH} onClick={() => setDraft(String(input.points))} aria-label={`${input.label}の点数を編集`}>
-              編集
-            </Button>
-            {others}
-          </>
-        ) : (
-          <>
-            <Button size="xs" w={ACTION_BUTTON_WIDTH} disabled={!valid || save.isPending} onClick={submit}>
-              保存
-            </Button>
-            <Button variant="default" size="xs" w={ACTION_BUTTON_WIDTH} onClick={() => setDraft(null)}>
-              キャンセル
-            </Button>
-          </>
-        )}
-      </Group>
-    ),
+    controls:
+      draft === null ? null : (
+        <Group gap="xs" wrap="nowrap" justify="flex-end">
+          <Button size="xs" disabled={!valid || save.isPending} onClick={submit}>
+            保存
+          </Button>
+          <Button variant="default" size="xs" onClick={() => setDraft(null)}>
+            キャンセル
+          </Button>
+        </Group>
+      ),
     error: save.error,
   };
+}
+
+/**
+ * 確認のダイアログ（開き閉じは、呼ぶ側が持つ）。メニューの項目から開く確認に使う。
+ * 「実行する」を押して初めて実行される。
+ */
+export function ConfirmDialog(props: {
+  opened: boolean;
+  onClose: () => void;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Modal opened={props.opened} onClose={props.onClose} title={props.title} centered>
+      <Stack gap="md">
+        {props.description && <Text size="sm">{props.description}</Text>}
+        <Text size="sm" fw={600}>
+          本当に実行しますか？
+        </Text>
+        <Group gap="xs" wrap="nowrap" justify="flex-end">
+          <Button variant="default" onClick={props.onClose}>
+            キャンセル
+          </Button>
+          <Button
+            color="red"
+            disabled={props.disabled ?? false}
+            onClick={() => {
+              props.onClose();
+              props.onConfirm();
+            }}
+          >
+            {props.confirmLabel ?? "実行する"}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+export type RowMenuItem = { label: string; onClick: () => void; danger?: boolean; disabled?: boolean };
+
+/**
+ * 表の行の操作メニュー（「操作 ▾」を押すと開く。「⋯」ではなく、文字を付けて、押せるものだと分かるようにする）。行ごとに、いくつもボタンを並べず、操作は項目の名前で選ぶ。
+ * 何を対象にした操作かは、項目の名前に書く（「勝利を削除」「組分けを削除」）。
+ */
+export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] }) {
+  return (
+    <Menu position="bottom-end" withinPortal>
+      <Menu.Target>
+        <Button variant="default" size="xs" aria-label={label} rightSection={<span aria-hidden="true">▾</span>}>
+          操作
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {items.map((item) => (
+          <Menu.Item key={item.label} {...(item.danger ? { color: "red" } : {})} disabled={item.disabled ?? false} onClick={item.onClick}>
+            {item.label}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
+  );
 }
 
 /** 画像。押すと、別のページに移らず、その場のポップアップで大きく表示する */

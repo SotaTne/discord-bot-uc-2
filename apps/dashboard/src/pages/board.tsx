@@ -1,7 +1,7 @@
-import { ActionIcon, Anchor, Badge, Button, CloseButton, FileButton, Group, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Anchor, Badge, Button, CloseButton, FileButton, Group, Input, Modal, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ACTION_BUTTON_WIDTH, Async, ConfirmButton, ErrorNote, ScreenshotLink, usePointsEditor } from "../components/ui";
+import { Async, ConfirmButton, ConfirmDialog, ErrorNote, RowMenu, ScreenshotLink, usePointsEditor, type RowMenuItem } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatDateWithWeekday, formatHour, formatJstDateTime, shiftDate } from "../lib/format";
@@ -206,7 +206,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>組分け</Table.Th>
-                    <Table.Th w={110}>勝利チーム</Table.Th>
+                    <Table.Th w={120}>勝利チーム</Table.Th>
                     <Table.Th w={90}>点数</Table.Th>
                     <Table.Th w={190}>記録</Table.Th>
                     <Table.Th w={60}>画像</Table.Th>
@@ -307,40 +307,27 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
   );
 }
 
-/** 組分けの 1 行（表の行）。勝利があれば、その内容を。なければ、その場で記録するための入力欄を、出す */
+/**
+ * 組分けの 1 行（表の行）。表には、内容だけを出す。操作は、行の右端の「操作 ▾」メニューに、項目の名前で入れる。
+ * 勝利があれば、その内容を。なければ、「勝利を追加」のボタンを出す（押すと、入力のダイアログが開く）。
+ */
 function MatchRow({ match }: { match: Match }) {
+  const label = `${match.teamA.name} vs ${match.teamB.name}`;
+  const [removing, setRemoving] = useState(false);
   const removeMatch = useInvalidatingMutation(
     (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),
     REFRESH,
   );
   // 組分けを削除すると、その勝利（削除済みのものも）と画像も消える。確認に、その件数を出す
   const winCount = (match.win ? 1 : 0) + match.deletedWins;
-  const removeMatchButton = (
-    <ConfirmButton
-      label="組分けを削除"
-      icon
-      confirmLabel={winCount > 0 ? `勝利${winCount}件も削除して、実行する` : "削除を実行する"}
-      danger
-      disabled={removeMatch.isPending}
-      onConfirm={() => removeMatch.mutate(match.id)}
-    />
-  );
+  const removeMatchItem: RowMenuItem = { label: "組分けを削除", danger: true, onClick: () => setRemoving(true) };
 
   return (
     <>
-      {match.win ? (
-        <Table.Tr>
-          <Table.Td>
-            <Group gap={4} wrap="nowrap">
-              {match.teamA.name} vs {match.teamB.name}
-              {removeMatchButton}
-            </Group>
-          </Table.Td>
-          <WinCells match={match} win={match.win} />
-        </Table.Tr>
-      ) : (
-        <RecordRows match={match} removeMatchButton={removeMatchButton} />
-      )}
+      <Table.Tr>
+        <Table.Td>{label}</Table.Td>
+        {match.win ? <WinCells match={match} win={match.win} removeMatchItem={removeMatchItem} /> : <NoWinCells match={match} removeMatchItem={removeMatchItem} />}
+      </Table.Tr>
       {removeMatch.error && (
         <Table.Tr>
           <Table.Td colSpan={6}>
@@ -348,14 +335,23 @@ function MatchRow({ match }: { match: Match }) {
           </Table.Td>
         </Table.Tr>
       )}
+      <ConfirmDialog
+        opened={removing}
+        onClose={() => setRemoving(false)}
+        title={`${label}の組分けを削除`}
+        description={winCount > 0 ? `この組分けの勝利（${winCount}件。削除済みも含む）と画像も、あわせて削除します。元に戻せません。` : "この組分けを削除します。"}
+        confirmLabel={winCount > 0 ? `勝利${winCount}件も削除して、実行する` : "削除を実行する"}
+        disabled={removeMatch.isPending}
+        onConfirm={() => removeMatch.mutate(match.id)}
+      />
     </>
   );
 }
 
 type Win = NonNullable<Match["win"]>;
 
-/** 記録された勝利の列（勝利チーム・点数・記録・画像・操作）。点数の編集と勝利の削除は、同じ並びに置く */
-function WinCells({ match, win }: { match: Match; win: Win }) {
+/** 記録された勝利の列（勝利チーム・点数・記録・画像）と、操作のメニュー */
+function WinCells({ match, win, removeMatchItem }: { match: Match; win: Win; removeMatchItem: RowMenuItem }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}の勝利`;
   const edit = usePointsEditor({ winId: win.id, points: win.points, label });
   const removeWin = useInvalidatingMutation(
@@ -375,11 +371,16 @@ function WinCells({ match, win }: { match: Match; win: Win }) {
       </Table.Td>
       <Table.Td>{win.hasScreenshot ? <ScreenshotLink winId={win.id} label="画像" /> : "—"}</Table.Td>
       <Table.Td>
-        <Group gap="md" wrap="nowrap" justify="flex-end">
-          {edit.actions(
-            <Button variant="default" size="xs" w={ACTION_BUTTON_WIDTH} disabled={removeWin.isPending} onClick={() => removeWin.mutate(win.id)} aria-label={`${label}を削除`}>
-              削除
-            </Button>,
+        <Group justify="flex-end" wrap="nowrap">
+          {edit.controls ?? (
+            <RowMenu
+              label={`${match.teamA.name} vs ${match.teamB.name}の操作`}
+              items={[
+                { label: "点数を編集", onClick: edit.start },
+                { label: "勝利を削除", onClick: () => removeWin.mutate(win.id), disabled: removeWin.isPending },
+                removeMatchItem,
+              ]}
+            />
           )}
         </Group>
         <ErrorNote error={edit.error ?? removeWin.error} />
@@ -388,16 +389,33 @@ function WinCells({ match, win }: { match: Match; win: Win }) {
   );
 }
 
-/** 選んだ画像のファイル名を、ボタンに収まる長さにする（拡張子は残す） */
-const shortName = (name: string) => (name.length <= 12 ? name : `${name.slice(0, 6)}…${name.slice(-5)}`);
+/** 勝利がまだない組分けの列。「勝利を追加」と、操作のメニュー */
+function NoWinCells({ match, removeMatchItem }: { match: Match; removeMatchItem: RowMenuItem }) {
+  const [adding, setAdding] = useState(false);
+  const label = `${match.teamA.name} vs ${match.teamB.name}`;
+  return (
+    <>
+      <Table.Td colSpan={4} c="dimmed">
+        勝利はまだありません
+      </Table.Td>
+      <Table.Td>
+        <Group gap="xs" justify="flex-end" wrap="nowrap">
+          <Button variant="light" size="xs" onClick={() => setAdding(true)} aria-label={`${label}の勝利を追加`}>
+            勝利を追加
+          </Button>
+          <RowMenu label={`${label}の操作`} items={[removeMatchItem]} />
+        </Group>
+        <AddWinDialog match={match} opened={adding} onClose={() => setAdding(false)} />
+      </Table.Td>
+    </>
+  );
+}
 
-/**
- * 勝利がまだない組分け。表の 1 行（1 つのセル）の中に、2 段で出す。
- * 上の段は、組分けの名前と、勝利がまだないこと、組分けの削除。下の段は、勝ったチーム・点数・画像を入力して、勝利を追加する欄。
- * （入力欄を、勝利のある行と同じ列に押し込むと、列の幅が足りず崩れる。段ごとに別の行にすると、触れたときの背景が、段ごとに分かれてしまう）
- */
-function RecordRows({ match, removeMatchButton }: { match: Match; removeMatchButton: ReactNode }) {
-  const formRef = useRef<HTMLFormElement>(null);
+/** 選んだ画像のファイル名を、ボタンに収まる長さにする（拡張子は残す） */
+const shortName = (name: string) => (name.length <= 24 ? name : `${name.slice(0, 12)}…${name.slice(-8)}`);
+
+/** 勝利を追加するダイアログ。勝ったチーム・点数・画像を入力する */
+function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolean; onClose: () => void }) {
   const resetFile = useRef<() => void>(null);
   const [teamId, setTeamId] = useState<number | "">("");
   const [points, setPoints] = useState("");
@@ -407,6 +425,7 @@ function RecordRows({ match, removeMatchButton }: { match: Match; removeMatchBut
     REFRESH,
   );
   const ready = teamId !== "" && points !== "" && image !== null;
+  const label = `${match.teamA.name} vs ${match.teamB.name}`;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -417,50 +436,43 @@ function RecordRows({ match, removeMatchButton }: { match: Match; removeMatchBut
     form.set("image", image);
     record.mutate(form, {
       onSuccess: () => {
-        formRef.current?.reset();
         resetFile.current?.();
         setTeamId("");
         setPoints("");
         setImage(null);
+        onClose();
       },
     });
   }
 
-  const label = `${match.teamA.name} vs ${match.teamB.name}`;
   return (
-    <Table.Tr>
-      <Table.Td colSpan={6}>
-        <Stack gap="xs">
-          <Group justify="space-between" wrap="nowrap">
-            <Group gap="lg" wrap="nowrap">
-              <Group gap={4} wrap="nowrap">
-                <Text span>{label}</Text>
-                {removeMatchButton}
-              </Group>
-              <Text span c="dimmed">
-                勝利はまだありません
-              </Text>
-            </Group>
-          </Group>
-          <form ref={formRef} onSubmit={submit} aria-label={`${label}の勝利を追加`}>
-            <Group gap="sm" wrap="wrap">
-              <NativeSelect aria-label="勝ったチーム" w={170} value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions([match.teamA, match.teamB], "勝ったチーム")} />
-              <TextInput aria-label="点数" placeholder="点数" type="number" min={0} step={1} w={110} value={points} onChange={(event) => setPoints(event.target.value)} />
+    <Modal opened={opened} onClose={onClose} title={`${label}の勝利を追加`} centered>
+      <form onSubmit={submit} aria-label={`${label}の勝利を追加`}>
+        <Stack gap="md">
+          <NativeSelect label="勝ったチーム" value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions([match.teamA, match.teamB], "選択してください")} />
+          <TextInput label="点数" name="points" type="number" min={0} step={1} value={points} onChange={(event) => setPoints(event.target.value)} />
+          <Input.Wrapper label="画像">
+            <div>
               <FileButton resetRef={resetFile} onChange={setImage} accept="image/png,image/jpeg,image/webp,image/gif" inputProps={{ "aria-label": "画像" }}>
                 {(fileProps) => (
-                  <Button variant="default" w={150} {...fileProps} title={image?.name}>
+                  <Button variant="default" {...fileProps} title={image?.name}>
                     {image ? shortName(image.name) : "画像を選択"}
                   </Button>
                 )}
               </FileButton>
-              <Button type="submit" disabled={!ready || record.isPending}>
-                勝利を追加
-              </Button>
-            </Group>
-            <ErrorNote error={record.error} />
-          </form>
+            </div>
+          </Input.Wrapper>
+          <ErrorNote error={record.error} />
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={onClose}>
+              キャンセル
+            </Button>
+            <Button type="submit" disabled={!ready || record.isPending}>
+              追加
+            </Button>
+          </Group>
         </Stack>
-      </Table.Td>
-    </Table.Tr>
+      </form>
+    </Modal>
   );
 }

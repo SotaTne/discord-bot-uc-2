@@ -31,6 +31,7 @@ export const theme = createTheme({
     Table: { defaultProps: { verticalSpacing: "xs", highlightOnHover: true, style: { whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" } } },
     // 説明は、入力欄の下に出す（説明が折り返しても、横に並べた入力欄の高さがずれない）
     TextInput: { defaultProps: { size: "sm", autoComplete: "off", inputWrapperOrder: ["label", "input", "description", "error"] } },
+    Menu: { defaultProps: { transitionProps: { duration: 0 } } },
     Modal: { defaultProps: { transitionProps: { duration: 0 } } },
     Popover: { defaultProps: { transitionProps: { duration: 0 } } },
   },

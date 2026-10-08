@@ -22,6 +22,12 @@ const record = (over: Record<string, unknown> = {}) => ({
 
 const apis = (wins: unknown[] = [record()]) => ({ ...loggedIn, "GET /api/wins": { body: { wins } } });
 
+/** 行の「操作」メニューを開いて、項目を選ぶ */
+const choose = async (menuName: string, item: string) => {
+  fireEvent.click(await screen.findByRole("button", { name: menuName }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+};
+
 describe("勝利ログの画面: 絞り込みと並び替え", () => {
   const wins = [
     record({ id: 3, teamName: "UT", match: { id: 9, teamA: "UT", teamB: "NGT" }, slotDate: "2026-10-09", points: 300, recordedByName: "bob", createdAt: at("2026-10-09T22:00:00") }),
@@ -97,7 +103,7 @@ describe("勝利ログの画面: 点数の修正", () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { body: { ok: true } } });
     renderApp("/wins");
 
-    fireEvent.click(await screen.findByRole("button", { name: "勝利#1の点数を編集" }));
+    await choose("勝利#1の操作", "点数を編集");
     const input = screen.getByLabelText("勝利#1の点数") as HTMLInputElement;
     expect(input.value).toBe("80");
     fireEvent.change(input, { target: { value: "95" } });
@@ -111,7 +117,7 @@ describe("勝利ログの画面: 点数の修正", () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { body: { ok: true } } });
     renderApp("/wins");
 
-    fireEvent.click(await screen.findByRole("button", { name: "勝利#1の点数を編集" }));
+    await choose("勝利#1の操作", "点数を編集");
     const input = screen.getByLabelText("勝利#1の点数");
     for (const bad of ["", "-1", "1.5"]) {
       fireEvent.change(input, { target: { value: bad } });
@@ -127,7 +133,7 @@ describe("勝利ログの画面: 点数の修正", () => {
     installFakeBackend({ ...apis(), "PUT /api/wins/1/points": { status: 404, body: { error: "not_found" } } });
     renderApp("/wins");
 
-    fireEvent.click(await screen.findByRole("button", { name: "勝利#1の点数を編集" }));
+    await choose("勝利#1の操作", "点数を編集");
     fireEvent.change(screen.getByLabelText("勝利#1の点数"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
@@ -144,9 +150,8 @@ describe("勝利ログの画面: 履歴", () => {
     const row = (await screen.findByRole("cell", { name: "KMU vs UT" })).closest("tr")!;
     const cells = within(row).getAllByRole("cell").map((cell) => cell.textContent);
     expect(cells.slice(0, 7)).toEqual(["1", "2026-10-07 21:00", "KMU vs UT", "KMU", "80pt", "管理者さん", "10/07 22:30"]);
-    // 点数の編集・削除は、同じ列に並ぶ
-    const actions = within(row).getByRole("button", { name: "勝利#1の点数を編集" }).closest("td")!;
-    expect(within(actions).getByRole("button", { name: "削除" })).toBeTruthy();
+    // 操作は、行の「操作」メニューに、まとまっている
+    expect(within(row).getByRole("button", { name: "勝利#1の操作" })).toBeTruthy();
     // 画像は、別のページには移らず、ポップアップで表示する
     expect(within(row).queryByRole("link", { name: "画像" })).toBeNull();
     fireEvent.click(within(row).getByRole("button", { name: "画像" }));
@@ -161,7 +166,7 @@ describe("勝利ログの画面: 履歴", () => {
     expect(screen.getByText("KMU vs UT")).toBeTruthy();
   });
 
-  it("「削除」で、その記録を外す。削除済みの記録は、（削除済み）と出して、「元に戻す」ボタンを出す", async () => {
+  it("メニューの「勝利を削除」で、その記録を外す。削除済みの記録は、（削除済み）と出して、「勝利を元に戻す」を選べる", async () => {
     const backend = installFakeBackend({
       ...apis([record({ id: 2, active: false }), record({ id: 1 })]),
       "PUT /api/wins/1/active": { body: { ok: true } },
@@ -169,13 +174,12 @@ describe("勝利ログの画面: 履歴", () => {
     });
     renderApp("/wins");
 
-    const removed = (await screen.findByText("KMU（削除済み）")).closest("tr")!;
-    expect(within(removed).getByRole("button", { name: "元に戻す" })).toBeTruthy();
+    await screen.findByText("KMU（削除済み）");
 
-    fireEvent.click(screen.getByRole("button", { name: "削除" }));
+    await choose("勝利#1の操作", "勝利を削除");
     await waitFor(() => expect(backend.last("PUT", "/api/wins/1/active")?.json).toEqual({ active: false }));
 
-    fireEvent.click(screen.getByRole("button", { name: "元に戻す" }));
+    await choose("勝利#2の操作", "勝利を元に戻す");
     await waitFor(() => expect(backend.last("PUT", "/api/wins/2/active")?.json).toEqual({ active: true }));
   });
 
@@ -186,7 +190,7 @@ describe("勝利ログの画面: 履歴", () => {
     });
     renderApp("/wins");
 
-    fireEvent.click(await screen.findByRole("button", { name: "元に戻す" }));
+    await choose("勝利#1の操作", "勝利を元に戻す");
 
     expect((await screen.findByRole("alert")).textContent).toContain("すでに勝利が記録されています");
   });
@@ -195,7 +199,7 @@ describe("勝利ログの画面: 履歴", () => {
     installFakeBackend({ ...apis(), "PUT /api/wins/1/active": { status: 404, body: { error: "not_found" } } });
     renderApp("/wins");
 
-    fireEvent.click(await screen.findByRole("button", { name: "削除" }));
+    await choose("勝利#1の操作", "勝利を削除");
 
     expect((await screen.findByRole("alert")).textContent).toContain("対象が見つかりません");
   });

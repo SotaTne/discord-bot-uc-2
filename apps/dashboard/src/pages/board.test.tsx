@@ -34,6 +34,16 @@ const apis = (slots: unknown[] = [slot()]) => ({
   "GET /api/teams": { body: TEAMS },
   "GET /api/slots": { body: SLOTS },
 });
+/** 行の「操作」メニューを開いて、項目を選ぶ */
+const choose = async (menuName: string, item: string) => {
+  fireEvent.click(await screen.findByRole("button", { name: menuName }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+};
+/** 勝利がまだない組分けの「勝利を追加」を押して、入力のダイアログを開く */
+const openAddWin = async (label: string) => {
+  fireEvent.click(await screen.findByRole("button", { name: `${label}の勝利を追加` }));
+  return within(await screen.findByRole("form", { name: `${label}の勝利を追加` }));
+};
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
 describe("対戦枠の画面: 日付", () => {
@@ -215,10 +225,11 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "POST /api/matches/7/wins": { status: 201, body: { id: 3 } } });
     renderApp("/");
 
-    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を追加" }));
-    const button = form.getByRole("button", { name: "勝利を追加" }) as HTMLButtonElement;
+    // 表には入力欄を並べず、「勝利を追加」を押すと、入力のダイアログが開く
+    const form = await openAddWin("KMU vs UT");
+    const button = form.getByRole("button", { name: "追加" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(within(form.getByLabelText("勝ったチーム")).getAllByRole("option").map((o) => o.textContent)).toEqual(["勝ったチーム", "KMU", "UT"]);
+    expect(within(form.getByLabelText("勝ったチーム")).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択してください", "KMU", "UT"]);
 
     fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "2" } });
     fireEvent.change(form.getByLabelText("点数"), { target: { value: "452" } });
@@ -247,17 +258,17 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     expect(within21.queryByRole("link", { name: "画像" })).toBeNull();
     fireEvent.click(within21.getByRole("button", { name: "画像" }));
     expect(screen.getByRole("img", { name: "勝利#3の画像" }).getAttribute("src")).toBe("/api/screenshots/3");
-    expect(within21.queryByRole("form", { name: /の勝利を追加/ })).toBeNull();
+    expect(within21.queryByRole("button", { name: /の勝利を追加/ })).toBeNull();
   });
 
-  it("勝利を削除すると、記録フォームに戻る（削除して、記録し直せる）", async () => {
+  it("メニューの「勝利を削除」で、勝利を外す（外したあと、記録し直せる）", async () => {
     const backend = installFakeBackend({
       ...apis([slot({ matched: true, matches: [match({ win: win() })] })]),
       "PUT /api/wins/3/active": { body: { ok: true } },
     });
     renderApp("/");
 
-    fireEvent.click(await screen.findByRole("button", { name: "KMU vs UTの勝利を削除" }));
+    await choose("KMU vs UTの操作", "勝利を削除");
 
     await waitFor(() => expect(backend.last("PUT", "/api/wins/3/active")?.json).toEqual({ active: false }));
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
@@ -270,11 +281,11 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     });
     renderApp("/");
 
-    const form = within(await screen.findByRole("form", { name: "KMU vs UTの勝利を追加" }));
+    const form = await openAddWin("KMU vs UT");
     fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
     fireEvent.change(form.getByLabelText("点数"), { target: { value: "10" } });
     fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
-    fireEvent.click(form.getByRole("button", { name: "勝利を追加" }));
+    fireEvent.click(form.getByRole("button", { name: "追加" }));
 
     expect((await screen.findAllByRole("alert"))[0]?.textContent).toContain("すでに勝利が記録されています");
   });
@@ -284,8 +295,9 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
 
-    fireEvent.click(await within21.findByRole("button", { name: "組分けを削除" }));
+    await choose("KMU vs UTの操作", "組分けを削除");
 
+    expect(screen.getByRole("dialog", { name: "KMU vs UTの組分けを削除" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "勝利2件も削除して、実行する" })).toBeTruthy();
   });
 
@@ -294,7 +306,7 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
 
-    fireEvent.click((await within21.findByRole("button", { name: "組分けを削除" })));
+    await choose("KMU vs UTの操作", "組分けを削除");
     expect(backend.count("DELETE", "/api/matches/7")).toBe(0);
     fireEvent.click(screen.getByRole("button", { name: "削除を実行する" }));
 
