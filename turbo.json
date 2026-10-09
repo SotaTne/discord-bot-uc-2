@@ -6,6 +6,12 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    // ダッシュボードのビルド（Vite で束ねるだけ）は、ほかのパッケージのビルドを待たない。
+    // worker の型（@uc/worker）は、型の確認（typecheck）だけが使う。待つ設定にすると、worker がダッシュボードに依存することと、循環する
+    "@uc/dashboard#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
     // worker の API の型（宣言ファイル）。dashboard が Hono RPC で参照する
     "build:types": {
       "outputs": ["dist/types/**"]
