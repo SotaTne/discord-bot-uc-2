@@ -15,7 +15,8 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run && turbo run test",
     "check": "pnpm typecheck && pnpm test",
-    "register-commands": "pnpm --filter @uc/discord run register-commands"
+    "register-commands": "pnpm --filter @uc/discord run register-commands",
+    "update-cron-secret": "node scripts/update-cron-secret.ts"
   },
   "devDependencies": {
     "@actions/core": "catalog:",

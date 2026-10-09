@@ -182,6 +182,20 @@ pnpm register-commands                                    # 全サーバー（�
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
+**cron の合言葉（`CRON_SECRET`）の作成と取り替え**: `pnpm update-cron-secret`（ルートで実行）。新しい合言葉を作って、次の 3 つを、まとめて行う。
+
+1. GitHub の Environments（`staging`・`production`）の Secrets の `CRON_SECRET` を、取り替える（`gh` コマンド。`gh auth login` 済みで、2 つの Environment が、先に、あること）。
+2. `apps/cron/.env.local` の `CRON_SECRET` を、書き換える（手元の `start` / `stop` / `health` が使う）。
+3. 新しい値を、1 回だけ、画面に出す。
+
+実行の前に、やることを表示して、確認する（`--yes` で省略）。**デプロイは、しない**。そのため、終わりに表示される「次にやること」を、実行する。
+
+- Apps Script の「スクリプト プロパティ」の `CRON_SECRET` を、画面に出た値に、取り替える（ここだけ、手で貼る）。
+- Worker に届けるため、Actions の画面から `cd` を、`develop` と `main` の両方で、手動で実行する。
+- `pnpm --filter @uc/cron-app health` で、動いているか確かめる。
+
+取り替えから、Worker のデプロイまでの間は、`/cron` が 401 になる。Worker には猶予（募集開始は 1 時間、締切のマッチングは試合開始の 30 分後まで）があるので、その間に済ませれば、取りこぼさない。漏れたと思ったときも、同じコマンドで、取り替える。
+
 cron（毎分）は、2 通りで起こせる。
 - Cloudflare の Cron Trigger: 環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
 - `apps/cron` の Google Apps Script: 毎分、`POST /cron`（合言葉つき）を呼ぶ。Cloudflare の cron が、ステージングで動かなかったので、こちらを使う。設定は、`apps/cron/README.md`。

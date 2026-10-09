@@ -31,7 +31,7 @@ cron: 動いています（1 分おき）
 
 ## 最初の設定（1 回）
 
-1. **Worker 側に、合言葉を置く**: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）。値は、`openssl rand -base64 32` などで作る。
+1. **Worker 側に、合言葉を置く**: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）。合言葉の作成と、GitHub・`.env.local` への登録は、ルートの `pnpm update-cron-secret` が行う（ルートの `README.md` の「cron の合言葉」）。Apps Script のスクリプトプロパティだけは、手で貼る。
 2. <https://script.google.com/home/usersettings> で、「Google Apps Script API」をオンにする（clasp が、プロジェクトを作ったり、置いたりするため）。
 3. **プロジェクトを作る**: 手元で、Google にログインして、作る。`.clasp.json`（プロジェクトの ID を持つ。git には入れない）が、できる。
    ```

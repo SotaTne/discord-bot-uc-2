@@ -4,5 +4,5 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["tests", ".github/scripts", "vitest.config.ts"]
+  "include": ["tests", ".github/scripts", "scripts", "vitest.config.ts"]
 }
