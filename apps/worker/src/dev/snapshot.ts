@@ -1,4 +1,5 @@
 import type { DevSnapshot } from "@uc/api";
+import { getDevClockState } from "./clock";
 import { jobState, jstDateOf, scheduledJobsForDate, type Clock } from "@uc/core";
 import {
   getGuildSettings,
@@ -29,10 +30,8 @@ const MAX_WINS = 50;
 export async function buildDevSnapshot(input: {
   db: Db;
   guildId: string;
-  /** 疑似時計があれば、その時刻。募集・締切の予定や「今日」は、これで決める */
+  /** worker の時計（開発では、疑似時計）。募集・締切の予定、「今日」、ログインの有効期限は、これで決める */
   clock: Clock;
-  /** ログインの有効期限の判定に使う、本物の時計（認証は、疑似時計の影響を受けない） */
-  baseClock: Clock;
   /** チームの表示名（ロールの名前）を取るための、Discord REST */
   rest: Pick<DiscordRest, "getGuildRoles">;
 }): Promise<DevSnapshot> {
@@ -52,7 +51,7 @@ export async function buildDevSnapshot(input: {
       listJobRuns(db, guildId, 30),
       listJobKeys(db, guildId),
       listDashboardLinks(db, guildId, 20),
-      listActiveSessions(db, guildId, input.baseClock.now().getTime()),
+      listActiveSessions(db, guildId, now.getTime()),
     ]);
 
   const nameOf = await teamNames(input.rest, guildId, teams);
@@ -88,6 +87,7 @@ export async function buildDevSnapshot(input: {
 
   return {
     now: now.toISOString(),
+    clock: getDevClockState(),
     today,
     settings: {
       channelId: settings.channelId,

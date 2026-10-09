@@ -1,14 +1,11 @@
-import type { Clock } from "@uc/core";
-import { fixedClock } from "@uc/core";
-import type { AppEnv } from "./env";
+import { systemClock, type Clock } from "@uc/core";
+import { devClock } from "./dev/clock";
 
 /**
- * リクエストごとの時計を決める。
- * 開発用の疑似時計が有効（DEV_CLOCK=true）で、X-Dev-Now ヘッダーに正しい日時があれば、その日時に固定する。
- * それ以外は、渡された時計をそのまま使う（本番ではヘッダーを無視する）。
+ * アプリが使う時計。本番は、本物の時計そのもの。
+ * 開発のとき（`import.meta.env.DEV`）だけ、疑似時計（本物の時刻 + ずれ）にする。
+ * 本番のビルドでは、`import.meta.env.DEV` が false に置き換わり、疑似時計のコードごと消える。
  */
-export function resolveClock(base: Clock, env: Pick<AppEnv, "DEV_CLOCK">, devNow: string | null | undefined): Clock {
-  if (env.DEV_CLOCK !== "true" || !devNow) return base;
-  const at = new Date(devNow);
-  return Number.isNaN(at.getTime()) ? base : fixedClock(at);
+export function appClock(base: Clock = systemClock): Clock {
+  return import.meta.env.DEV ? devClock(base) : base;
 }

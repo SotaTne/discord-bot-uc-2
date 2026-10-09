@@ -1,9 +1,11 @@
 import { createHandup, defaultGuildSettings, saveGuildSettings } from "@uc/db";
 import { createTestDb } from "@uc/db/testing";
+import { fixedClock } from "@uc/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
+import { devClock, setDevClockState } from "../dev/clock";
 import type { AppEnv } from "../env";
-import { GUILD_ID, createFakeR2, createSeededDb, insertWinInSlot } from "../test-helpers";
+import { GUILD_ID, createFakeR2, createSeededDb, insertWinInSlot, jst } from "../test-helpers";
 
 let seeded: Awaited<ReturnType<typeof createSeededDb>>;
 let requests: { url: string; body: unknown }[];
@@ -20,24 +22,29 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  setDevClockState({ offsetMs: 0 });
 });
 
-const tick = (env: Partial<AppEnv>, body: unknown = { now: "2026-10-07T12:00:00+09:00" }) =>
-  createApp().request(
-    "/dev/tick",
-    { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost" }, body: JSON.stringify(body) },
-    { DB: seeded.db.$client, DISCORD_API_BASE: "http://mock.local/api/v10", DISCORD_BOT_TOKEN: "t", ...env } as AppEnv,
-  );
+const env = (extra: Partial<AppEnv> = {}) =>
+  ({ DB: seeded.db.$client, DISCORD_API_BASE: "http://mock.local/api/v10", DISCORD_BOT_TOKEN: "t", SCREENSHOTS: createFakeR2().bucket, ...extra }) as AppEnv;
+/** 時計を、指定した日時に固定した worker に、リクエストする */
+const callAt = (at: string, path: string, init: RequestInit = {}, extra: Partial<AppEnv> = {}) =>
+  createApp({ clock: fixedClock(jst(at)) }).request(path, { headers: { Origin: "http://localhost" }, ...init }, env(extra));
 
-describe("POST /dev/tick（開発専用）", () => {
-  it("DEV_CLOCK が true でなければ、404（本番では使えない）", async () => {
-    expect((await tick({})).status).toBe(404);
-    expect((await tick({ DEV_CLOCK: "1" })).status).toBe(404);
+describe("本番のビルド（import.meta.env.DEV が false）では、/dev/* は、まるごとない", () => {
+  it("どの /dev/* も、404（ルートが、組み込まれていない）。cron の処理も、動かない", async () => {
+    vi.stubEnv("DEV", false);
+    for (const [method, path] of [["GET", "/dev/state"], ["GET", "/dev/clock"], ["PUT", "/dev/clock"], ["GET", "/dev/screenshots/1"], ["POST", "/dev/reset"], ["POST", "/dev/tick"]] as const) {
+      expect((await callAt("2026-10-07T12:00:00", path, { method })).status, `${method} ${path}`).toBe(404);
+    }
     expect(requests).toEqual([]);
   });
+});
 
-  it("DEV_CLOCK=true なら、指定した日時で cron の処理を1回実行する", async () => {
-    const response = await tick({ DEV_CLOCK: "true" });
+describe("POST /dev/tick（開発専用）", () => {
+  it("いまの時計（疑似時計）の日時で、cron の処理を1回実行する", async () => {
+    const response = await callAt("2026-10-07T12:00:00", "/dev/tick", { method: "POST" });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
@@ -50,32 +57,50 @@ describe("POST /dev/tick（開発専用）", () => {
   });
 
   it("時刻が来ていなければ、何も実行しない", async () => {
-    const response = await tick({ DEV_CLOCK: "true" }, { now: "2026-10-07T11:00:00+09:00" });
+    const response = await callAt("2026-10-07T11:00:00", "/dev/tick", { method: "POST" });
 
     expect(await response.json()).toEqual({ ran: [], errors: [] });
     expect(requests).toEqual([]);
   });
 });
 
-
-describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
-  const call = (path: string, env: Partial<AppEnv>, init: RequestInit = {}) =>
-    createApp().request(
-      path,
-      init,
-      { DB: seeded.db.$client, SCREENSHOTS: createFakeR2().bucket, ...env } as AppEnv,
+describe("/dev/clock（疑似時計）", () => {
+  const put = (body: unknown) =>
+    createApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request(
+      "/dev/clock",
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      env(),
     );
-  const DEV = { DEV_CLOCK: "true" };
+  const get = () => createApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request("/dev/clock", {}, env());
 
-  it("DEV_CLOCK が true でなければ、どれも 404（本番では使えない）", async () => {
-    for (const [method, path] of [["GET", "/dev/state"], ["GET", "/dev/screenshots/1"], ["POST", "/dev/reset"]] as const) {
-      expect((await call(path, {}, { method })).status).toBe(404);
-      expect((await call(path, { DEV_CLOCK: "1" }, { method })).status).toBe(404);
-    }
+  it("最初は、本物の時計そのもの（ずれ 0）", async () => {
+    expect(await (await get()).json()).toEqual({ offsetMs: 0, now: jst("2026-10-07T12:00:00").getTime() });
   });
 
+  it("ずれを設定すると、worker の時計が、その分だけ進む。負なら、戻る", async () => {
+    const response = await put({ offsetMs: 9 * 3_600_000 });
+
+    expect(await response.json()).toEqual({ offsetMs: 9 * 3_600_000, now: jst("2026-10-07T21:00:00").getTime() });
+    expect(((await (await get()).json()) as { now: number }).now).toBe(jst("2026-10-07T21:00:00").getTime());
+
+    await put({ offsetMs: -3_600_000 });
+    expect(((await (await get()).json()) as { now: number }).now).toBe(jst("2026-10-07T11:00:00").getTime());
+  });
+
+  it("形が正しくなければ 400（状態は、変わらない）", async () => {
+    for (const body of [null, {}, { offsetMs: "1" }, { offsetMs: Number.NaN }, { mode: "paused", at: 1 }]) {
+      expect((await put(body)).status, JSON.stringify(body)).toBe(400);
+    }
+    expect(await (await get()).json()).toMatchObject({ offsetMs: 0 });
+  });
+});
+
+describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
+  const call = (path: string, extra: Partial<AppEnv> = {}, init: RequestInit = {}) =>
+    callAt("2026-10-07T15:00:00", path, init, extra);
+
   it("/dev/state は、投稿先を設定した最初のサーバーの状態を返す。guildId で選べる", async () => {
-    const response = await call("/dev/state", DEV, { headers: { "X-Dev-Now": "2026-10-07T20:53:00+09:00" } });
+    const response = await callAt("2026-10-07T20:53:00", "/dev/state");
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as { now: string; today: string; slots: number[]; schedule: { key: string; state: string }[] };
@@ -84,13 +109,13 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
     expect(body.slots).toEqual([21, 22, 23]);
     expect(body.schedule.find((s) => s.key === "cutoff:2026-10-07:21")?.state).toBe("ready");
 
-    const unknown = await call("/dev/state?guildId=999", DEV);
+    const unknown = await call("/dev/state?guildId=999");
     expect(((await unknown.json()) as { slots: number[] }).slots).toEqual([]);
   });
 
   it("/dev/state は、サーバーがまだなければ 404", async () => {
     const empty = createTestDb();
-    const response = await createApp().request("/dev/state", {}, { DB: empty.$client, ...DEV } as AppEnv);
+    const response = await createApp().request("/dev/state", {}, { DB: empty.$client } as AppEnv);
     expect(response.status).toBe(404);
   });
 
@@ -103,7 +128,7 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
     const without = await insertWinInSlot(seeded.db, {
       guildId: GUILD_ID, teamId: seeded.kmuId, slotDate: "2026-10-07", slotHour: 21, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 2,
     });
-    const env = { ...DEV, SCREENSHOTS: r2.bucket };
+    const env = { SCREENSHOTS: r2.bucket };
 
     const ok = await call(`/dev/screenshots/${withImage}`, env);
     expect(ok.status).toBe(200);
@@ -119,9 +144,9 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
       guildId: GUILD_ID, teamId: seeded.kmuId, slotDate: "2026-10-07", slotHour: 21, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 1,
     });
 
-    expect((await call("/dev/reset", DEV, { method: "POST" })).status).toBe(200);
+    expect((await call("/dev/reset", {}, { method: "POST" })).status).toBe(200);
 
-    const state = (await (await call("/dev/state", { ...DEV }, { headers: { "X-Dev-Now": "2026-10-07T15:00:00+09:00" } })).json()) as {
+    const state = (await (await call("/dev/state")).json()) as {
       handups: unknown[]; wins: unknown[]; slots: number[]; teams: unknown[];
     };
     expect(state.handups).toEqual([]);

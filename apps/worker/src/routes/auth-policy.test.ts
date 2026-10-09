@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
 import type { AppEnv } from "../env";
 import { API_PREFIX, PUBLIC_API_PATHS } from "./api";
 
 const app = createApp();
-// DB も、公開鍵も、DEV_CLOCK もない環境。認証で止まらなければ、処理に入って、500 になる（401 / 404 にならない）
+// DB も、公開鍵もない環境。認証で止まらなければ、処理に入って、500 になる（401 / 404 にならない）
 const env = {} as AppEnv;
 
 /** 登録されている、実際のルート（middleware を除く）。パスの `:id` や `*` は、適当な値にする */
@@ -49,13 +49,18 @@ describe("認証の方針: すべてのルートが、認証つきか、公開�
     }
   });
 
-  it("/dev は、DEV_CLOCK=true でなければ、すべて 404（認証は、ない。本番では、開かない）", async () => {
+  it("/dev は、認証がない。開発のビルドにだけある（本番のビルドでは、ルートごと、組み込まれない）", async () => {
     const dev = routes.filter((route) => route.path.startsWith("/dev/"));
     expect(dev.length).toBeGreaterThan(0);
 
-    for (const route of dev) {
-      expect((await callWithoutCredentials(route)).status, `${route.method} ${route.path}`).toBe(404);
-    }
+    // 本番（import.meta.env.DEV が false）のアプリには、/dev のルートが、1 つもない
+    vi.stubEnv("DEV", false);
+    const prodRoutes = createApp().routes.filter((route) => route.method !== "ALL");
+    vi.unstubAllEnvs();
+
+    expect(prodRoutes.filter((route) => route.path.startsWith("/dev"))).toEqual([]);
+    // /dev 以外のルートは、変わらない（重複を除いて数える）
+    expect(new Set(prodRoutes.map((route) => `${route.method} ${route.path}`)).size).toBe(routes.length - dev.length);
   });
 
   it("どの方針にも入らないルートは、ない（新しい入口を足したら、ここに、認証の方針を書く）", () => {

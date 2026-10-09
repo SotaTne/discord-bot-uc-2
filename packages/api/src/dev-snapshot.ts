@@ -1,14 +1,22 @@
 /**
  * 開発専用: worker の「いまの状態」を、まとめて返すための型。
  * 疑似 Discord の画面（apps/mock）が、状態を常に見せるために使う。
- * worker は、開発用の設定（DEV_CLOCK=true）のときだけ、これを返す（/dev/state）。
+ * worker は、開発のビルドのときだけ、これを返す（/dev/state。本番のビルドには、入らない）。
  */
+
+/**
+ * 開発用の疑似時計の状態（worker が持つ）。本物の時刻 + ずれ（offsetMs、ミリ秒。進めた分が、正）。
+ * 時間は、そのまま進む（固定はしない）。
+ */
+export type DevClock = { offsetMs: number };
 
 export type DevJobState = "done" | "ready" | "waiting" | "expired";
 
 export type DevSnapshot = {
-  /** この状態を作ったときの「いま」（ISO 8601。疑似時計があればその時刻） */
+  /** この状態を作ったときの「いま」（ISO 8601。worker の時計 = 疑似時計） */
   now: string;
+  /** worker の疑似時計の状態。mock が、自分の時計とずれていないか確かめるのに使う */
+  clock: DevClock;
   /** 「今日」（JST, YYYY-MM-DD） */
   today: string;
   settings: {

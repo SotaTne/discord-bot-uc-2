@@ -47,7 +47,8 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
       { id: "400000000000000002", name: "UT", position: 2 },
     ],
     messages: [],
-    clock: { now: jst("2026-10-07T20:53:00"), real: false },
+    // 本物の時刻より、8 時間進めている（動いている）
+    clock: { now: jst("2026-10-07T20:53:00"), real: false, offsetMs: 8 * 3_600_000 + 12 * 60_000 },
     clockSteps: [
       { at: jst("2026-10-07T12:00:00"), label: "12:00 募集開始" },
       { at: jst("2026-10-07T20:53:00"), label: "20:53 21時の締切" },
@@ -55,6 +56,7 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
     ],
     snapshot: {
       now: new Date(jst("2026-10-07T20:53:00")).toISOString(),
+      clock: { offsetMs: 8 * 3_600_000 + 12 * 60_000 },
       today: "2026-10-07",
       settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
       slots: [21, 22],

@@ -6,7 +6,6 @@ import {
 } from "@uc/discord";
 import { Hono } from "hono";
 import { componentHandlers, commandHandlers, type CommandHandler } from "../commands/registry";
-import { resolveClock } from "../clock";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { verifyDiscordRequest, type InteractionEnv } from "../middleware/discord-signature";
@@ -57,9 +56,7 @@ export function createInteractionsRoute(deps: InteractionsDeps) {
         await handler({
           interaction,
           env: c.env,
-          // 開発用の疑似時計が有効なときだけ、X-Dev-Now ヘッダーで時刻を固定できる
-          clock: resolveClock(deps.clock, c.env, c.req.header("X-Dev-Now")),
-          baseClock: deps.clock,
+          clock: deps.clock,
           db: createDb(c.env.DB),
           rest: createRestFromEnv(c.env),
           // グローバルの fetch を、そのままプロパティに入れて呼ぶと、Workers では Illegal invocation になる。関数で包む

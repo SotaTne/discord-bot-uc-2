@@ -1,4 +1,5 @@
 /** 疑似 Discord が持つ状態。開発中のメモリ上にだけ置く */
+import type { DevClock } from "@uc/api";
 import type { ActionRow } from "@uc/discord";
 
 export type MockUser = {
@@ -33,13 +34,23 @@ export type Seed = {
 
 type PendingInteraction = { userId: string; channelId: string; ephemeral: boolean };
 
-export function createMockState(seed: Seed) {
+export type MockStateOptions = {
+  /** 本物の時刻（epoch ミリ秒）。疑似時計の「ずれ」の基準。テストで、固定できる */
+  realNow?: () => number;
+};
+
+export function createMockState(seed: Seed, options: MockStateOptions = {}) {
+  const realNow = options.realNow ?? Date.now;
   const messages: MockMessage[] = [];
   const pending = new Map<string, PendingInteraction>();
   const attachments = new Map<string, MockAttachment>();
   let counter = 0;
-  /** 疑似時計。null なら本物の時刻 */
-  let fixedAt: number | null = null;
+  /**
+   * 疑似時計。worker が持つ時計と、同じもの（worker に、PUT /dev/clock で伝える）。
+   * 「本物の時刻 + ずれ」。移っても、時間は進む（固定はしない）
+   */
+  let clock: DevClock = { offsetMs: 0 };
+  const now = () => realNow() + clock.offsetMs;
 
   const newId = () => String(900_000_000_000_000_000n + BigInt(++counter));
 
@@ -67,7 +78,7 @@ export function createMockState(seed: Seed) {
         id: newId(),
         channelId: input.channelId,
         content: input.content,
-        createdAt: fixedAt ?? Date.now(),
+        createdAt: now(),
         visibleTo: input.visibleTo ?? null,
       };
       if (input.components && input.components.length > 0) message.components = input.components;
@@ -101,12 +112,25 @@ export function createMockState(seed: Seed) {
     },
     getAttachment: (id: string) => attachments.get(id),
 
-    /** 疑似時計。null で本物の時刻に戻す */
-    setClock: (at: number | null) => void (fixedAt = at),
-    /** 疑似時計の時刻（ISO 8601）。本物の時刻のときは null */
-    clockIso: () => (fixedAt === null ? null : new Date(fixedAt).toISOString()),
-    /** いまの時刻（疑似時計があればそれ） */
-    now: () => fixedAt ?? Date.now(),
+    /** 疑似時計の状態 */
+    clock: (): DevClock => clock,
+    setClock: (next: DevClock) => void (clock = next),
+    /** いまの時刻（疑似時計の時刻） */
+    now,
+    /** 本物の時刻 */
+    realNow,
+    /** その時刻へ移る。そこから、時間は、また進む */
+    moveTo(at: number) {
+      clock = { offsetMs: at - realNow() };
+    },
+    /** 日を前後に移る（時刻は、そのまま） */
+    shiftDays(days: number) {
+      this.moveTo(now() + days * 86_400_000);
+    },
+    /** 本物の時刻（ずれ 0）に戻す */
+    useRealTime() {
+      clock = { offsetMs: 0 };
+    },
 
     reset() {
       messages.length = 0;

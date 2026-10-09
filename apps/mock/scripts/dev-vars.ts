@@ -38,7 +38,7 @@ export function applyPublicKey(text: string, publicKeyHex: string, force = false
 
 /**
  * `.dev.vars` に、変数がなければ追加する（すでにあれば、値が何であっても変えない）。
- * 開発用の既定値（DEV_CLOCK や PUBLIC_URL）を足すのに使う。
+ * 開発用の既定値（PUBLIC_URL など）を足すのに使う。
  */
 export function ensureEnvVar(text: string, key: string, value: string): { text: string; added: boolean } {
   if (text.split("\n").some((line) => line.startsWith(`${key}=`))) {

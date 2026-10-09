@@ -3,14 +3,16 @@ import { useState } from "react";
 import { formOf, useAction } from "../actions";
 import { mockApi } from "../api";
 import type { MockStateData } from "../mockState";
-import { jstDate, jstHm, jstMdWeekday } from "../time";
+import { formatOffset, jstDate, jstHm, jstMdWeekday } from "../time";
 
 /**
  * 時計。疑似時計の時刻を、大きく出す。日付（1 日ずつ前後）・時刻（直せる）・出来事の時刻へ移るボタン・現在時刻。
+ * 時計は「本物の時刻 + ずれ」で、移っても、時間は進む。ずれは、「本物より +8時間12分」のように出す。
  * 時計を動かすと、worker の cron が、自動で動く。
  */
 export function ClockBar({ state }: { state: MockStateData }) {
-  const { now, real } = state.clock;
+  const { now, real, offsetMs } = state.clock;
+  const offset = formatOffset(offsetMs);
   const date = jstDate(now);
   const clock = useAction((form) => mockApi.clock.$post({}, { init: { body: form } }));
   const move = (fields: Record<string, string>) => clock.mutate(formOf(fields));
@@ -55,6 +57,10 @@ export function ClockBar({ state }: { state: MockStateData }) {
             );
           })}
         </div>
+        {/* 本物の時刻より、どれだけずれているか（幅が揺れないよう、いつも場所を取る） */}
+        <span className="clock-offset" aria-live="polite">
+          {offset ? `本物より ${offset}` : "本物の時刻"}
+        </span>
         <Button variant={real ? "light" : "default"} aria-pressed={real} onClick={() => move({ action: "real" })}>
           現在時刻
         </Button>

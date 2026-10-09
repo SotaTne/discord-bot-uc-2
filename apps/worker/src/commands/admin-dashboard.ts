@@ -12,14 +12,14 @@ export const LINK_TTL_MS = 60 * 60 * 1000;
  * トークンはハッシュだけを保存し、リンクは本人にだけ見える返信で渡す。
  * トークンはフラグメント（#）に入れるので、サーバーのログやリファラーに残らない。
  */
-export const adminDashboard: CommandHandler = async ({ interaction, db, baseClock, env, origin }) => {
+export const adminDashboard: CommandHandler = async ({ interaction, db, clock, env, origin }) => {
   if (!isAdmin(interaction)) return ephemeralMessage(ADMIN_ONLY_MESSAGE);
   const guildId = interaction.guild_id;
   const userId = interaction.member?.user.id;
   if (!guildId || !userId) return ephemeralMessage("サーバー内で実行してください");
 
   // リンクの有効期限は、疑似時計ではなく本物の時刻で決める（ダッシュボード側は本物の時計で確認するため）
-  const now = baseClock.now().getTime();
+  const now = clock.now().getTime();
   const token = generateToken();
   await createDashboardLink(db, {
     tokenHash: await sha256Hex(token),

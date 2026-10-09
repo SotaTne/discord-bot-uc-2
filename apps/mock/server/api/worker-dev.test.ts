@@ -22,23 +22,45 @@ describe("createWorkerDev（worker の開発用ルートを呼ぶ）", () => {
     current = state();
   });
 
-  it("tick は、疑似時計があればその時刻を /dev/tick に送り、結果を返す", async () => {
+  it("tick は、時刻を送らずに、/dev/tick を呼び、結果を返す（時計は、worker が持つ）", async () => {
     const { sent, fetchImpl } = fakeWorker(() => ({ ran: ["recruit:2026-10-07"], errors: [] }));
-    current.setClock(jst("2026-10-07T12:00:00"));
 
     const summary = await createWorkerDev({ workerUrl: "http://worker.local", fetch: fetchImpl }, current).tick();
 
     expect(summary).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
     expect(sent[0]?.url).toBe("http://worker.local/dev/tick");
-    expect(JSON.parse(sent[0]!.body)).toEqual({ now: "2026-10-07T03:00:00.000Z" });
+    expect(sent[0]?.body).toBe("undefined"); // ボディなし
   });
 
-  it("tick は、疑似時計がなければ時刻を送らない。worker が 404（DEV_CLOCK 無効）なら、理由つきで失敗する", async () => {
-    const ok = fakeWorker(() => ({ ran: [], errors: [] }));
-    await createWorkerDev({ workerUrl: "http://worker.local", fetch: ok.fetchImpl }, current).tick();
-    expect(JSON.parse(ok.sent[0]!.body)).toEqual({});
-
+  it("worker が 404（開発のビルドではない）なら、理由つきで失敗する", async () => {
     const notFound: typeof fetch = async () => new Response("{}", { status: 404 });
-    await expect(createWorkerDev({ workerUrl: "http://worker.local", fetch: notFound }, current).tick()).rejects.toThrow("DEV_CLOCK");
+
+    await expect(createWorkerDev({ workerUrl: "http://worker.local", fetch: notFound }, current).tick()).rejects.toThrow("pnpm dev");
+    await expect(createWorkerDev({ workerUrl: "http://worker.local", fetch: notFound }, current).pushClock()).rejects.toThrow("pnpm dev");
+  });
+
+  it("pushClock は、mock の疑似時計の状態を、PUT /dev/clock で伝える", async () => {
+    const { sent, fetchImpl } = fakeWorker(() => ({}));
+    current.moveTo(jst("2026-10-07T12:00:00"));
+    const { offsetMs } = current.clock();
+
+    await createWorkerDev({ workerUrl: "http://worker.local", fetch: fetchImpl }, current).pushClock();
+
+    expect(sent[0]?.url).toBe("http://worker.local/dev/clock");
+    expect(JSON.parse(sent[0]!.body)).toEqual({ offsetMs });
+  });
+
+  it("fetchSnapshot は、worker の時計が、mock の時計と同じなら、伝え直さない。違えば、伝え直す", async () => {
+    const same = fakeWorker(() => ({ clock: { offsetMs: 0 } }));
+    await createWorkerDev({ workerUrl: "http://worker.local", fetch: same.fetchImpl }, current).fetchSnapshot();
+    expect(same.sent.map((request) => request.url)).toEqual(["http://worker.local/dev/state?guildId=200000000000000001"]);
+
+    current.moveTo(jst("2026-10-07T20:53:00"));
+    const different = fakeWorker((url) => (url.includes("/dev/state") ? { clock: { offsetMs: 0 } } : {}));
+    await createWorkerDev({ workerUrl: "http://worker.local", fetch: different.fetchImpl }, current).fetchSnapshot();
+    expect(different.sent.map((request) => request.url)).toEqual([
+      "http://worker.local/dev/state?guildId=200000000000000001",
+      "http://worker.local/dev/clock",
+    ]);
   });
 });

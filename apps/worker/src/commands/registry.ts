@@ -16,7 +16,6 @@ export type CommandContext = {
   env: AppEnv;
   clock: Clock;
   /** 疑似時計の影響を受けない時計。ログインリンクの有効期限など、認証に関わる時刻に使う */
-  baseClock: Clock;
   db: Db;
   rest: DiscordRest;
   /** 外部（添付ファイルの取得など）への通信。テストで差し替える */

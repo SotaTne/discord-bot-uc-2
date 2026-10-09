@@ -14,8 +14,10 @@ export type AppDeps = {
 
 export function createApp(deps: AppDeps = {}) {
   const clock = deps.clock ?? systemClock;
-  return new Hono<{ Bindings: AppEnv }>()
+  const app = new Hono<{ Bindings: AppEnv }>()
     .route(API_PREFIX, createApiRoutes({ clock }))
-    .route("/dev", createDevRoutes({ clock }))
     .route("/interactions", createInteractionsRoute({ clock, waitUntil: deps.waitUntil, fetch: deps.fetch }));
+  // 開発専用の入口（/dev/*。認証はない）。本番のビルドでは、`import.meta.env.DEV` が false になり、このコードごと消える
+  if (import.meta.env.DEV) app.route("/dev", createDevRoutes({ clock }));
+  return app;
 }

@@ -27,5 +27,6 @@ export function buildMockApp(input: { state: MockState; keys: DevKeyPair; env?: 
 
   const discord = createDiscordServer({ workerUrl, mockUrl, keys, applicationId }, state);
   const workerDev = createWorkerDev({ workerUrl }, state);
-  return createMockApp({ state, interactions: discord.interactions, workerDev, discord });
+  // 実際の開発サーバーでは、時計が動いている間、cron（毎分）を、自動で実行する
+  return createMockApp({ state, interactions: discord.interactions, workerDev, discord, autoTick: true });
 }

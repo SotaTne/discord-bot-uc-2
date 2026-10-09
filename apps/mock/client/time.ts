@@ -18,3 +18,17 @@ export const jstMdHm = (epochMs: number) => `${jstIso(epochMs).slice(5, 10).repl
 
 /** 「21:00」 */
 export const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
+/**
+ * 本物の時刻からのずれ。「+8時間12分」「−1日3時間」。進めた分が「+」、戻した分が「−」。
+ * 分に丸める。1 分に満たなければ、空（ずれなし）
+ */
+export function formatOffset(offsetMs: number): string {
+  const minutes = Math.round(Math.abs(offsetMs) / 60_000);
+  if (minutes === 0) return "";
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+  const text = [days > 0 ? `${days}日` : "", hours > 0 ? `${hours}時間` : "", rest > 0 ? `${rest}分` : ""].join("");
+  return `${offsetMs < 0 ? "−" : "+"}${text}`;
+}

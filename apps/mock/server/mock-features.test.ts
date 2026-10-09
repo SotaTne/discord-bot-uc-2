@@ -38,15 +38,38 @@ const clientFor = (fetchImpl: typeof fetch) =>
   );
 
 describe("MockState: 時計・添付ファイル・メッセージの置き換え", () => {
-  it("疑似時計を設定すると、その時刻になる。null で本物の時刻に戻る", () => {
-    expect(state.clockIso()).toBeNull();
+  describe("疑似時計（本物の時刻 + ずれ）", () => {
+    let real = jst("2026-10-07T15:00:00");
+    const clocked = () => createMockState(defaultSeed(), { realNow: () => real });
+    beforeEach(() => {
+      real = jst("2026-10-07T15:00:00");
+    });
 
-    state.setClock(jst("2026-10-07T20:53:00"));
-    expect(state.clockIso()).toBe("2026-10-07T11:53:00.000Z");
-    expect(state.now()).toBe(jst("2026-10-07T20:53:00"));
+    it("最初は、本物の時刻（ずれ 0）。移ると、ずれが決まり、そこから時間が進む", () => {
+      const current = clocked();
+      expect(current.clock()).toEqual({ offsetMs: 0 });
+      expect(current.now()).toBe(real);
 
-    state.setClock(null);
-    expect(state.clockIso()).toBeNull();
+      current.moveTo(jst("2026-10-07T20:53:00"));
+      expect(current.clock()).toEqual({ offsetMs: jst("2026-10-07T20:53:00") - real });
+      expect(current.now()).toBe(jst("2026-10-07T20:53:00"));
+
+      real += 7 * 60_000;
+      expect(current.now()).toBe(jst("2026-10-07T21:00:00"));
+    });
+
+    it("日を前後すると、時刻はそのまま。本物の時刻に戻すと、ずれが 0 になる。メッセージの時刻は、疑似時計", () => {
+      const current = clocked();
+      current.moveTo(jst("2026-10-07T20:53:00"));
+
+      current.shiftDays(-1);
+      expect(current.now()).toBe(jst("2026-10-06T20:53:00"));
+      expect(current.addMessage({ channelId: "c", content: "x" }).createdAt).toBe(jst("2026-10-06T20:53:00"));
+
+      current.useRealTime();
+      expect(current.clock()).toEqual({ offsetMs: 0 });
+      expect(current.now()).toBe(real);
+    });
   });
 
   it("添付ファイルを登録して、ID で取り出せる。reset で消える", () => {
@@ -70,16 +93,13 @@ describe("MockState: 時計・添付ファイル・メッセージの置き換�
 });
 
 describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", () => {
-  it("疑似時計が設定されていれば X-Dev-Now ヘッダーで伝える。なければ付けない", async () => {
+  it("時計は、worker が持つので、リクエストには、時刻のヘッダー（X-Dev-Now）を付けない。署名のヘッダーだけ", async () => {
     const { sent, fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "ok" } }));
-    const client = clientFor(fetchImpl);
+    state.moveTo(jst("2026-10-07T20:53:00"));
 
-    await client.sendCommand({ userId: alice().id, name: "uc-status" });
-    state.setClock(jst("2026-10-07T20:53:00"));
-    await client.sendCommand({ userId: alice().id, name: "uc-status" });
+    await clientFor(fetchImpl).sendCommand({ userId: alice().id, name: "uc-status" });
 
-    expect(sent[0]?.headers["X-Dev-Now"]).toBeUndefined();
-    expect(sent[1]?.headers["X-Dev-Now"]).toBe("2026-10-07T11:53:00.000Z");
+    expect(Object.keys(sent[0]!.headers).sort()).toEqual(["Content-Type", "X-Signature-Ed25519", "X-Signature-Timestamp"]);
   });
 
   it("添付ファイルのオプションは、worker が取りに来られる URL と一緒に、resolved に入れる", async () => {

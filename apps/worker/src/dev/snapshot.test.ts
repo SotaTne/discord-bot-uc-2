@@ -25,8 +25,7 @@ beforeEach(async () => {
 });
 
 const NOW = jst("2026-10-07T21:30:00");
-const snapshot = (at = NOW, realNow = NOW) =>
-  buildDevSnapshot({ db: seeded.db, guildId: GUILD_ID, clock: fixedClock(at), baseClock: fixedClock(realNow), rest: fakeRoleRest });
+const snapshot = (at = NOW) => buildDevSnapshot({ db: seeded.db, guildId: GUILD_ID, clock: fixedClock(at), rest: fakeRoleRest });
 
 const win = (teamId: number, day: number, points: number, extra: { screenshotKey?: string } = {}) =>
   insertWinInSlot(seeded.db, {
@@ -204,7 +203,7 @@ describe("buildDevSnapshot", () => {
   });
 
   describe("ダッシュボード", () => {
-    it("発行したログインリンク（トークンは含まない）と、有効なセッションの数を返す。セッションの期限は、本物の時計で判定する", async () => {
+    it("発行したログインリンク（トークンは含まない）と、有効なセッションの数を返す。セッションの期限は、worker の時計（疑似時計）で判定する", async () => {
       await createDashboardLink(seeded.db, { tokenHash: "secret", guildId: GUILD_ID, issuedBy: "admin", expiresAt: NOW.getTime() + 3_600_000, createdAt: NOW.getTime() });
       await createSession(seeded.db, { sessionHash: "s1", guildId: GUILD_ID, userId: "admin", userAgent: null, createdAt: 0, expiresAt: NOW.getTime() + 1000 });
       await createSession(seeded.db, { sessionHash: "s2", guildId: GUILD_ID, userId: "admin", userAgent: null, createdAt: 0, expiresAt: NOW.getTime() - 1 });
@@ -215,15 +214,15 @@ describe("buildDevSnapshot", () => {
       expect(result.dashboard.links).toEqual([{ issuedBy: "admin", createdAt: NOW.getTime(), expiresAt: NOW.getTime() + 3_600_000, usedAt: null }]);
       expect(JSON.stringify(result)).not.toContain("secret");
 
-      // 疑似時計を進めても、セッションの有効期限は、本物の時計で判定する（疑似時計の影響を受けない）
-      const later = await snapshot(jst("2030-01-01T00:00:00"), NOW);
-      expect(later.dashboard.sessions).toBe(1);
+      // 疑似時計を進めると、セッションの有効期限も、その時計で判定する（API・Discord・cron と、同じ時計）
+      const later = await snapshot(jst("2030-01-01T00:00:00"));
+      expect(later.dashboard.sessions).toBe(0);
     });
   });
 
   it("サーバーが違えば、別のデータになる", async () => {
     const other = createTestDb();
-    const result = await buildDevSnapshot({ db: other, guildId: "999", clock: fixedClock(NOW), baseClock: fixedClock(NOW), rest: fakeRoleRest });
+    const result = await buildDevSnapshot({ db: other, guildId: "999", clock: fixedClock(NOW), rest: fakeRoleRest });
     expect(result).toMatchObject({ slots: [], teams: [], handups: [], settings: { channelId: null } });
   });
 });

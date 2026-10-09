@@ -41,17 +41,17 @@ describe("applyPublicKey", () => {
 
 describe("ensureEnvVar", () => {
   it("なければ追加する（改行がなくても行が壊れない）", () => {
-    expect(ensureEnvVar("A=1\n", "DEV_CLOCK", "true")).toEqual({ text: "A=1\nDEV_CLOCK=true\n", added: true });
-    expect(ensureEnvVar("A=1", "DEV_CLOCK", "true").text).toBe("A=1\nDEV_CLOCK=true\n");
-    expect(ensureEnvVar("", "DEV_CLOCK", "true").text).toBe("DEV_CLOCK=true\n");
+    expect(ensureEnvVar("A=1\n", "PUBLIC_URL", "true")).toEqual({ text: "A=1\nPUBLIC_URL=true\n", added: true });
+    expect(ensureEnvVar("A=1", "PUBLIC_URL", "true").text).toBe("A=1\nPUBLIC_URL=true\n");
+    expect(ensureEnvVar("", "PUBLIC_URL", "true").text).toBe("PUBLIC_URL=true\n");
   });
 
   it("すでにあれば、値が違っても変えない", () => {
-    const text = "DEV_CLOCK=false\n";
-    expect(ensureEnvVar(text, "DEV_CLOCK", "true")).toEqual({ text, added: false });
+    const text = "PUBLIC_URL=false\n";
+    expect(ensureEnvVar(text, "PUBLIC_URL", "true")).toEqual({ text, added: false });
   });
 
   it("名前が似ている別の変数は、あるものとして扱わない", () => {
-    expect(ensureEnvVar("DEV_CLOCK_X=1\n", "DEV_CLOCK", "true").added).toBe(true);
+    expect(ensureEnvVar("PUBLIC_URL_X=1\n", "PUBLIC_URL", "true").added).toBe(true);
   });
 });

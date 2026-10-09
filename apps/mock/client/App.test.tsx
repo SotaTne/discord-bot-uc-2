@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { USER_IDS, installFakeApi, sampleState } from "./test/fake-api";
 import { renderApp } from "./test/render";
@@ -267,6 +267,30 @@ describe("時計の操作", () => {
 
     await waitFor(() => expect(api.callsTo("POST", "/mock-api/clock")).toHaveLength(1));
     expect(api.callsTo("POST", "/mock-api/clock")[0]?.form).toEqual({ action: "set", value: "2026-10-07T21:30" });
+  });
+
+  it("ずれを出す: 動かしているときは「本物より +8時間12分」、戻したときは「−」、本物の時刻と同じなら「本物の時刻」", async () => {
+    installFakeApi(stateRoute());
+    renderApp();
+    expect(await screen.findByText("本物より +8時間12分")).toBeTruthy();
+    cleanup();
+
+    installFakeApi(stateRoute(sampleState({ clock: { now: jst("2026-10-07T20:53:00"), real: false, offsetMs: -90 * 60_000 } })));
+    renderApp();
+    expect(await screen.findByText("本物より −1時間30分")).toBeTruthy();
+    cleanup();
+
+    installFakeApi(stateRoute(sampleState({ clock: { now: jst("2026-10-07T20:53:00"), real: true, offsetMs: 0 } })));
+    renderApp();
+    expect(await screen.findByText("本物の時刻")).toBeTruthy();
+  });
+
+  it("止める / 再開のボタンは、ない（時計は、いつも動いている）", async () => {
+    installFakeApi(stateRoute());
+    renderApp();
+    await screen.findByLabelText("いまの時刻");
+
+    expect(screen.queryByRole("button", { name: /止める|再開/ })).toBeNull();
   });
 
   it("「現在時刻」で、本物の時刻に戻す。本物の時刻のときは、選ばれて見える", async () => {

@@ -11,6 +11,11 @@ export type MockApiDeps = {
   state: MockState;
   interactions: ReturnType<typeof createDiscordInteractions>;
   workerDev: WorkerDev;
+  /**
+   * true なら、1 分ごとに（画面が状態を取りに来たときに）cron の処理を実行する。本番の cron（毎分）と同じ。
+   * 画面を開いていないときは、動かない。テストでは、false（省略）にして、呼び出しを数えられるようにする
+   */
+  autoTick?: boolean;
 };
 
 type ActionResult = { ok: boolean; notice: string };
@@ -23,12 +28,14 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
  * - GET  /state        画面に出すものを、まとめて返す（時計・ユーザー・メッセージ・worker の状態）
  * - POST /send         コマンドを、選んだ実行者として、順に実行する
  * - POST /click        メッセージのボタンを押す
- * - POST /clock        時計を動かす（動かしたら、cron が動く）
+ * - POST /clock        時計を動かす（移る・日を前後・本物の時刻へ。動かしたら、cron が動く）
  * - POST /reset        すべて初期状態に戻す
  * - GET  /screenshots/:seq   worker に保存された画像
  */
 export function createMockApi(deps: MockApiDeps) {
   const { state } = deps;
+  /** 最後に cron を実行した「分」。時計が、次の分に入ったら、自動で、もう一度実行する（autoTick のとき） */
+  let lastTickMinute = Math.floor(state.now() / 60_000);
 
   /** worker の状態。取れなかったときは、理由を返す（画面に出す） */
   async function loadSnapshot(): Promise<{ snapshot: DevSnapshot | null; snapshotError: string | null }> {
@@ -52,8 +59,10 @@ export function createMockApi(deps: MockApiDeps) {
     }
   }
 
-  /** 時計を動かしたあとの、cron。本番と同じに、時刻が来れば、自動で動く */
+  /** 時計を動かしたあとの、cron。本番と同じに、時刻が来れば、自動で動く（先に、worker の時計を、そろえる） */
   async function tickAfterClockChange(): Promise<ActionResult> {
+    await deps.workerDev.pushClock();
+    lastTickMinute = Math.floor(state.now() / 60_000);
     const summary = await deps.workerDev.tick();
     return summary.errors.length === 0
       ? { ok: true, notice: "" }
@@ -62,6 +71,12 @@ export function createMockApi(deps: MockApiDeps) {
 
   return new Hono()
     .get("/state", async (c) => {
+      // 時計が動いていて、次の分に入ったら、cron を実行する（本番の cron は、毎分）
+      const minute = Math.floor(state.now() / 60_000);
+      if (deps.autoTick && minute !== lastTickMinute) {
+        lastTickMinute = minute;
+        await deps.workerDev.tick().catch(() => undefined);
+      }
       const { snapshot, snapshotError } = await loadSnapshot();
       const now = state.now();
       return c.json({
@@ -70,7 +85,8 @@ export function createMockApi(deps: MockApiDeps) {
         users: state.users,
         roles: state.roles,
         messages: state.messages,
-        clock: { now, real: state.clockIso() === null },
+        // offsetMs: 本物の時刻からのずれ（進めた分が、正） / real: 本物の時刻と同じ（ずれが 0）
+        clock: { now, offsetMs: state.clock().offsetMs, real: state.clock().offsetMs === 0 },
         // 時計を移せるイベント（募集開始・各対戦枠の締切・試合開始）。worker の状態から作る
         clockSteps: clockSteps(snapshot),
         snapshot,
@@ -139,21 +155,22 @@ export function createMockApi(deps: MockApiDeps) {
       }),
     )
 
-    // 時計を動かす（set: 指定した時刻 / day: 日を前後 / real: 現在時刻）。動かしたら、cron が自動で動く
+    // 時計を動かす（set: 指定した時刻へ移る / day: 日を前後 / real: 本物の時刻へ）。動かしたら、cron が自動で動く。
+    // 移っても、時計は止まらない（本物の時刻 + ずれ で、時間は進む）
     .post("/clock", (c) =>
       perform(c, async (form) => {
         const action = String(form.action ?? "");
 
         if (action === "real") {
-          state.setClock(null);
+          state.useRealTime();
         } else if (action === "day") {
           const days = Number(form.value);
           if (!Number.isInteger(days) || Math.abs(days) > 31) throw new Error("不正な操作です");
-          state.setClock(state.now() + days * 86_400_000);
+          state.shiftDays(days);
         } else if (action === "set") {
           const at = parseJstDateTime(String(form.value ?? ""));
           if (at === null) throw new Error("日時の形式が正しくありません");
-          state.setClock(at);
+          state.moveTo(at);
         } else {
           throw new Error("不正な操作です");
         }
@@ -167,7 +184,8 @@ export function createMockApi(deps: MockApiDeps) {
       perform(c, async () => {
         await deps.workerDev.resetWorkerData();
         state.reset();
-        state.setClock(null);
+        state.useRealTime();
+        await deps.workerDev.pushClock();
         return { ok: true, notice: "" };
       }),
     );

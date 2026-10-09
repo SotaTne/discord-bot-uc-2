@@ -2,7 +2,7 @@ import type { Interaction } from "@uc/discord";
 import { describe, expect, it } from "vitest";
 import { clockSteps } from "./api/clock-steps";
 import { parseJstDateTime } from "./api/time";
-import { createTestMock, jst, makeSnapshot } from "./test-fixtures";
+import { REAL_NOW, createTestMock, jst, makeSnapshot } from "./test-fixtures";
 
 const ALICE = "500000000000000001";
 const CAROL = "500000000000000003";
@@ -25,7 +25,7 @@ type StateBody = {
   users: { id: string; username: string; isAdmin: boolean; roleIds: string[] }[];
   roles: { id: string; name: string }[];
   messages: { content: string; visibleTo: string | null; components?: unknown[] }[];
-  clock: { now: number; real: boolean };
+  clock: { now: number; real: boolean; offsetMs: number };
   clockSteps: { at: number; label: string }[];
   snapshot: { slots: number[] } | null;
   snapshotError: string | null;
@@ -63,13 +63,11 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     expect(body.snapshotError).toBeNull();
   });
 
-  it("疑似時計を動かしていれば、その時刻を返す（現在時刻ではない）", async () => {
+  it("疑似時計を動かしていれば、その時刻と、本物の時刻からのずれを返す（real: false）", async () => {
     const mock = await createTestMock();
-    mock.state.setClock(jst("2026-10-07T20:53:00"));
+    mock.state.moveTo(jst("2026-10-07T20:53:00"));
 
-    const body = await stateOf(mock);
-
-    expect(body.clock).toEqual({ now: jst("2026-10-07T20:53:00"), real: false });
+    expect((await stateOf(mock)).clock).toEqual({ now: jst("2026-10-07T20:53:00"), real: false, offsetMs: jst("2026-10-07T20:53:00") - REAL_NOW });
   });
 
   it("worker の状態を取れないときは、状態は null で、理由を返す。時計の操作はできる", async () => {
@@ -83,13 +81,33 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     expect(body.users).toHaveLength(5);
   });
 
-  it("疑似時計の時刻で、状態を取りに行く（X-Dev-Now）", async () => {
+  it("状態を取りに行くとき、worker の時計が、mock の時計とずれていれば、mock の時計を伝え直す（worker を作り直したときなど）", async () => {
     const mock = await createTestMock();
-    mock.state.setClock(jst("2026-10-07T20:53:00"));
+    mock.state.moveTo(jst("2026-10-07T20:53:00")); // まだ、worker には、伝えていない
 
     await mock.app.request("/mock-api/state");
 
-    expect(mock.worker.callsTo("/dev/state").at(-1)?.headers["X-Dev-Now"]).toBe("2026-10-07T11:53:00.000Z");
+    expect(JSON.parse(mock.worker.callsTo("/dev/clock")[0]!.body)).toEqual({ offsetMs: jst("2026-10-07T20:53:00") - REAL_NOW });
+    // そろったあとは、伝え直さない
+    await mock.app.request("/mock-api/state");
+    expect(mock.worker.callsTo("/dev/clock")).toHaveLength(1);
+  });
+
+  it("autoTick: 次の分に入ったら、cron の処理を 1 回実行する。同じ分では、もう実行しない（本物の cron と同じ、毎分）", async () => {
+    let real = REAL_NOW;
+    const mock = await createTestMock({}, true, () => real);
+
+    await mock.app.request("/mock-api/state");
+    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(0); // 同じ分
+
+    real += 60_000;
+    await mock.app.request("/mock-api/state");
+    await mock.app.request("/mock-api/state");
+    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(1);
+
+    real += 120_000;
+    await mock.app.request("/mock-api/state");
+    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(2);
   });
 });
 
@@ -220,12 +238,24 @@ describe("時計の操作（POST /mock-api/clock）", () => {
 
     expect(result).toEqual({ ok: true, notice: "" });
     expect(mock.state.now()).toBe(jst("2026-10-07T20:53:00"));
-    expect(JSON.parse(mock.worker.callsTo("/dev/tick")[0]!.body)).toEqual({ now: new Date(jst("2026-10-07T20:53:00")).toISOString() });
+    // 先に、worker に、時計（本物の時刻 + ずれ）を伝えてから、cron を実行する
+    expect(JSON.parse(mock.worker.callsTo("/dev/clock")[0]!.body)).toEqual({ offsetMs: jst("2026-10-07T20:53:00") - REAL_NOW });
+    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(1);
+  });
+
+  it("移っても、時計は止まらない（本物の時刻が進めば、同じだけ進む）", async () => {
+    let real = REAL_NOW;
+    const mock = await createTestMock({}, false, () => real);
+    await post(mock.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" });
+
+    real += 5 * 60_000;
+
+    expect(mock.state.now()).toBe(jst("2026-10-07T20:58:00"));
   });
 
   it("日を1日ずつ前後できる。時刻は、そのまま", async () => {
     const mock = await createTestMock();
-    mock.state.setClock(jst("2026-10-07T20:53:00"));
+    mock.state.moveTo(jst("2026-10-07T20:53:00"));
 
     await post(mock.app, "/mock-api/clock", { action: "day", value: "1" });
     expect(mock.state.now()).toBe(jst("2026-10-08T20:53:00"));
@@ -238,30 +268,30 @@ describe("時計の操作（POST /mock-api/clock）", () => {
 
   it("現在時刻に戻せる", async () => {
     const mock = await createTestMock();
-    mock.state.setClock(jst("2026-10-07T20:53:00"));
+    mock.state.moveTo(jst("2026-10-07T20:53:00"));
 
     const result = await json(await post(mock.app, "/mock-api/clock", { action: "real" }));
 
     expect(result.ok).toBe(true);
-    expect(mock.state.clockIso()).toBeNull();
+    expect(mock.state.clock()).toEqual({ offsetMs: 0 });
+    expect(mock.state.now()).toBe(REAL_NOW);
   });
 
-  it("cron がエラーになったら、その理由を返す。worker が受け付けない（DEV_CLOCK が無効）ときも、理由を返す", async () => {
+  it("cron がエラーになったら、その理由を返す。worker が受け付けない（開発用のサーバーではない）ときも、理由を返す", async () => {
     const failed = await createTestMock({ tick: { ran: [], errors: ["cutoff:2026-10-07:21: Discord が応答しません"] } });
     const result = await json(await post(failed.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }));
     expect(result).toEqual({ ok: false, notice: "cron のエラー: cutoff:2026-10-07:21: Discord が応答しません" });
 
     const disabled = await createTestMock({ tickStatus: 404 });
-    expect((await json(await post(disabled.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }))).notice).toContain("DEV_CLOCK");
+    expect((await json(await post(disabled.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }))).notice).toContain("pnpm dev");
   });
 
   it("不正な日時・操作は、理由を返して、時計は動かさず、cron も動かさない", async () => {
     const mock = await createTestMock();
-    mock.state.setClock(jst("2026-10-07T15:00:00"));
 
     expect((await json(await post(mock.app, "/mock-api/clock", { action: "set", value: "xx" }))).notice).toContain("日時");
     expect((await json(await post(mock.app, "/mock-api/clock", { action: "jump" }))).ok).toBe(false);
-    expect(mock.state.now()).toBe(jst("2026-10-07T15:00:00"));
+    expect(mock.state.now()).toBe(REAL_NOW);
     expect(mock.worker.callsTo("/dev/tick")).toEqual([]);
   });
 });
@@ -270,14 +300,16 @@ describe("初期化（POST /mock-api/reset）", () => {
   it("worker の活動の記録・このページのメッセージ・時計を、すべて初期状態に戻す", async () => {
     const mock = await createTestMock();
     mock.state.addMessage({ channelId: mock.state.channelId, content: "x" });
-    mock.state.setClock(jst("2026-10-07T20:53:00"));
+    mock.state.moveTo(jst("2026-10-07T20:53:00"));
 
     const result = await json(await post(mock.app, "/mock-api/reset", {}));
 
     expect(result.ok).toBe(true);
     expect(mock.worker.callsTo("/dev/reset")).toHaveLength(1);
     expect(mock.state.messages).toEqual([]);
-    expect(mock.state.clockIso()).toBeNull();
+    expect(mock.state.clock()).toEqual({ offsetMs: 0 });
+    // 時計も、worker に、本物の時刻へ戻したことを伝える
+    expect(JSON.parse(mock.worker.callsTo("/dev/clock").at(-1)!.body)).toEqual({ offsetMs: 0 });
   });
 
   it("worker のデータを消せなかったときは、理由を返して、このページの状態も残す", async () => {

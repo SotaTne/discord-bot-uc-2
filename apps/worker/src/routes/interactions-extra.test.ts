@@ -3,6 +3,7 @@ import { listWins, saveMatchResult } from "@uc/db";
 import { generateDevKeyPair, signRequest } from "@uc/discord/testing";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
+import { devClock, setDevClockState } from "../dev/clock";
 import type { AppEnv } from "../env";
 import {
   GUILD_ID,
@@ -41,22 +42,28 @@ async function send(
   return (await response.json()) as { type: number; data?: { content?: string } };
 }
 
-describe("疑似時計（X-Dev-Now ヘッダー）", () => {
+describe("疑似時計（開発のときだけ。worker の時計に従う）", () => {
   const handup = commandInteraction({ name: "uc-handup", options: [timeOption(21)] });
-  // 本物の時計は、受付時間外（23時）
-  const app = () => createApp({ clock: fixedClock(jst("2026-10-07T23:00:00")) });
 
-  it("DEV_CLOCK=true なら、ヘッダーの日時でコマンドが動く", async () => {
+  afterEach(() => setDevClockState({ offsetMs: 0 }));
+
+  it("コマンドは、worker の時計（疑似時計）で動く。時計を進めて（本物 + ずれ）、受付時間の中にできる", async () => {
     const seeded = await createSeededDb();
-    const json = await send(app(), { DB: seeded.db.$client, DEV_CLOCK: "true" }, handup, {
-      "X-Dev-Now": "2026-10-07T15:00:00+09:00",
-    });
+    // 本物の時計は、受付時間外（23 時）。9 時間戻すと、14 時（受付中）
+    const app = createApp({ clock: devClock(fixedClock(jst("2026-10-07T23:00:00"))) });
+    setDevClockState({ offsetMs: -9 * 3_600_000 });
+
+    const json = await send(app, { DB: seeded.db.$client }, handup);
+
     expect(json.data?.content).toContain("21時の試合に挙手しました");
   });
 
-  it("DEV_CLOCK が無効なら、ヘッダーは無視される（本番の挙動）", async () => {
+  it("ヘッダー（X-Dev-Now）は、もう使わない。付けても、無視される", async () => {
     const seeded = await createSeededDb();
-    const json = await send(app(), { DB: seeded.db.$client }, handup, { "X-Dev-Now": "2026-10-07T15:00:00+09:00" });
+    const app = createApp({ clock: fixedClock(jst("2026-10-07T23:00:00")) });
+
+    const json = await send(app, { DB: seeded.db.$client }, handup, { "X-Dev-Now": "2026-10-07T15:00:00+09:00" });
+
     expect(json.data?.content).toBe("受付は終了しました（試合開始の7分前までです）");
   });
 });

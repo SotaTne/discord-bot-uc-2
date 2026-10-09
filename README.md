@@ -34,14 +34,14 @@ pnpm dev
 
 `pnpm dev` は、準備（`dev:setup`）をしてから、3つをまとめて起動する。
 
-- 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・疑似時計（`DEV_CLOCK`）・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
-- 起動: worker（wrangler dev）、ダッシュボード（Vite）、疑似 Discord（mock。サーバーと画面）。
+- 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
+- 起動: worker（Vite）、ダッシュボード（Vite）、疑似 Discord（mock。サーバーと画面）。
 
 | URL | 内容 |
 |---|---|
 | http://localhost:8788 | 疑似 Discord の動作確認ページ（同じ場所で、worker が、`/api/v10` も呼ぶ） |
 | http://localhost:5173 | ダッシュボード（Vite。`/api` は worker に proxy される） |
-| http://localhost:8787 | worker（wrangler dev） |
+| http://localhost:8787 | worker（Vite） |
 
 ### 疑似 Discord でできること
 
@@ -56,7 +56,8 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 - 今日の対戦枠が、「未マッチング」か「マッチング済み」かが見える。マッチング済みの対戦枠は、時計を戻しても、挙手を受け付けない（もう一度試すときは、日付を ◀ ▶ で動かすか、「データを初期化」）。
 - 「データを初期化」で、挙手・マッチング・得点・ログイン・メッセージ・時計を、初期状態に戻せる（設定・対戦枠・チームは残る）。
 
-時計は `X-Dev-Now` ヘッダーで worker に伝わる。`/dev/*`（状態・cron・初期化）は `DEV_CLOCK=true` のときだけ有効。
+時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示・勝利の未記録の印）が、同じ時計に従う。
+`/dev/*`（時計・状態・cron・初期化）と、疑似時計と、モックの Discord への差し替え（`DISCORD_API_BASE`）は、開発のビルドにだけ入る。本番のビルド（`vite build`）では、ビルド時の定数（`import.meta.env.DEV`）が false になり、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）。
 
 ### 動作確認の例
 
@@ -81,7 +82,7 @@ pnpm tunnel   # 2つ目のターミナル。表示された https の URL を使
 
 1. Discord の Developer Portal で、アプリの「Interactions Endpoint URL」に `https://<ngrok の URL>/interactions` を設定する。
 2. 同じ画面の「Public Key」を、`apps/worker/.dev.vars` の `DISCORD_PUBLIC_KEY` に設定する。
-3. 同じく、`DISCORD_BOT_TOKEN` と `DISCORD_APPLICATION_ID` を本物の値にして、`DISCORD_API_BASE` と `DEV_CLOCK` の行を消す（モックではなく本物の Discord に向け、疑似時計を無効にするため）。
+3. 同じく、`DISCORD_BOT_TOKEN` と `DISCORD_APPLICATION_ID` を本物の値にして、`DISCORD_API_BASE` の行を消す（モックではなく、本物の Discord に向けるため。本番のビルドでは、この値は、もともと読まれない）。
 4. ログインリンクの先を、トンネルの URL にしたいときは `PUBLIC_URL=https://<ngrok の URL>` を設定する。
 5. スラッシュコマンドを Discord に登録する。動作確認のときは、サーバーを指定すると、すぐ反映される。
 
@@ -103,7 +104,7 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm exec wrangler r2 bucket create uc-bot-screenshots
    ```
 
-2. シークレットを設定する（`DEV_CLOCK` と `DISCORD_API_BASE` は設定しない）。
+2. シークレットを設定する（`DISCORD_API_BASE` は設定しない。本番のビルドでは、読まれない）。
 
    ```bash
    pnpm exec wrangler secret put DISCORD_PUBLIC_KEY

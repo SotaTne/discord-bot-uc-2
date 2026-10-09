@@ -46,7 +46,7 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
   const workerUrl = options.workerUrl.replace(/\/$/, "");
   const mockUrl = options.mockUrl.replace(/\/$/, "");
 
-  /** 署名して、/interactions に送る。疑似時計が設定されていれば、X-Dev-Now で伝える */
+  /** 署名して、/interactions に送る（時計は、worker が持つ。ここでは、伝えない） */
   async function post(interaction: Interaction): Promise<SendResult> {
     const body = JSON.stringify(interaction);
     const timestamp = String(nowSeconds());
@@ -57,8 +57,6 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
       "X-Signature-Ed25519": signature,
       "X-Signature-Timestamp": timestamp,
     };
-    const devNow = state.clockIso();
-    if (devNow) headers["X-Dev-Now"] = devNow;
 
     const httpResponse = await doFetch(`${workerUrl}/interactions`, { method: "POST", headers, body });
     if (!httpResponse.ok) return { status: httpResponse.status, response: undefined };

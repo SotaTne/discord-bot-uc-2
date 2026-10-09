@@ -200,7 +200,6 @@ export function commandKit(
     env: { SCREENSHOTS: r2.bucket, ...overrides.env } as AppEnv,
     db,
     clock: { now: () => new Date(now) },
-    baseClock: { now: () => new Date(now) },
     rest,
     fetch: overrides.fetch ?? (async () => new Response("no network in tests", { status: 500 })),
     sleep: async (ms) => void sleeps.push(ms),

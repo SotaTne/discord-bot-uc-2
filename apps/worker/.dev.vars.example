@@ -5,5 +5,5 @@
 DISCORD_PUBLIC_KEY=
 DISCORD_BOT_TOKEN=dev-token
 DISCORD_APPLICATION_ID=100000000000000001
-# 開発時はモックの Discord REST に向ける。本番では設定しない
+# 開発時はモックの Discord REST に向ける。本番のビルドでは、この値は読まれない（コードごと消える）
 DISCORD_API_BASE=http://localhost:8788/api/v10

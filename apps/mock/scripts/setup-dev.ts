@@ -26,11 +26,9 @@ if (result.status === "kept-existing") {
 }
 
 // 開発用の既定値を、なければ追加する（あれば、利用者が変えた値を尊重して残す）
-//  - DEV_CLOCK: 疑似時計（X-Dev-Now ヘッダーと /dev/tick）を有効にする。本番では設定しない
 //  - PUBLIC_URL: ログインリンクの先。開発中は Vite のダッシュボードに向ける
 let text = result.text;
 for (const [key, value] of [
-  ["DEV_CLOCK", "true"],
   ["PUBLIC_URL", "http://localhost:5173"],
 ] as const) {
   text = ensureEnvVar(text, key, value).text;

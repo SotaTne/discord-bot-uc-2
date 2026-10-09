@@ -1,4 +1,4 @@
-import type { DevSnapshot } from "@uc/api";
+import type { DevClock, DevSnapshot } from "@uc/api";
 import type { InteractionResponse } from "@uc/discord";
 import { generateDevKeyPair } from "@uc/discord/testing";
 import { createMockApp } from "./app";
@@ -8,6 +8,9 @@ import { defaultSeed } from "./seed";
 
 export const jst = (text: string) => Date.parse(`${text}+09:00`);
 
+/** テストで、「本物の時刻」にする時刻。疑似時計の「ずれ」の基準 */
+export const REAL_NOW = jst("2026-10-07T15:00:00");
+
 /** 動作確認ページが見せる、worker の状態のサンプル（20:53。21時の締切が、いま実行できる） */
 export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
   const alice = "500000000000000001";
@@ -15,6 +18,7 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
   const admin = "500000000000000005";
   return {
     now: new Date(jst("2026-10-07T20:53:00")).toISOString(),
+    clock: { offsetMs: 0 },
     today: "2026-10-07",
     settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
     slots: [21, 22, 23],
@@ -65,11 +69,15 @@ export function createFakeWorker(options: {
   interactionStatus?: number;
   tick?: TickSummary;
   tickStatus?: number;
+  /** PUT /dev/clock の HTTP ステータス */
+  clockStatus?: number;
   resetStatus?: number;
   screenshot?: { status: number; contentType?: string; bytes?: number[] };
 } = {}) {
   const calls: WorkerCall[] = [];
   const snapshot = options.snapshot ?? makeSnapshot();
+  /** worker が持つ疑似時計。PUT /dev/clock で、変わる（/dev/state が、これを返す） */
+  let workerClock: DevClock = { offsetMs: 0 };
 
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -86,7 +94,12 @@ export function createFakeWorker(options: {
     }
     if (url.pathname === "/dev/state") {
       if ((options.stateStatus ?? 200) !== 200) return json({ error: "x" }, options.stateStatus);
-      return json(typeof snapshot === "function" ? snapshot() : snapshot);
+      return json({ ...(typeof snapshot === "function" ? snapshot() : snapshot), clock: workerClock });
+    }
+    if (url.pathname === "/dev/clock") {
+      if ((options.clockStatus ?? 200) !== 200) return json({ error: "x" }, options.clockStatus);
+      workerClock = JSON.parse(String(init?.body)) as DevClock;
+      return json({ ...workerClock, now: 0 });
     }
     if (url.pathname === "/dev/tick") return json(options.tick ?? { ran: [], errors: [] }, options.tickStatus ?? 200);
     if (url.pathname === "/dev/reset") return json({ ok: true }, options.resetStatus ?? 200);
@@ -104,15 +117,15 @@ export function createFakeWorker(options: {
 }
 
 /** 疑似 Discord のアプリを、worker の代わりをつないで作る（Discord のサーバー役と、画面用の API が、別に作られて、つながる） */
-export async function createTestMock(options: Parameters<typeof createFakeWorker>[0] = {}) {
+export async function createTestMock(options: Parameters<typeof createFakeWorker>[0] = {}, autoTick = false, realNow: () => number = () => REAL_NOW) {
   const keys = await generateDevKeyPair();
-  const state = createMockState(defaultSeed());
+  const state = createMockState(defaultSeed(), { realNow });
   const worker = createFakeWorker(options);
   const discord = createDiscordServer(
     { workerUrl: "http://worker.local", mockUrl: "http://mock.local", keys, applicationId: "100000000000000001", fetch: worker.fetchImpl },
     state,
   );
   const workerDev = createWorkerDev({ workerUrl: "http://worker.local", fetch: worker.fetchImpl }, state);
-  const app = createMockApp({ state, interactions: discord.interactions, workerDev, discord });
+  const app = createMockApp({ state, interactions: discord.interactions, workerDev, discord, ...(autoTick ? { autoTick } : {}) });
   return { app, state, worker, keys, interactions: discord.interactions, workerDev };
 }
