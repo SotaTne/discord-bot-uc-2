@@ -110,7 +110,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
   // やり直すとき、Discord に、マッチングのキャンセルを投稿するか（初期は、投稿する）
   const [notifyCancel, setNotifyCancel] = useState(true);
   const reopen = useInvalidatingMutation(
-    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: notifyCancel } })),
+    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: !slot.deleted && notifyCancel } })),
     REFRESH,
   );
   const winCount = slot.matches.filter((match) => match.win).length + slot.matches.reduce((sum, match) => sum + match.deletedWins, 0);
@@ -127,9 +127,11 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます。" : ""}`}
+          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます（Discord には、投稿しません）。" : ""}`}
           danger
           extra={
+            // 削除済みの試合時刻の対戦枠は、通知しない（チェックも、出さない）
+            !slot.deleted &&
             (slot.matches.length > 0 || slot.excluded !== null) && (
               <Checkbox
                 label="Discord に、マッチングのキャンセルを投稿する（組まれていたチームに通知します）"

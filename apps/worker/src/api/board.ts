@@ -218,7 +218,9 @@ export function createBoardRoutes(deps: ApiDeps) {
       const announced = before.matches.length > 0 || excludedTeamId !== null;
       let notified = false;
       let notifyFailed = false;
-      if ((input.notify ?? true) && announced && settings.channelId) {
+      // 削除した試合時刻の対戦枠は、通知しない（もう募集していない時刻なので、チームに、知らせる意味がない）
+      const retired = !(await listSlots(db, guildId)).some((slot) => slot.hour === input.slotHour);
+      if ((input.notify ?? true) && !retired && announced && settings.channelId) {
         try {
           const teams = await listTeams(db, guildId, { includeDeleted: true });
           await createRestFromEnv(c.env).createMessage(settings.channelId, {

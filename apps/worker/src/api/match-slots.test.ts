@@ -208,6 +208,26 @@ describe("試合時刻を削除したあとの対戦枠", () => {
     expect(slot.matches).toHaveLength(1);
   });
 
+  it("削除した試合時刻の対戦枠をやり直すときは、notify が true でも、Discord に投稿しない（やり直しは、できる）", async () => {
+    const posted = await withChannel();
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+    posted.length = 0;
+    await deleteHour(21);
+
+    const { status, body } = await h.json<{ notified?: boolean }>("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour: 21, notify: true } });
+
+    expect(status).toBe(200);
+    expect(body.notified).toBe(false);
+    expect(posted).toEqual([]);
+    // やり直したので、削除済みの対戦枠は、画面から消える
+    expect(await hours()).toEqual([
+      [22, false],
+      [23, false],
+    ]);
+  });
+
   it("未マッチングの対戦枠は、削除した試合時刻なら、出さない", async () => {
     await raise(h.seeded.kmuId);
 

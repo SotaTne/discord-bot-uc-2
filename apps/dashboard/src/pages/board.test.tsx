@@ -64,13 +64,22 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
     expect(normal.getByRole("button", { name: "組分けを追加" })).toBeTruthy();
   });
 
-  it("削除済みの対戦枠のやり直しには、「やり直すと、この対戦枠は画面から消える」と書く", async () => {
-    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] })]));
+  it("削除済みの対戦枠のやり直しには、「画面から消える」と書く。Discord への投稿のチェックは出さず、投稿しないことを送る", async () => {
+    const backend = installFakeBackend({
+      ...apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] })]),
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: false } },
+    });
     renderApp("/");
 
     fireEvent.click(await (await card("21:00の対戦枠")).findByRole("button", { name: "やり直す" }));
 
-    expect(within(screen.getByRole("dialog", { name: "やり直す" })).getByText(/この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます/)).toBeTruthy();
+    const dialog = within(screen.getByRole("dialog", { name: "やり直す" }));
+    expect(dialog.getByText(/この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます（Discord には、投稿しません）/)).toBeTruthy();
+    expect(dialog.queryByRole("checkbox")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "組分け1件を削除して、やり直す" }));
+
+    await waitFor(() => expect(backend.last("POST", "/api/match-slots/reopen")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07", notify: false }));
   });
 });
 
