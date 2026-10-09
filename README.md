@@ -149,7 +149,7 @@ pnpm register-commands                                    # 全サーバー（�
 
 2. **シークレットは、GitHub だけに置く**（Cloudflare に、手動で、`wrangler secret put` しない）。CD が、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す。値を変えるときは、GitHub の値を変えて、CD を再実行する。
    - `--secrets-file` は、**足すだけ**で、消さない。GitHub から消した秘密を、Cloudflare からも消すときは、`pnpm --filter @uc/worker exec wrangler secret delete <名前> --env <環境>`。
-   - `DISCORD_API_BASE` は、設定しない（開発専用）。`PUBLIC_URL`（ログインリンクの先）は、必要なら、Cloudflare の画面で、その Worker の変数として設定する。
+   - `DISCORD_API_BASE` は、設定しない（開発専用）。`PUBLIC_URL`（ログインリンクの先）は、設定しない（省略すると、リクエストを受けた URL が使われる。`workers.dev` の URL なら、これで足りる）。独自のドメインを使うようになったら、`wrangler.jsonc` の、その環境の `vars` に書く（画面だけで設定した変数は、デプロイのたびに、消える）。
 
 3. **Discord のアプリは、環境ごとに別にする**（Interactions Endpoint URL が、1つのアプリに、1つしか、設定できないため）。ステージング用に、テスト用のアプリと、テスト用のサーバーを、作る。
 
