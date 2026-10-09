@@ -1,4 +1,4 @@
-import { handleControl, healthUrl, runTick } from "@uc/cron";
+import { handleControl, runTick } from "@uc/cron";
 import { CRON_INTERVAL_MINUTES, SECRET_PROPERTY, TARGETS } from "./config";
 
 /**
@@ -47,14 +47,6 @@ function doPost(event: GoogleAppsScript.Events.DoPost) {
       installTrigger,
       removeTrigger,
       countTriggers: () => ScriptApp.getProjectTriggers().filter((trigger) => trigger.getHandlerFunction() === "tick").length,
-      checkTargets: () =>
-        TARGETS.map((target) => {
-          try {
-            return { name: target.name, status: String(UrlFetchApp.fetch(healthUrl(target), { muteHttpExceptions: true }).getResponseCode()) };
-          } catch (error) {
-            return { name: target.name, status: `error: ${String(error)}`.slice(0, 100) };
-          }
-        }),
     },
   );
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);

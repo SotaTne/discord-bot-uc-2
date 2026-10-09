@@ -12,7 +12,7 @@ const respond = (body: string) => {
 
 describe("callControl（ウェブアプリを呼ぶ）", () => {
   it("合言葉と操作を、POST のフォームで送り、JSON の結果を返す", async () => {
-    const result = { ok: true, action: "health", running: true, intervalMinutes: 1, targets: [] };
+    const result = { ok: true, action: "health", running: true, intervalMinutes: 1 };
     const { calls, fetchImpl } = respond(JSON.stringify(result));
 
     expect(await callControl({ deploymentId: "AKfycbX", secret: "s3cret", action: "health", fetch: fetchImpl })).toEqual(result);

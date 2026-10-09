@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRequests, describeResponse, formatControlResult, handleControl, healthUrl, isAuthorizedKey, runTick, type ControlDeps, type Send, type Target } from "./index";
+import { buildRequests, describeResponse, formatControlResult, handleControl, isAuthorizedKey, runTick, type ControlDeps, type Send, type Target } from "./index";
 
 const targets: Target[] = [
   { name: "staging", url: "https://stg.example/cron" },
@@ -92,7 +92,6 @@ describe("handleControl（start・stop・health）", () => {
       installTrigger: () => ((triggers = 1), void calls.push("install")),
       removeTrigger: () => ((triggers = 0), void calls.push("remove")),
       countTriggers: () => triggers,
-      checkTargets: () => [{ name: "staging", status: "200" }],
       ...overrides,
     };
     return { deps, calls };
@@ -107,7 +106,6 @@ describe("handleControl（start・stop・health）", () => {
       action: "start",
       running: true,
       intervalMinutes: 1,
-      targets: [{ name: "staging", status: "200" }],
     });
     expect(handleControl({ key: "s3cret", action: "health" }, deps)).toMatchObject({ running: true });
     expect(handleControl({ key: "s3cret", action: "stop" }, deps)).toMatchObject({ running: false });
@@ -129,17 +127,10 @@ describe("handleControl（start・stop・health）", () => {
   });
 });
 
-describe("healthUrl・formatControlResult", () => {
-  it("呼ぶ先の URL から、Worker の死活確認の URL を作る", () => {
-    expect(healthUrl({ name: "x", url: "https://uc-bot.example.workers.dev/cron" })).toBe("https://uc-bot.example.workers.dev/api/health");
-  });
-
+describe("formatControlResult", () => {
   it("端末に出す行にする", () => {
-    expect(formatControlResult({ ok: true, action: "health", running: true, intervalMinutes: 1, targets: [{ name: "staging", status: "200" }] })).toEqual([
-      "cron: 動いています（1 分おき）",
-      "  staging: 200",
-    ]);
-    expect(formatControlResult({ ok: true, action: "stop", running: false, intervalMinutes: 1, targets: [] })[0]).toBe("cron: 止まっています");
+    expect(formatControlResult({ ok: true, action: "health", running: true, intervalMinutes: 1 })).toEqual(["cron: 動いています（1 分おき）"]);
+    expect(formatControlResult({ ok: true, action: "stop", running: false, intervalMinutes: 1 })).toEqual(["cron: 止まっています"]);
     expect(formatControlResult({ ok: false, error: "unauthorized" })).toEqual(["失敗: unauthorized"]);
   });
 });

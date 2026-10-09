@@ -15,7 +15,7 @@
 |---|---|
 | `start` | 毎分のトリガーを作る（cron を動かす）。すでにあれば、作り直す（間隔を変えたときも、これ） |
 | `stop` | トリガーを消す（cron を止める）。使わない期間の節約になる |
-| `health` | 動いているか（トリガーの有無と間隔）と、呼ぶ先の Worker が応答するか（`/api/health`）を見る |
+| `health` | Apps Script が動いているか（ウェブアプリが応答して、毎分のトリガーがあるか）を見る |
 | `push` | ビルドして、Apps Script に置いて、ウェブアプリを更新する。`src/config.ts` などを変えたときに実行する |
 | `create` | Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
 | `deployment` | ウェブアプリのデプロイを、新しく作る（最初の 1 回。ID が出る） |
@@ -27,8 +27,6 @@
 ```
 $ pnpm health
 cron: 動いています（1 分おき）
-  staging: 200
-  production: 200
 ```
 
 ## 最初の設定（1 回）
@@ -48,8 +46,10 @@ cron: 動いています（1 分おき）
    ```
    2 つ目の出力に、デプロイの ID が出る（`- AKfycb... @1 - UC cron` の、`AKfycb...`）。
 6. **手元の設定**: `apps/cron/.env.example` を、`.env.local` にコピーして、`GAS_DEPLOYMENT_ID`（5 の ID）と `CRON_SECRET`（1 と同じ値）を書く（`.env.local` は、git に入れない）。
-7. Apps Script の画面で、関数 `installTrigger` を、**1 回だけ、手で**実行して、Google の権限の確認（外部への通信・トリガーの管理）を、許可する。権限の許可は、人が画面で行う必要がある。
-8. `pnpm --filter @uc/cron-app start` で、毎分のトリガーを作る。`health` で、確かめる。
+7. **権限を許可して、cron を動かし始める**: Apps Script の画面で、関数 `installTrigger` を、**1 回だけ、手で**実行する。Google の権限の確認（外部への通信・トリガーの管理）が出るので、許可する。
+   - 許可は、人が画面で押す必要がある（`start` は、ウェブアプリを呼ぶだけなので、許可の前は、動かない）。許可は、どの関数を実行しても済むが、`installTrigger` は、そのまま、毎分のトリガーを作る（cron が動き始める）。
+   - 許可のあとは、`start` / `stop` / `health` で、手元から操作できる。
+8. `pnpm --filter @uc/cron-app health` で、動いているか確かめる。
 
 動いているかは、`health` と、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（受け付けられなかった回だけ、出る）。
 
