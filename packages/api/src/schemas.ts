@@ -51,6 +51,12 @@ export const settingsInputSchema = z.object({
   revokeSessionsOnReissue: z.boolean(),
 });
 
+/**
+ * 設定の保存。notifyChange が true で、募集開始の時刻か締切が変わったときは、変更を、投稿先のチャンネルに知らせる
+ * （通知先は、募集開始の投稿と同じ。省略は、知らせない）
+ */
+export const settingsUpdateSchema = settingsInputSchema.extend({ notifyChange: z.boolean().optional() });
+
 /** 管理者による、代理の挙手 */
 export const adminHandupInputSchema = z.object({
   teamId: z.number().int().positive(),
@@ -107,6 +113,7 @@ export const loginInputSchema = z.object({
 export type SlotHourInput = z.infer<typeof slotHourInputSchema>;
 export type TeamInput = z.infer<typeof teamInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
+export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;
 export type MatchSlotInput = z.infer<typeof matchSlotInputSchema>;
 export type MatchSlotReopenInput = z.infer<typeof matchSlotReopenInputSchema>;
 export type MatchInput = z.infer<typeof matchInputSchema>;

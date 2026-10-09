@@ -3,6 +3,7 @@ import type { Team } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
 import { matchingCancelledMessage, matchingMessage } from "./matching";
 import { NO_MENTION, recruitMessage, type RecruitMention } from "./recruit";
+import { settingsChangeMessage, type SettingsChange } from "./settings-change";
 
 /**
  * 投稿先のチャンネルに、投稿する（Worker が、チャンネルへ投稿するのは、ここだけ）。
@@ -44,5 +45,17 @@ export async function postMatchingCancelled(
   await rest.createMessage(input.channelId, {
     content: matchingCancelledMessage({ hour: input.hour, pairs: input.pairs, excluded: input.excluded, teamById: teamsById(input.teams) }),
     allowed_mentions: { parse: ["roles"] },
+  });
+}
+
+/** 設定の変更（募集開始の時刻・締切）の知らせ。通知先は、募集開始の投稿と、同じ */
+export async function postSettingsChange(
+  rest: ChannelPoster,
+  input: { channelId: string; change: SettingsChange; mention?: RecruitMention },
+): Promise<void> {
+  const mention = input.mention ?? NO_MENTION;
+  await rest.createMessage(input.channelId, {
+    content: settingsChangeMessage(input.change, mention),
+    allowed_mentions: { parse: mention.here ? ["everyone"] : [], roles: mention.roleIds },
   });
 }
