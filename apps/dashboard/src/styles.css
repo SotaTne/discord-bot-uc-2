@@ -75,3 +75,7 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 .setting-row { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px 32px; padding: 16px 0; align-items: start; }
 .setting-row + .setting-row { border-top: 1px solid var(--rule); }
 @media (max-width: 760px) { .setting-row { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
+
+/* 文字のリンク（青）。触れると、下線 */
+.text-link { color: var(--mantine-color-anchor); text-decoration: none; }
+.text-link:hover { text-decoration: underline; }

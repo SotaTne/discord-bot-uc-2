@@ -14,11 +14,110 @@ const scores = {
 };
 const ROLES = { roles: [{ id: "400000000000000001", name: "KMU" }, { id: "400000000000000002", name: "UT" }, { id: "400000000000000003", name: "NGT" }] };
 
+const KMU = { id: 1, name: "KMU" };
+const UT = { id: 2, name: "UT" };
+const handupOf = (id: number, team: { id: number; name: string }) => ({ id, team, raisedByName: "admin", createdAt: 0 });
+// 今日の対戦枠: 21 時は未マッチング（KMU と UT が挙手）、22 時はマッチング済み（KMU が挙手）
+const today = {
+  date: "2026-10-07",
+  today: "2026-10-07",
+  rule: { fixedAfterMatches: 5, fixedPoints: 100 },
+  slots: [
+    { hour: 21, phase: "open", matched: false, excluded: null, handups: [handupOf(11, KMU), handupOf(12, UT)], matches: [] },
+    { hour: 22, phase: "closed", matched: true, excluded: null, handups: [handupOf(13, KMU)], matches: [] },
+  ],
+};
+
 const apis = () => ({
   ...loggedIn,
+  "GET /api/board": { body: today },
   "GET /api/scores": { body: scores },
   "GET /api/teams": { body: TEAMS },
   "GET /api/roles": { body: ROLES },
+});
+
+const history = (over: Record<string, unknown> = {}) => ({
+  team: KMU,
+  rule: { fixedAfterMatches: 1, fixedPoints: 100 },
+  matches: [
+    {
+      matchId: 1, slotDate: "2026-10-05", slotHour: 21, opponent: UT, matchNumber: 1, result: "win",
+      win: { id: 5, winner: KMU, points: 80, countedPoints: 80, hasScreenshot: true }, deletedWins: 0,
+    },
+    {
+      matchId: 2, slotDate: "2026-10-06", slotHour: 22, opponent: UT, matchNumber: 2, result: "win",
+      win: { id: 6, winner: KMU, points: 30, countedPoints: 100, hasScreenshot: false }, deletedWins: 1,
+    },
+    { matchId: 3, slotDate: "2026-10-07", slotHour: 21, opponent: { id: 3, name: "NGT" }, matchNumber: 3, result: "loss", win: { id: 7, winner: { id: 3, name: "NGT" }, points: 70, countedPoints: 100, hasScreenshot: true }, deletedWins: 0 },
+    { matchId: 4, slotDate: "2026-10-07", slotHour: 22, opponent: UT, matchNumber: 4, result: "none", win: null, deletedWins: 0 },
+  ],
+  ...over,
+});
+
+describe("チームの画面: 今日の挙手", () => {
+  it("得点表の「挙手中（今日）」に、チームごとの挙手を、時刻のタグで出す。マッチング済みの対戦枠は、取り消せない", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+
+    const kmu = (await screen.findAllByRole("row")).find((row) => within(row).queryByText("KMU") && within(row).queryByText("21:00"))!;
+    expect(within(kmu).getByRole("button", { name: "KMUの21:00の挙手を取り消す" })).toBeTruthy();
+    // 22 時は、マッチング済み。タグはあるが、取り消しの印はない
+    expect(within(kmu).getByText("22:00")).toBeTruthy();
+    expect(within(kmu).queryByRole("button", { name: "KMUの22:00の挙手を取り消す" })).toBeNull();
+  });
+
+  it("タグの ✕ で、その挙手を取り消す（行は開かない）", async () => {
+    const backend = installFakeBackend({ ...apis(), "DELETE /api/handups/11": { body: { ok: true } } });
+    renderApp("/teams");
+
+    fireEvent.click(await screen.findByRole("button", { name: "KMUの21:00の挙手を取り消す" }));
+
+    await waitFor(() => expect(backend.count("DELETE", "/api/handups/11")).toBe(1));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("チームの画面: チームの詳細（行を押すと、全組分けと結果）", () => {
+  it("チームの名前を押すと、右から詳細が開く。全組分けを、古い順に、相手・結果・点数つきで出す", async () => {
+    const backend = installFakeBackend({ ...apis(), "GET /api/teams/1/history": { body: history() } });
+    renderApp("/teams");
+
+    fireEvent.click(await screen.findByRole("button", { name: "KMUの詳細を開く" }));
+
+    const drawer = within(await screen.findByRole("dialog", { name: "KMU" }));
+    expect(backend.count("GET", "/api/teams/1/history")).toBe(1);
+    // 見出しの下に、得点・順位・試合数・勝利数
+    expect(drawer.getByText("250pt（1位）・5試合・3勝")).toBeTruthy();
+    const rows = (await drawer.findAllByRole("row")).slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+    expect(rows).toEqual([
+      ["1試合目", "10/05 21:00", "UT", "勝利", "80pt", "画像"],
+      // 記録した点数と、集計に使われる点数が違うときは、両方を出す。削除した勝利の件数も出す
+      ["2試合目", "10/06 22:00", "UT", "勝利削除済み 1件", "30 → 100pt", "—"],
+      // 敗北の試合は、相手の勝利の画像（結果の証拠）が見られる。点数は、そのチームのものではないので、出さない
+      ["3試合目", "10/07 21:00", "NGT", "敗北", "—", "画像"],
+      ["4試合目", "10/07 22:00", "UT", "未記録", "—", "—"],
+    ]);
+    // 日時は、その日の対戦枠のページへのリンク
+    expect(drawer.getByRole("link", { name: "10/05 21:00" }).getAttribute("href")).toBe("/?date=2026-10-05");
+  });
+
+  it("URL に ?team= があれば、最初から開く。閉じると、URL から消える", async () => {
+    installFakeBackend({ ...apis(), "GET /api/teams/1/history": { body: history() } });
+    renderApp("/teams?team=1");
+
+    expect(await screen.findByRole("dialog", { name: "KMU" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "KMU" })).toBeNull());
+  });
+
+  it("組分けがなければ、その旨を出す", async () => {
+    installFakeBackend({ ...apis(), "GET /api/teams/3/history": { body: history({ team: { id: 3, name: "NGT" }, matches: [] }) } });
+    renderApp("/teams?team=3");
+
+    expect(await screen.findByText("まだ組分けがありません")).toBeTruthy();
+  });
 });
 
 describe("チームの画面: 得点表の並び替え", () => {
@@ -88,9 +187,9 @@ describe("チームの画面: 得点", () => {
     renderApp("/teams");
 
     expect(await scoreRows()).toEqual([
-      ["1位", "KMU", "250pt", "5", "3"],
-      ["1位", "UT", "250pt", "2", "1"],
-      ["3位", "NGT", "0pt", "0", "0"],
+      ["1位", "KMU", "21:0022:00", "250pt", "5", "3"],
+      ["1位", "UT", "21:00", "250pt", "2", "1"],
+      ["3位", "NGT", "—", "0pt", "0", "0"],
     ]);
     expect(screen.queryByText(/内訳/)).toBeNull();
     expect(screen.getByRole("columnheader", { name: "勝利数" })).toBeTruthy();
@@ -116,8 +215,8 @@ describe("チームの画面: 得点", () => {
     renderApp("/teams");
 
     const rows = await scoreRows();
-    expect(rows.find((cells) => cells[1] === "KMU")?.[3]).toBe("5");
-    expect(rows.find((cells) => cells[1] === "UT")?.[3]).toBe("100pt固定（試合数5を超過）6");
+    expect(rows.find((cells) => cells[1] === "KMU")?.[4]).toBe("5");
+    expect(rows.find((cells) => cells[1] === "UT")?.[4]).toBe("100pt固定（試合数5を超過）6");
     expect(screen.getAllByText(/超過/)).toHaveLength(1);
   });
 

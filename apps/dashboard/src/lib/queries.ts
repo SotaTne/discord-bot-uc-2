@@ -11,6 +11,8 @@ export const keys = {
   teams: ["teams"],
   board: (date: string | undefined) => ["board", date ?? "today"],
   scores: ["scores"],
+  // 「得点」の一部として、得点・勝利を変えたときに、いっしょに取り直される（キーの先頭が scores）
+  teamHistory: (teamId: number) => ["scores", "team", teamId],
   wins: ["wins"],
   sessions: ["sessions"],
 } as const;
@@ -62,3 +64,11 @@ export function useInvalidatingMutation<TVariables, TData>(
     },
   });
 }
+
+/** チームごとの、全組分けと結果（チームの行を押したときの詳細）。チームを選んでいないときは、取らない */
+export const useTeamHistory = (teamId: number | undefined) =>
+  useQuery({
+    queryKey: keys.teamHistory(teamId ?? 0),
+    queryFn: () => unwrap(api.teams[":id"].history.$get({ param: { id: String(teamId) } })),
+    enabled: teamId !== undefined,
+  });

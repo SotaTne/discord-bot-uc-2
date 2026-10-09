@@ -21,7 +21,16 @@ const boardRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { date?: string } =>
     typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? { date: search.date } : {},
 });
-const teamsRoute = createRoute({ getParentRoute: () => appRoute, path: "/teams", component: TeamsPage });
+// 詳細を開いているチームは、URL（?team=チームの ID）に持つ。再読み込みや、リンクの共有で、同じ画面が開く
+const teamsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/teams",
+  component: TeamsPage,
+  validateSearch: (search: Record<string, unknown>): { team?: number } => {
+    const team = Number(search.team);
+    return Number.isInteger(team) && team > 0 ? { team } : {};
+  },
+});
 const winsRoute = createRoute({ getParentRoute: () => appRoute, path: "/wins", component: WinsPage });
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: "/settings", component: SettingsPage });
 

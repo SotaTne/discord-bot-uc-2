@@ -1,16 +1,24 @@
-import { Badge, Button, Group, NativeSelect, Table, Text, TextInput } from "@mantine/core";
+import { Badge, Button, CloseButton, Drawer, Group, NativeSelect, Stack, Table, Text, TextInput, UnstyledButton } from "@mantine/core";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
-import { Async, ConfirmButton, ErrorNote, PageTitle, Section, SortableTh, nextSort, type SortDirection } from "../components/ui";
+import { Async, ConfirmButton, ErrorNote, PageTitle, ScreenshotLink, Section, SortableTh, nextSort, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
-import { useInvalidatingMutation, useRoles, useScores, useTeams } from "../lib/queries";
+import { formatHour } from "../lib/format";
+import { useBoard, useInvalidatingMutation, useRoles, useScores, useTeamHistory, useTeams } from "../lib/queries";
 
 /** チームごとの得点と成績。チームの追加と削除（チームは、Discord のロール） */
 export function TeamsPage() {
+  // 詳細を開いているチームは、URL に持つ（?team=）
+  const { team } = useSearch({ strict: false }) as { team?: number };
+  const navigate = useNavigate();
+  const open = (teamId: number | undefined) => void navigate({ to: "/teams", search: teamId === undefined ? {} : { team: teamId } });
+
   return (
     <>
       <PageTitle>チーム</PageTitle>
-      <Scoreboard />
+      <Scoreboard onOpen={open} />
+      <TeamDrawer teamId={team} onClose={() => open(undefined)} />
       <Teams />
     </>
   );
@@ -19,8 +27,18 @@ export function TeamsPage() {
 type ScoreTeam = NonNullable<ReturnType<typeof useScores>["data"]>["teams"][number];
 type SortKey = "rank" | "name" | "total" | "matches" | "wins";
 
-function Scoreboard() {
+function Scoreboard({ onOpen }: { onOpen: (teamId: number) => void }) {
   const scores = useScores();
+  // 今日の挙手（挙手できるのは、当日だけ）。マッチング済みの対戦枠の挙手は、取り消せない
+  const board = useBoard(undefined);
+  const withdraw = useInvalidatingMutation(
+    (id: number) => unwrap(api.handups[":id"].$delete({ param: { id: String(id) } })),
+    [["board"], ["scores"]],
+  );
+  const handupsOf = (teamId: number) =>
+    (board.data?.slots ?? []).flatMap((slot) =>
+      slot.handups.filter((handup) => handup.team.id === teamId).map((handup) => ({ id: handup.id, hour: slot.hour, matched: slot.matched })),
+    );
   // 並び替え（見出しを押して切り替える）。何も選んでいないときは、得点の高い順（順位の順）
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
   const directionOf = (key: SortKey) => (sort?.key === key ? sort.direction : null);
@@ -44,6 +62,7 @@ function Scoreboard() {
                   <Table.Tr>
                     {header("rank", "順位", "left")}
                     {header("name", "チーム", "left")}
+                    <Table.Th>挙手中（今日）</Table.Th>
                     {header("total", "得点")}
                     {header("matches", "試合数")}
                     {header("wins", "勝利数")}
@@ -55,9 +74,40 @@ function Scoreboard() {
                     // 試合数が N を超えたあとの試合は、勝っても、記録した点数に関係なく、固定点で数える
                     const exceeded = team.matches > data.rule.fixedAfterMatches;
                     return (
-                      <Table.Tr key={team.teamId} {...(team.matches === 0 ? { c: "dimmed" } : {})}>
+                      <Table.Tr key={team.teamId} style={{ cursor: "pointer" }} onClick={() => onOpen(team.teamId)} {...(team.matches === 0 ? { c: "dimmed" } : {})}>
                         <Table.Td>{rank}位</Table.Td>
-                        <Table.Td>{team.name}</Table.Td>
+                        <Table.Td>
+                          {/* 行のどこを押しても開くが、キーボードで開けるように、名前を、ボタンにする */}
+                          <UnstyledButton onClick={(event) => { event.stopPropagation(); onOpen(team.teamId); }} aria-label={`${team.name}の詳細を開く`}>
+                            {team.name}
+                          </UnstyledButton>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={6} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
+                            {handupsOf(team.teamId).map((handup) => (
+                              <Badge
+                                key={handup.id}
+                                color={handup.matched ? "green" : "gray"}
+                                variant="light"
+                                tt="none"
+                                title={handup.matched ? "マッチング済み（取り消せません）" : undefined}
+                                rightSection={
+                                  handup.matched ? undefined : (
+                                    <CloseButton
+                                      size="xs"
+                                      disabled={withdraw.isPending}
+                                      onClick={() => withdraw.mutate(handup.id)}
+                                      aria-label={`${team.name}の${formatHour(handup.hour)}の挙手を取り消す`}
+                                    />
+                                  )
+                                }
+                              >
+                                {formatHour(handup.hour)}
+                              </Badge>
+                            ))}
+                            {handupsOf(team.teamId).length === 0 && <Text span c="dimmed">—</Text>}
+                          </Group>
+                        </Table.Td>
                         <Table.Td ta="right">{team.total}pt</Table.Td>
                         <Table.Td ta="right">
                           <Group gap="xs" justify="flex-end" wrap="nowrap">
@@ -76,11 +126,102 @@ function Scoreboard() {
                 </Table.Tbody>
               </Table>
             </Table.ScrollContainer>
+            <ErrorNote error={withdraw.error} />
             </>
           )
         }
       </Async>
     </Section>
+  );
+}
+
+/** そのチームの、全組分けと結果。チームの行を押すと、右から開く */
+function TeamDrawer({ teamId, onClose }: { teamId: number | undefined; onClose: () => void }) {
+  const history = useTeamHistory(teamId);
+  const scores = useScores();
+  const score = scores.data?.teams.find((team) => team.teamId === teamId);
+  const rank = score && scores.data ? scores.data.teams.findIndex((team) => team.total === score.total) + 1 : null;
+  const exceeded = score && scores.data ? score.matches > scores.data.rule.fixedAfterMatches : false;
+
+  return (
+    <Drawer opened={teamId !== undefined} onClose={onClose} position="right" size="xl" title={history.data?.team.name ?? score?.name ?? "チーム"}>
+      <Stack gap="md">
+        {score && rank !== null && (
+          <Stack gap={2}>
+            <Text>
+              {score.total}pt（{rank}位）・{score.matches}試合・{score.wins.length}勝
+            </Text>
+            {exceeded && scores.data && (
+              <Text size="xs" c="dimmed">
+                試合数{scores.data.rule.fixedAfterMatches}を超えました。以降の試合は、勝つと{scores.data.rule.fixedPoints}pt固定です
+              </Text>
+            )}
+          </Stack>
+        )}
+        <Async query={history}>
+          {(data) =>
+            data.matches.length === 0 ? (
+              <Text c="dimmed">まだ組分けがありません</Text>
+            ) : (
+              <Table.ScrollContainer minWidth={520}>
+                <Table aria-label="対戦の記録">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>試合</Table.Th>
+                      <Table.Th>日時</Table.Th>
+                      <Table.Th>相手</Table.Th>
+                      <Table.Th>結果</Table.Th>
+                      <Table.Th>点数</Table.Th>
+                      <Table.Th>画像</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.matches.map((match) => (
+                      <Table.Tr key={match.matchId}>
+                        <Table.Td>{match.matchNumber}試合目</Table.Td>
+                        <Table.Td>
+                          {/* その日の対戦枠のページを開く */}
+                          <Link to="/" search={{ date: match.slotDate }} className="text-link">
+                            {match.slotDate.slice(5).replace("-", "/")} {formatHour(match.slotHour)}
+                          </Link>
+                        </Table.Td>
+                        <Table.Td>{match.opponent.name}</Table.Td>
+                        <Table.Td>
+                          {match.result === "win" && (
+                            <Badge color="green" variant="light" tt="none">
+                              勝利
+                            </Badge>
+                          )}
+                          {match.result === "loss" && (
+                            <Badge color="gray" variant="light" tt="none">
+                              敗北
+                            </Badge>
+                          )}
+                          {match.result === "none" && <Text span c="dimmed">未記録</Text>}
+                          {match.deletedWins > 0 && (
+                            <Text size="xs" c="dimmed">
+                              削除済み {match.deletedWins}件
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          {match.result === "win" && match.win
+                            ? match.win.points === match.win.countedPoints
+                              ? `${match.win.points}pt`
+                              : `${match.win.points} → ${match.win.countedPoints}pt`
+                            : "—"}
+                        </Table.Td>
+                        <Table.Td>{match.win?.hasScreenshot ? <ScreenshotLink winId={match.win.id} label="画像" /> : "—"}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
+            )
+          }
+        </Async>
+      </Stack>
+    </Drawer>
   );
 }
 
