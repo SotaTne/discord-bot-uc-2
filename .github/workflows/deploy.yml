@@ -1,0 +1,39 @@
+# デプロイ。develop に入ったらステージング、main に入ったら本番へ。
+# CI が通ったときだけ進む（そのコミットの CI。ブランチ保護の抜け道があっても、止まる）。
+# 環境ごとの設定（Cloudflare の API トークンなど）は、GitHub の Environments（staging・production）に置く。
+name: deploy
+
+on:
+  push:
+    branches: [develop, main]
+
+# 同じブランチの、デプロイは、順番に処理する（途中のデプロイを、止めない）
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    # ブランチから、環境を決める（develop → staging、main → production）
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      DEPLOY_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      # ダッシュボードをビルドする（worker が、同じ Worker から、静的ファイルとして配信する）
+      - run: pnpm build
+      # マイグレーションを、先に適用する。新しい DB で、古いコードが動く形にしておくこと（README の「DB を変えるとき」）
+      - run: pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
+      - run: pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"

@@ -103,7 +103,7 @@ pnpm register-commands                                    # 全サーバー（�
 
 ## ブランチと、デプロイの流れ
 
-| ブランチ | 役割 | デプロイ先（Cloudflare の Git 連携が、自動で行う） |
+| ブランチ | 役割 | デプロイ先（GitHub Actions が、自動で行う） |
 |---|---|---|
 | `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-staging`） |
 | `main` | リリース済み | **本番**（`uc-bot`） |
@@ -113,15 +113,17 @@ pnpm register-commands                                    # 全サーバー（�
 3. `develop` → `main` の PR（リリースの PR）を、マージする（**マージコミット**。スカッシュにすると、次のリリースで、同じ変更が重複して見える）。本番に出る。
 4. 緊急の修正は、`main` から、ブランチを切って、`main` に PR。マージしたあと、`develop` に、取り込む。
 
-**CI が通ったものだけが、デプロイされる**: `develop` と `main` の、ブランチ保護で、次を設定する（GitHub の Settings → Branches）。
+ワークフローは、2つ（`.github/workflows/`）。
+- **`ci.yml`**: `develop` と `main` への PR で動く。型の確認とテスト（`pnpm check`）と、マイグレーションの履歴の確認（`drizzle-kit check`）。
+- **`deploy.yml`**: `develop` と `main` に、コミットが入ったとき（マージされたとき）に動く。まず、**そのコミットの CI**（`ci.yml`）を動かし、通ったときだけ、デプロイする（ビルド → マイグレーションの適用 → `wrangler deploy --env …`）。同じブランチのデプロイは、順番に処理する。
+
+**ブランチ保護**（GitHub の Settings → Branches。`develop` と `main` の両方）:
 - Require a pull request before merging（直接の push を、禁止する）
-- Require status checks to pass: **`ci`**（`.github/workflows/ci.yml`。`pnpm check` と `drizzle-kit check`）
-- Require branches to be up to date before merging（CI が見たものと、マージされるものを、同じにする）
+- Require status checks to pass: **`ci`**（PR のときの CI）
+- Require branches to be up to date before merging
 - 既定のブランチ（Settings → General）は、`develop`
 
-`develop` と `main` に、コミットが入った（マージされた）あとにも、CI が動く（マージ後の結果が、そのブランチで通っているかの確認。デプロイは、止めない）。
-
-デプロイは、`develop` と `main` に、コミットが入ったときだけ動く。保護により、入れるのは、CI が通った PR のマージだけ。Cloudflare の側では、テストを、もう一度、動かさない（ビルドだけ）。
+保護で、通っていないものは、マージできない。それでも、デプロイの前に、そのコミットの CI を、もう一度、通す（保護の抜け道があっても、止まる）。
 
 ## 本番へのデプロイ（Cloudflare）
 
@@ -139,7 +141,7 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm exec wrangler r2 bucket create uc-bot-screenshots
    ```
 
-2. シークレットを、環境ごとに設定する（`DISCORD_API_BASE` は、設定しない。開発専用）。
+2. シークレット（Worker の実行時に使う）を、環境ごとに設定する（`DISCORD_API_BASE` は、設定しない。開発専用）。
 
    ```bash
    pnpm exec wrangler secret put DISCORD_PUBLIC_KEY --env staging
@@ -152,21 +154,11 @@ pnpm register-commands                                    # 全サーバー（�
 
 3. **Discord のアプリは、環境ごとに別にする**（Interactions Endpoint URL が、1つのアプリに、1つしか、設定できないため）。ステージング用に、テスト用のアプリと、テスト用のサーバーを、作る。
 
-4. **Cloudflare の Git 連携**を、Worker ごとに設定する（Workers & Pages → Create → Connect to Git。同じリポジトリを、2回、つなぐ）。
-
-   | 項目 | ステージング | 本番 |
-   |---|---|---|
-   | Worker の名前 | `uc-bot-staging` | `uc-bot` |
-   | 本番のブランチ | `develop` | `main` |
-   | ルートのフォルダ | `/`（リポジトリのルート） | 同じ |
-   | ビルドのコマンド | `pnpm install --frozen-lockfile && pnpm build` | 同じ |
-   | デプロイのコマンド | `pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env staging && pnpm --filter @uc/worker exec wrangler deploy --env staging` | `--env production` で、同じ形 |
-   | ビルドの変数 | `NODE_VERSION` と `PNPM_VERSION`（`mise.toml` と同じ値） | 同じ |
-
-   - テストは、CI（GitHub Actions）で済んでいるので、ここでは、動かさない。
-   - マイグレーションを、デプロイの前に適用する（`&&` の前）。**後ろ向きの互換を保つ**: 新しい DB で、古いコードが、動く形にする（列や表の、削除と名前の変更は、2回に分けて出す）。
-   - `develop` と `main` 以外のブランチの、デプロイのコマンドは、実行しない設定にする（プレビューが、D1 と R2 に、触れてしまうため）。
-   - **画面で、確かめる点**: ビルドの環境で、Node 26 と pnpm 12 が、使えるか。`--env` を付けたとき、Worker の名前の確認が、通るか。
+4. **GitHub の Environments** を、作る（Settings → Environments）。`staging` と `production`。それぞれに、Secrets を設定する。
+   - `CLOUDFLARE_API_TOKEN`: Cloudflare の API トークン。Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。環境ごとに、別のトークンにしてよい。
+   - `CLOUDFLARE_ACCOUNT_ID`: アカウントの ID。
+   - Deployment branches: `staging` は `develop`、`production` は `main` に、限る（ほかのブランチからは、その環境のシークレットを、使えない）。
+   - 本番だけ、Required reviewers（承認者）を付けると、本番へのデプロイの前に、承認の画面が出る（任意）。
 
 5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する（環境ごとのアプリで）。
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
@@ -174,16 +166,20 @@ pnpm register-commands                                    # 全サーバー（�
 
 cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
 
+**DB の変更は、後ろ向きの互換を保つ**: マイグレーションは、コードより先に適用される。新しい DB で、古いコードが、動く形にする（列や表の、削除と名前の変更は、2回に分けて出す）。
+
 ### デプロイせずに確かめる
 - ビルドだけ（ログインは要らない）: `pnpm build` のあと、`cd apps/worker && pnpm exec wrangler deploy --env production --dry-run --outdir /tmp/out`
 - ローカルで、本番に近い形（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。本番の入口なので、開発専用のコードは、ない（`/dev/*` は、404）。
 
-### 手動でデプロイするとき（Git 連携を使わない）
+### 手動でデプロイするとき（緊急のときなど）
 ```bash
+export CLOUDFLARE_API_TOKEN=...   # デプロイ用のトークン
 pnpm build
 pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env staging
 pnpm --filter @uc/worker exec wrangler deploy --env staging
 ```
+戻すとき: `pnpm --filter @uc/worker exec wrangler rollback --env staging`（Worker のコードだけ戻る。DB は、戻らない）。
 
 ## 開発ルール
 
