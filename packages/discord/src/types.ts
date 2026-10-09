@@ -1,33 +1,10 @@
-/** Interactions のうち、このアプリが扱う部分だけを型にしたもの */
+import { PermissionFlagsBits } from "discord-api-types/v10";
 
-export const InteractionType = {
-  Ping: 1,
-  ApplicationCommand: 2,
-  MessageComponent: 3,
-  ApplicationCommandAutocomplete: 4,
-  ModalSubmit: 5,
-} as const;
-
-export const InteractionResponseType = {
-  Pong: 1,
-  ChannelMessageWithSource: 4,
-  DeferredChannelMessageWithSource: 5,
-  DeferredUpdateMessage: 6,
-  UpdateMessage: 7,
-  ApplicationCommandAutocompleteResult: 8,
-} as const;
-
-export const MessageFlags = {
-  SuppressEmbeds: 1 << 2,
-  Ephemeral: 1 << 6,
-} as const;
-
-export const ApplicationCommandOptionType = {
-  String: 3,
-  Integer: 4,
-  Role: 8,
-  Attachment: 11,
-} as const;
+/**
+ * Discord の定数（種類・フラグ・権限）は、公式の型定義（discord-api-types）のものを、そのまま使う。
+ * 下の Interaction は、そのうち、このアプリが扱う部分だけを、型にしたもの（受け取った JSON から、読むものだけ）。
+ */
+export { ApplicationCommandOptionType, InteractionResponseType, InteractionType, MessageFlags } from "discord-api-types/v10";
 
 export type CommandOptionValue = {
   name: string;
@@ -62,7 +39,7 @@ export type Interaction = {
 };
 
 /** Administrator 権限のビット */
-const ADMINISTRATOR = 1n << 3n;
+const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 
 export function hasAdministrator(permissions: string | undefined): boolean {
   if (!permissions) return false;

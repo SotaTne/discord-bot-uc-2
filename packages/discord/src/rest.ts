@@ -1,4 +1,7 @@
-export const DISCORD_API_BASE = "https://discord.com/api/v10";
+import { RouteBases, Routes } from "discord-api-types/v10";
+
+/** Discord の API の URL（バージョンつき）。公式の型定義の値を使う */
+export const DISCORD_API_BASE = `${RouteBases.api}`;
 
 export type MessagePayload = {
   content?: string;
@@ -63,22 +66,17 @@ export function createDiscordRest(options: DiscordRestOptions) {
   return {
     /** チャンネルにメッセージを投稿する */
     createMessage: (channelId: string, payload: MessagePayload) =>
-      request<{ id: string }>("POST", `/channels/${channelId}/messages`, payload),
+      request<{ id: string }>("POST", Routes.channelMessages(channelId), payload),
 
     /** deferred で返したインタラクションの応答を、あとから編集する（トークンで認証するので Bot トークンは不要） */
     editOriginalResponse: (applicationId: string, interactionToken: string, payload: MessagePayload) =>
-      request<unknown>(
-        "PATCH",
-        `/webhooks/${applicationId}/${interactionToken}/messages/@original`,
-        payload,
-        false,
-      ),
+      request<unknown>("PATCH", `${Routes.webhook(applicationId, interactionToken)}/messages/@original`, payload, false),
 
-    getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", `/guilds/${guildId}/roles`),
+    getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", Routes.guildRoles(guildId)),
 
     /** サーバーのメンバー1人（表示名を取るため。サーバーにいない人は 404） */
     getGuildMember: (guildId: string, userId: string) =>
-      request<DiscordMember>("GET", `/guilds/${guildId}/members/${userId}`),
+      request<DiscordMember>("GET", Routes.guildMember(guildId, userId)),
 
     /**
      * スラッシュコマンドを登録する（渡したものに置き換わる。渡さなかった古いコマンドは消える）。
@@ -87,7 +85,7 @@ export function createDiscordRest(options: DiscordRestOptions) {
     registerCommands: (applicationId: string, definitions: readonly unknown[], guildId?: string) =>
       request<{ name: string }[]>(
         "PUT",
-        guildId ? `/applications/${applicationId}/guilds/${guildId}/commands` : `/applications/${applicationId}/commands`,
+        guildId ? Routes.applicationGuildCommands(applicationId, guildId) : Routes.applicationCommands(applicationId),
         definitions,
       ),
   };
