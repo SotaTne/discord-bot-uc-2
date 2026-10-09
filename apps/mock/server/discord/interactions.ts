@@ -11,7 +11,7 @@ import { signRequest, type DevKeyPair } from "@uc/discord/testing";
 import type { MockState } from "./state";
 
 export type InteractionClientOptions = {
-  /** worker の URL（例: http://localhost:8787） */
+  /** worker の URL（例: http://localhost:5173） */
   workerUrl: string;
   /** この疑似 Discord の URL。添付ファイルの URL に使う（worker が取りに来る） */
   mockUrl: string;

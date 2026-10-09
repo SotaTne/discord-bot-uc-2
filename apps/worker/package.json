@@ -9,12 +9,9 @@
     }
   },
   "scripts": {
-    "dev": "mkdir -p ../dashboard/dist && vite",
-    "build": "vite build && node scripts/add-dashboard-assets.mjs",
-    "tunnel": "ngrok http 8787 ${NGROK_URL:+--url=$NGROK_URL}",
+    "tunnel": "ngrok http 5173 ${NGROK_URL:+--url=$NGROK_URL}",
     "db:migrate": "wrangler d1 migrations apply uc-bot --local",
     "db:seed": "wrangler d1 execute uc-bot --local --file=.wrangler/dev-seed.sql",
-    "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "build:types": "wrangler types && tsc -p tsconfig.types.json",
     "typecheck": "wrangler types && tsc",
@@ -31,9 +28,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
   }

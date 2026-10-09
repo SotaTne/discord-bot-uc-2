@@ -173,7 +173,7 @@
 
 ## 8. Cloudflare 構成
 
-- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ビルドは、ダッシュボード → worker（Vite）→ 配信設定（assets）の追加（`apps/worker/scripts/add-dashboard-assets.mjs`）の順。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
+- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ダッシュボードと worker は、**1 つの Vite アプリ**（`apps/dashboard`。Cloudflare のプラグインが、worker〔`apps/worker`〕も、いっしょにビルドする）。開発は、1 つのサーバー（5173）で、画面も API も動く（proxy は、ない）。配信の設定（assets）は、プラグインが、自動で作る。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
@@ -205,7 +205,7 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ```
 
 - `core` は Discord にも Cloudflare にも依存しない。`Clock` は外から注入する。
-- ダッシュボードは worker と**同一オリジン**で配信する（Cookie の `SameSite=Strict` と Origin の検証のため）。開発時は Vite の proxy で `/api` を worker に向ける。そのとき、ブラウザ自身（Vite の画面）の Origin だけを、worker の Origin に書き換える（ほかのサイトの Origin は、書き換えずに渡して、worker に拒否させる）。
+- ダッシュボードは worker と**同一オリジン**で配信する（Cookie の `SameSite=Strict` と Origin の検証のため）。開発時も、ダッシュボードと worker は、1 つの Vite（`apps/dashboard`。Cloudflare のプラグインが、worker も動かす）で、同じオリジンから配信する。proxy も、Origin の書き換えも、要らない。
 - 画面と API の型は **Hono RPC**（`hc<ApiType>`）で共有する。worker は、API の型を宣言ファイル（`dist/types`）として出力し、dashboard は型だけを参照する（ランタイムの依存は持たない）。
 - 画面の部品は Mantine（表・フォーム・バッジ・確認など。ライト / ダークに対応。見た目の既定は `apps/dashboard/src/theme.ts`）。自前の CSS は、無効な行の取り消し線だけ。Tailwind は使わない。TanStack Start も使わない（Interactions を受ける worker を軽く保つため）。
 

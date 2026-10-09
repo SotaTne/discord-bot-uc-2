@@ -5,11 +5,11 @@
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
 
-  // ダッシュボード（apps/dashboard のビルド成果物）を同じ Worker から配信する。
-  // Cookie の SameSite=Strict と同一オリジンを成り立たせるため。
+  // ダッシュボード（画面）は、同じ Worker から配信する（Cookie の SameSite=Strict と、同一オリジンを成り立たせるため）。
+  // 画面は、apps/dashboard の Vite が、worker といっしょにビルドする。配信するファイルの場所（directory）は、Vite のプラグインが決めるので、書かない。
   "assets": {
-    "directory": "../dashboard/dist",
     "not_found_handling": "single-page-application",
+    // これらのパスは、静的ファイルより先に、worker が処理する（/dev/* は、開発のビルドにだけ、ルートがある）
     "run_worker_first": ["/api/*", "/interactions", "/dev/*"]
   },
 

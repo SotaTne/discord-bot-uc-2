@@ -10,17 +10,6 @@
     "build:types": {
       "outputs": ["dist/types/**"]
     },
-    // ダッシュボードのビルド（Vite で束ねるだけ）は、worker のビルドを待たない（型は、typecheck で確かめる）。
-    // 待つと、worker がダッシュボードを待つ設定と、循環する
-    "@uc/dashboard#build": {
-      "dependsOn": [],
-      "outputs": ["dist/**"]
-    },
-    // worker のビルドは、ダッシュボードのビルド結果（同じ Worker から配信する）を使う。先に、ダッシュボードをビルドする
-    "@uc/worker#build": {
-      "dependsOn": ["^build", "@uc/dashboard#build"],
-      "outputs": ["dist/uc_bot/**"]
-    },
     "typecheck": {},
     // build:types と typecheck は、どちらも wrangler types で同じファイル（worker-configuration.d.ts）を書く。
     // 同時に走ると、書きかけのファイルを読んで失敗するので、順に走らせる

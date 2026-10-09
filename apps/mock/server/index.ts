@@ -21,7 +21,7 @@ export const createState = () => createMockState(defaultSeed());
 export function buildMockApp(input: { state: MockState; keys: DevKeyPair; env?: MockEnv }) {
   const { state, keys, env = {} } = input;
   const port = Number(env.PORT ?? 8788);
-  const workerUrl = env.WORKER_URL ?? "http://localhost:8787";
+  const workerUrl = env.WORKER_URL ?? "http://localhost:5173";
   const mockUrl = env.MOCK_URL ?? `http://localhost:${port}`;
   const applicationId = env.DISCORD_APPLICATION_ID ?? "100000000000000001";
 

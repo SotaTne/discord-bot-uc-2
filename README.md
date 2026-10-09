@@ -35,13 +35,12 @@ pnpm dev
 `pnpm dev` は、準備（`dev:setup`）をしてから、3つをまとめて起動する。
 
 - 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
-- 起動: worker（Vite）、ダッシュボード（Vite）、疑似 Discord（mock。サーバーと画面）。
+- 起動: ダッシュボードと worker（**1 つの Vite**。画面も API も、同じサーバー・同じオリジン）、疑似 Discord（mock。サーバーと画面）の 2 つ。
 
 | URL | 内容 |
 |---|---|
 | http://localhost:8788 | 疑似 Discord の動作確認ページ（同じ場所で、worker が、`/api/v10` も呼ぶ） |
-| http://localhost:5173 | ダッシュボード（Vite。`/api` は worker に proxy される） |
-| http://localhost:8787 | worker（Vite） |
+| http://localhost:5173 | ダッシュボードと worker（1 つの Vite。`/api` も、ここ） |
 
 ### 疑似 Discord でできること
 
@@ -128,8 +127,8 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm deploy   # ダッシュボードと worker をビルドして、デプロイする
    ```
 
-   `pnpm deploy` は、ダッシュボードのビルド → worker のビルド（Vite）→ ダッシュボードの配信設定（assets）を足す（`apps/worker/scripts/add-dashboard-assets.mjs`）→ `wrangler deploy` の順に動く。assets を足す手順がないと、ダッシュボードが配信されない（Vite のビルドが、設定から assets を落とすため）。
-   デプロイせずに確かめるには、`pnpm build` のあと、`cd apps/worker && pnpm exec wrangler deploy --dry-run` を実行する。
+   `pnpm deploy` は、`apps/dashboard` で、`vite build` → `wrangler deploy` を実行する。ダッシュボードの Vite が、Cloudflare のプラグイン（`@cloudflare/vite-plugin`）で、worker（`apps/worker`）も、いっしょにビルドする。配信の設定（assets）は、プラグインが、自動で作る。
+   デプロイせずに確かめるには、`cd apps/dashboard && pnpm exec vite build && pnpm exec wrangler deploy --dry-run` を実行する。
 
 4. Developer Portal の「Interactions Endpoint URL」に `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する。
 5. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
