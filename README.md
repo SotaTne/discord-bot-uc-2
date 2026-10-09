@@ -18,7 +18,7 @@ pnpm check   # 型チェックとテスト
 
 | 場所 | 役割 |
 |---|---|
-| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（呼ぶ先と間隔だけ。処理の本体は `packages/cron`）。`main` で変わると、`gas-cd.yml` が、自動でデプロイする（`apps/cron/README.md`） |
+| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（呼ぶ先と間隔だけ。処理の本体は `packages/cron`）。手元から、`start` / `stop` / `health` で操作する（`apps/cron/README.md`） |
 | `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る。`src/` は、本番に載る画面のコードだけ。開発専用の設定（`/api` の proxy）は `dev/` に置き、`vite.config.ts` が、開発サーバー（`command === "serve"`）のときだけ使う |
 | `apps/mock` | 開発専用の疑似 Discord。`server/`（Discord のサーバー役 `discord/` と、画面用の API `api/`）・`client/`（画面。Vite + React + Mantine + TanStack Query。サーバーには HTTP で話すだけ）・`scripts/`（開発の準備）。1 つの Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |
@@ -169,7 +169,7 @@ pnpm register-commands                                    # 全サーバー（�
    |---|---|---|
    | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
    | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン。Worker の実行時と、コマンドの登録に、使う |
-   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**ステージングと本番で、同じ値**を登録する（Apps Script が、1 つの合言葉で、両方を呼ぶため）。同じ値を、`apps/cron` の Apps Script のプロパティにも、登録する。秘密なので、リポジトリではなく、環境に置く |
+   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**ステージングと本番で、同じ値**を登録する（Apps Script が、1 つの合言葉で、両方を呼ぶため）。同じ値を、`apps/cron` の Apps Script のプロパティと、手元の `.env.local` にも、書く。秘密なので、リポジトリではなく、環境に置く |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
    | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |

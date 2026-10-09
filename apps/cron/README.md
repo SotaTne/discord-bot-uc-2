@@ -3,8 +3,33 @@
 毎分、ステージングと本番の Worker の `POST /cron` を呼ぶ。Worker は、「受け付けた」（202）をすぐ返して、そのあとで、募集開始の投稿と、締切のマッチングを、時刻が来ていて、まだ行っていないものだけ、行う（何度呼んでも、二重には実行されない）。
 
 - 呼ぶ先と間隔は、`src/config.ts`。**Apps Script は 1 つだけ**なので、ここを変えて `pnpm push` すると、ステージングと本番の両方に、すぐ反映される。
+- 呼び出しの作り方と判定は、`packages/cron`（開発の mock と同じ部品）。ここは、送り方（`UrlFetchApp.fetchAll`）と、合言葉の読み方だけ。
 - 合言葉（Worker の `CRON_SECRET`）は、コードに書かない。Apps Script の「スクリプト プロパティ」に、`CRON_SECRET` として登録する。全部の呼ぶ先で、同じ合言葉を使う。
-- 使わない期間は、`removeTrigger` を実行すると、毎分の実行が止まる（無駄な実行がない）。もう一度動かすときは、`installTrigger`。
+- **手元から、手動で運用する**（自動のデプロイは、しない。Google のログイン情報を、GitHub に置かないため）。
+
+## 使うコマンド
+
+`pnpm --filter @uc/cron-app <名前>`（`apps/cron` の中なら、`pnpm <名前>`）で実行する。
+
+| 名前 | 内容 |
+|---|---|
+| `start` | 毎分のトリガーを作る（cron を動かす）。すでにあれば、作り直す（間隔を変えたときも、これ） |
+| `stop` | トリガーを消す（cron を止める）。使わない期間の節約になる |
+| `health` | 動いているか（トリガーの有無と間隔）と、呼ぶ先の Worker が応答するか（`/api/health`）を見る |
+| `push` | ビルドして、Apps Script に置いて、ウェブアプリを更新する。`src/config.ts` などを変えたときに実行する |
+| `create` | Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
+| `deployment` | ウェブアプリのデプロイを、新しく作る（最初の 1 回。ID が出る） |
+| `logs` | 実行のログを見る（失敗した回だけ、出る） |
+| `delete` | リモートの Apps Script のプロジェクトを、削除する（確認が出る）。毎分の呼び出しも、止まる |
+
+`start`・`stop`・`health` は、ウェブアプリ（`doPost`）を、合言葉つきで呼ぶ。Google のログインは、要らない（合言葉だけ）。
+
+```
+$ pnpm health
+cron: 動いています（1 分おき）
+  staging: 200
+  production: 200
+```
 
 ## 最初の設定（1 回）
 
@@ -22,27 +47,17 @@
    pnpm --filter @uc/cron-app deployment
    ```
    2 つ目の出力に、デプロイの ID が出る（`- AKfycb... @1 - UC cron` の、`AKfycb...`）。
-6. Apps Script の画面で、`installTrigger` を、**1 回だけ、手で**実行する。Google の権限の確認（外部への通信・トリガーの管理）が出るので、許可する。ここで許可しておくと、以降の、自動のデプロイが、トリガーを作れる。
-7. **自動のデプロイ（gas-cd）の設定**: GitHub の Settings → Environments で、`gas` を作る。Deployment branches は、`main` だけにする。
+6. **手元の設定**: `apps/cron/.env.example` を、`.env.local` にコピーして、`GAS_DEPLOYMENT_ID`（5 の ID）と `CRON_SECRET`（1 と同じ値）を書く（`.env.local` は、git に入れない）。
+7. Apps Script の画面で、関数 `installTrigger` を、**1 回だけ、手で**実行して、Google の権限の確認（外部への通信・トリガーの管理）を、許可する。権限の許可は、人が画面で行う必要がある。
+8. `pnpm --filter @uc/cron-app start` で、毎分のトリガーを作る。`health` で、確かめる。
 
-   | 名前 | 種類 | 値 |
-   |---|---|---|
-   | `CLASPRC_JSON` | Secret | `~/.clasprc.json` の中身（Google へのログイン情報。他の人に見せない） |
-   | `CRON_SECRET` | Secret | 1 と同じ値 |
-   | `GAS_SCRIPT_ID` | Variable | `.clasp.json` の `scriptId` |
-   | `GAS_DEPLOYMENT_ID` | Variable | 5 で出た、デプロイの ID |
-
-以降は、`main` で、`apps/cron` か `packages/cron` が変わると、`gas-cd`（`.github/workflows/gas-cd.yml`）が、自動で、次を行う。Actions の画面から、手動でも実行できる。
-1. プロジェクトと、デプロイが、あるかを確かめる（なければ、手順を書いたエラーで止まる）。
-2. `clasp push`（コードを置く）。
-3. `clasp redeploy`（ウェブアプリを、置いたコードに更新する）。
-4. ウェブアプリに合言葉つきで POST して、毎分のトリガーがあることを保証する（`doPost` が、`installTrigger` を実行する）。
-
-動いているかは、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（受け付けられなかった回だけ、出る）。
+動いているかは、`health` と、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（受け付けられなかった回だけ、出る）。
 
 ## ウェブアプリ（doPost）について
 
-CD が、トリガーを保証するための入口。`https://script.google.com/macros/s/<デプロイの ID>/exec` に、フォームの `key=<合言葉>` を POST すると、合言葉が合うときだけ、`installTrigger` を実行して、`ok` と返す。合わなければ、`unauthorized`（何も実行しない）。ログインなしで呼べる設定（`access: ANYONE_ANONYMOUS`）なので、合言葉が、唯一の守り。合言葉が漏れたら、Worker と Apps Script の両方の値を、取り替える。
+`https://script.google.com/macros/s/<デプロイの ID>/exec` に、フォームの `key=<合言葉>` と `action=<start|stop|health>` を POST すると、合言葉が合うときだけ、実行して、JSON で状態を返す。合わなければ、`{"ok":false,"error":"unauthorized"}`（何も実行しない）。
+
+ログインなしで呼べる設定（`access: ANYONE_ANONYMOUS`）なので、**合言葉が、唯一の守り**。漏れたら、Worker と Apps Script の両方の値を、取り替える。ウェブアプリは、「デプロイしたバージョン」を動かすので、コードを変えたら、`pnpm push`（置く + ウェブアプリの更新）を実行する。毎分のトリガー（`tick`）は、置いた最新のコードを使う。
 
 ## 注意
 

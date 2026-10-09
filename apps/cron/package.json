@@ -5,8 +5,11 @@
   "scripts": {
     "build": "tsx scripts/build.ts",
     "create": "clasp create-script --type standalone --title \"UC cron\" --rootDir dist",
-    "push": "pnpm build && clasp push",
+    "push": "tsx --env-file-if-exists=.env.local scripts/push.ts",
     "deployment": "clasp create-deployment --description \"UC cron\"",
+    "start": "tsx --env-file-if-exists=.env.local scripts/control.ts start",
+    "stop": "tsx --env-file-if-exists=.env.local scripts/control.ts stop",
+    "health": "tsx --env-file-if-exists=.env.local scripts/control.ts health",
     "logs": "clasp tail-logs",
     "delete": "clasp delete-script",
     "typecheck": "tsc",
