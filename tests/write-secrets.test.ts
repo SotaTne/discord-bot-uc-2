@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { SECRETS, SecretError, buildSecretsFile } from "../.github/scripts/write-secrets";
+import { SECRETS, buildSecretsFile } from "../.github/scripts/write-secrets";
+import { StepError } from "../.github/scripts/support";
 
 describe("buildSecretsFile（wrangler の --secrets-file の中身）", () => {
   const spec = { required: ["A_TOKEN"], optional: ["B_SECRET"] };
@@ -14,14 +15,14 @@ describe("buildSecretsFile（wrangler の --secrets-file の中身）", () => {
     expect(buildSecretsFile(spec, { A_TOKEN: "a" })).toBe("A_TOKEN=a\n");
   });
 
-  it("必須の秘密が空・未設定なら、名前つきの SecretError", () => {
-    expect(() => buildSecretsFile(spec, { A_TOKEN: "" })).toThrow(SecretError);
+  it("必須の秘密が空・未設定なら、名前つきの StepError", () => {
+    expect(() => buildSecretsFile(spec, { A_TOKEN: "" })).toThrow(StepError);
     expect(() => buildSecretsFile(spec, {})).toThrow("A_TOKEN");
   });
 
   it("値に改行があるときは、断る（別の名前の秘密として、読まれてしまうため）", () => {
     expect(() => buildSecretsFile(spec, { A_TOKEN: "a\nB_SECRET=evil" })).toThrow("改行");
-    expect(() => buildSecretsFile(spec, { A_TOKEN: "a", B_SECRET: "b\r\nC=d" })).toThrow(SecretError);
+    expect(() => buildSecretsFile(spec, { A_TOKEN: "a", B_SECRET: "b\r\nC=d" })).toThrow(StepError);
   });
 });
 

@@ -8,7 +8,7 @@ name: gas-cd
 
 on:
   push:
-    branches: [main,develop]
+    branches: [main]
     paths:
       - apps/cron/**
       - packages/cron/**
@@ -50,31 +50,13 @@ jobs:
       - run: pnpm --filter @uc/cron-app build
         working-directory: .
 
+      # 認証の情報（~/.clasprc.json）と、プロジェクトの ID（.clasp.json）を作る。足りない設定があれば、ここで止まる
       - name: clasp の設定ファイルを、一時的に作る
-        run: |
-          for name in CLASPRC_JSON CRON_SECRET GAS_SCRIPT_ID GAS_DEPLOYMENT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::${name} が、Environment「gas」に登録されていません（apps/cron/README.md の手順）"
-              exit 1
-            fi
-          done
-          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
-          chmod 600 "$HOME/.clasprc.json"
-          printf '{"scriptId":"%s","rootDir":"dist"}\n' "$GAS_SCRIPT_ID" > .clasp.json
+        run: node "$GITHUB_WORKSPACE/.github/scripts/gas-prepare.ts"
 
-      # プロジェクトが、なければ（create をしていない・削除した・ID の間違い）、ここで止める。置いても、どこにも届かない
+      # プロジェクトとデプロイが、なければ、置く前に止める
       - name: Apps Script のプロジェクトと、ウェブアプリのデプロイが、あるか確かめる
-        run: |
-          if ! deployments=$(pnpm exec clasp list-deployments "$GAS_SCRIPT_ID" 2>&1); then
-            echo "::error::Apps Script のプロジェクト（${GAS_SCRIPT_ID}）を、開けません。先に create をして、ID を Variable GAS_SCRIPT_ID に登録してください"
-            echo "$deployments"
-            exit 1
-          fi
-          if ! grep -q "$GAS_DEPLOYMENT_ID" <<< "$deployments"; then
-            echo "::error::デプロイ（${GAS_DEPLOYMENT_ID}）が、見つかりません。先に deployment をして、ID を Variable GAS_DEPLOYMENT_ID に登録してください"
-            echo "$deployments"
-            exit 1
-          fi
+        run: node "$GITHUB_WORKSPACE/.github/scripts/gas-verify.ts"
 
       - name: コードを置く
         run: pnpm exec clasp push --force
@@ -85,14 +67,7 @@ jobs:
 
       # 毎分のトリガーが、あることを保証する（なければ作る。あれば作り直す。何度でも、同じ結果）
       - name: 毎分のトリガーを、保証する
-        run: |
-          body=$(curl --silent --show-error --location --max-time 60 \
-            --request POST "https://script.google.com/macros/s/${GAS_DEPLOYMENT_ID}/exec" \
-            --data-urlencode "key=${CRON_SECRET}")
-          if [ "$body" != "ok" ]; then
-            echo "::error::トリガーを保証できませんでした（応答: ${body:0:100}）。最初に、Apps Script の画面で、一度、権限を許可する必要があります"
-            exit 1
-          fi
+        run: node "$GITHUB_WORKSPACE/.github/scripts/gas-ensure-trigger.ts"
 
       - name: 認証の情報を、消す
         if: always()
