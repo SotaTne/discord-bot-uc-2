@@ -5,7 +5,7 @@ import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } f
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
 import { editDeferredResponse } from "./deferred";
 import { teamMention } from "./caller";
-import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, describeWin, addWin, type WinReport } from "../usecases/add-win";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, UnsupportedImageError, describeWin, addWin, type WinReport } from "../usecases/add-win";
 import type { CommandContext, CommandHandler } from "./registry";
 
 type WinInput = {
@@ -91,7 +91,7 @@ export const adminWin: CommandHandler = async (context) => {
   if (!attachment) return ephemeralMessage("画像が見つかりません");
   const contentType = attachment.content_type?.split(";")[0]?.trim() ?? "";
   if (!(contentType in IMAGE_EXTENSIONS)) {
-    return ephemeralMessage("画像（PNG・JPEG・WebP・GIF）を指定してください");
+    return ephemeralMessage("画像（PNG・JPEG・WebP）を指定してください");
   }
   if (attachment.size > MAX_IMAGE_BYTES) return ephemeralMessage("画像は8MB以下にしてください");
 
@@ -106,8 +106,13 @@ async function finishWin(context: CommandContext, input: WinInput) {
   try {
     content = await saveAndSummarize(context, input);
   } catch (error) {
-    console.error("勝利の記録に失敗しました", error);
-    content = "勝利の記録に失敗しました。もう一度お試しください";
+    if (error instanceof UnsupportedImageError) {
+      // 拡張子は画像でも、中身が違う（壊れたファイル、別の形式の名前を変えたもの）
+      content = "画像（PNG・JPEG・WebP）ではありません。画像のファイルを指定してください";
+    } else {
+      console.error("勝利の記録に失敗しました", error);
+      content = "勝利の記録に失敗しました。もう一度お試しください";
+    }
   }
   try {
     await editDeferredResponse(context, content);

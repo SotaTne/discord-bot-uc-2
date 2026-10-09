@@ -44,7 +44,7 @@ const MESSAGES: Record<string, string> = {
   slot_not_found: "その時刻は、試合時刻として登録されていません",
   not_found: "対象が見つかりません（すでに削除された可能性があります）",
   image_required: "画像を選んでください",
-  unsupported_image: "画像（PNG・JPEG・WebP・GIF）を選んでください",
+  unsupported_image: "画像（PNG・JPEG・WebP）を選んでください",
   image_too_large: "画像は8MB以下にしてください",
   discord_unavailable: "Discord からロール一覧を取得できませんでした",
   invalid_input: "入力内容を確認してください",

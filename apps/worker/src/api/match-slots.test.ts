@@ -45,7 +45,7 @@ async function matchedWithWin() {
   const form = new FormData();
   form.set("teamId", String(h.seeded.kmuId));
   form.set("points", "7");
-  form.set("image", new File([new Uint8Array([137, 80, 78, 71])], "s.png", { type: "image/png" }));
+  form.set("image", new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "s.png", { type: "image/png" }));
   await h.postForm(`/api/matches/${match.id}/wins`, form, { cookie });
 }
 

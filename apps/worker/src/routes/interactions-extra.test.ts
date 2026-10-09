@@ -14,6 +14,7 @@ import {
   insertWinInSlot,
   jst,
   timeOption,
+  PNG_BYTES,
 } from "../test-helpers";
 
 let keys: Awaited<ReturnType<typeof generateDevKeyPair>>;
@@ -112,7 +113,7 @@ describe("Workers の fetch の制約（this が違うと Illegal invocation に
       return Promise.resolve(
         url.includes("/webhooks/")
           ? new Response("{}")
-          : new Response(new Uint8Array([1, 2, 3]), { headers: { "Content-Type": "image/png" } }),
+          : new Response(PNG_BYTES, { headers: { "Content-Type": "image/png" } }),
       );
     };
     vi.stubGlobal("fetch", strictFetch);

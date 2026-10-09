@@ -15,6 +15,7 @@ import {
   jst,
   timeOption,
   insertWinInSlot,
+  PNG_BYTES,
 } from "../test-helpers";
 import { adminWin } from "./admin-win";
 
@@ -47,7 +48,7 @@ const options = (hour = 21, extra: { name: string; type: number; value: string |
 
 const imageFetch: typeof fetch = async (input) => {
   expect(String(input)).toBe(IMAGE_URL);
-  return new Response(new Uint8Array([1, 2, 3, 4]), { headers: { "Content-Type": "image/png" } });
+  return new Response(PNG_BYTES, { headers: { "Content-Type": "image/png" } });
 };
 
 function run(
@@ -81,7 +82,7 @@ describe("/uc-admin-win", () => {
     expect(event).toMatchObject({
       teamId: seeded.kmuId, active: true, slotDate: "2026-10-07", slotHour: 21, points: 80, recordedBy: ADMIN_USER, matchId: expect.any(Number),
     });
-    expect(kit.r2.objects.get(event?.screenshotKey ?? "")).toEqual({ contentType: "image/png", bytes: 4 });
+    expect(kit.r2.objects.get(event?.screenshotKey ?? "")).toEqual({ contentType: "image/png", bytes: 8 });
     expect(event?.screenshotKey).toMatch(new RegExp(`^screenshots/${GUILD_ID}/[0-9a-f-]{36}\\.png$`));
   });
 
@@ -247,6 +248,26 @@ describe("/uc-admin-win", () => {
       }
     });
 
+    it("宣言された種類は画像でも、中身が、画像でない（拡張子だけを、画像にしたファイル）は、保存せず、理由を返す", async () => {
+      const fake: typeof fetch = async () => new Response(new Uint8Array([80, 75, 3, 4, 1, 2, 3, 4]), { headers: { "Content-Type": "image/png" } }); // ZIP の先頭
+      const { kit } = await run(adminInteraction({ name: "x", options: options(), attachments: attachments() }), fake);
+      await kit.flush();
+
+      expect(kit.edits[0]?.content).toContain("画像（PNG・JPEG・WebP）ではありません");
+      expect(kit.r2.objects.size).toBe(0);
+      expect(await listWins(seeded.db, GUILD_ID)).toEqual([]);
+    });
+
+    it("宣言された種類が、中身と違っても（JPEG の中身を、PNG と名乗る）、中身の種類で、保存する", async () => {
+      const jpeg: typeof fetch = async () => new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]), { headers: { "Content-Type": "image/png" } });
+      const { kit } = await run(adminInteraction({ name: "x", options: options(), attachments: attachments() }), jpeg);
+      await kit.flush();
+
+      const [win] = await listWins(seeded.db, GUILD_ID);
+      expect(win?.screenshotKey).toMatch(/\.jpg$/);
+      expect(kit.r2.objects.get(win?.screenshotKey ?? "")?.contentType).toBe("image/jpeg");
+    });
+
     it("チームとして登録されていないロール", async () => {
       const other = options().map((o) => (o.name === "team-role" ? { ...o, value: "999" } : o));
       expect(await rejected(adminInteraction({ name: "x", options: other, attachments: attachments() }))).toBe(
@@ -264,7 +285,7 @@ describe("/uc-admin-win", () => {
       expect(await rejected(adminInteraction({ name: "x", options: options() }))).toBe("画像が見つかりません");
       expect(
         await rejected(adminInteraction({ name: "x", options: options(), attachments: attachments({ content_type: "application/pdf" }) })),
-      ).toBe("画像（PNG・JPEG・WebP・GIF）を指定してください");
+      ).toBe("画像（PNG・JPEG・WebP）を指定してください");
       expect(
         await rejected(adminInteraction({ name: "x", options: options(), attachments: attachments({ size: 9 * 1024 * 1024 }) })),
       ).toBe("画像は8MB以下にしてください");

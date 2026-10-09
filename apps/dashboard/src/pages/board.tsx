@@ -511,7 +511,7 @@ function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolea
           )}
           <Input.Wrapper label="画像">
             <div>
-              <FileButton resetRef={resetFile} onChange={setImage} accept="image/png,image/jpeg,image/webp,image/gif" inputProps={{ "aria-label": "画像" }}>
+              <FileButton resetRef={resetFile} onChange={setImage} accept="image/png,image/jpeg,image/webp" inputProps={{ "aria-label": "画像" }}>
                 {(fileProps) => (
                   <Button variant="default" {...fileProps} title={image?.name}>
                     {image ? shortName(image.name) : "画像を選択"}

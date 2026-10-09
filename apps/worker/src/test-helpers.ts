@@ -226,3 +226,6 @@ export const commandContext = (db: Db, interaction: Interaction, now: Date): Com
 
 /** 返信の本文だけを取り出す */
 export const contentOf = (response: { data?: { content?: string } }) => response.data?.content ?? "";
+
+/** PNG の先頭の 8 バイト。画像の中身の確認（sniffImageType）を通る、最小の「画像」 */
+export const PNG_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

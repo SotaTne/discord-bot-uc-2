@@ -282,8 +282,23 @@ describe("POST /api/matches/:id/wins（組分けへの、勝利の記録）", ()
       expect((await addWin(matchId, fields, null)).body).toEqual({ error: "image_required" });
       expect((await addWin(matchId, fields, new File(["x"], "a.pdf", { type: "application/pdf" }))).body).toEqual({ error: "unsupported_image" });
       expect((await addWin(matchId, fields, new File([new Uint8Array(9 * 1024 * 1024)], "big.png", { type: "image/png" }))).body).toEqual({ error: "image_too_large" });
+      // GIF は、受け付けない（PNG・JPEG・WebP だけ）
+      expect((await addWin(matchId, fields, new File([PNG], "a.gif", { type: "image/gif" }))).body).toEqual({ error: "unsupported_image" });
       expect(h.r2.objects.size).toBe(0);
       expect((await slotOf(21)).matches[0]?.win).toBeNull();
+    });
+
+    it("宣言された種類は画像でも、中身が画像でない（拡張子だけ画像にしたファイル）は、400（unsupported_image）で、保存しない。中身が JPEG・WebP なら、その種類で保存する", async () => {
+      const matchId = await kmuVsUt();
+      const fields = { teamId: String(h.seeded.kmuId), points: "80" };
+      const zip = new File([new Uint8Array([80, 75, 3, 4])], "a.png", { type: "image/png" });
+
+      expect((await addWin(matchId, fields, zip)).body).toEqual({ error: "unsupported_image" });
+      expect(h.r2.objects.size).toBe(0);
+
+      const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], "a.png", { type: "image/png" });
+      expect((await addWin(matchId, fields, jpeg)).status).toBe(201);
+      expect([...h.r2.objects.values()].map((object) => object.contentType)).toEqual(["image/jpeg"]);
     });
 
     it("点数が負・チームが数値でない・点数がない", async () => {

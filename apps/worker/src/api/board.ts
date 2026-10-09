@@ -28,7 +28,7 @@ import { createRestFromEnv } from "../discord";
 import { deleteScreenshots } from "../usecases/clear-scores";
 import { matchingCancelledMessage } from "../scheduled/messages";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, addWin } from "../usecases/add-win";
+import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, UnsupportedImageError, WinExistsError, describeWin, addWin } from "../usecases/add-win";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
@@ -279,6 +279,8 @@ export function createBoardRoutes(deps: ApiDeps) {
         return c.json({ id: winId, points, slotDate: match.slotDate, ...report }, 201);
       } catch (error) {
         if (error instanceof WinExistsError) return c.json({ error: "win_exists" as const }, 409);
+        // 宣言された種類は画像でも、中身が、PNG・JPEG・WebP でない
+        if (error instanceof UnsupportedImageError) return c.json({ error: "unsupported_image" as const }, 400);
         throw error;
       }
     });

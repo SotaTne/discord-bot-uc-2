@@ -7,12 +7,35 @@ import {
 import { loadScores, pointsForWin } from "./scores";
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** 受け付ける画像の種類（PNG・JPEG・WebP）と、保存するときの拡張子 */
 export const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
-  "image/gif": "gif",
 };
+
+/**
+ * ファイルの中身（先頭のバイト）から、画像の種類を判定する。PNG・JPEG・WebP 以外は null。
+ * Discord や、ブラウザが付ける種類（content_type）は、ファイル名の拡張子から決まるので、中身とは、一致しないことがある。
+ * 保存する種類は、中身で決める。
+ */
+export function sniffImageType(bytes: ArrayBuffer): string | null {
+  const head = new Uint8Array(bytes.slice(0, 12));
+  const startsWith = (signature: number[], offset = 0) => signature.every((value, index) => head[offset + index] === value);
+  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
+  // WebP: "RIFF" + 4 バイトの大きさ + "WEBP"
+  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+  return null;
+}
+
+/** 画像の中身が、PNG・JPEG・WebP のどれでもない（拡張子や、宣言された種類が、画像でも、中身が違う） */
+export class UnsupportedImageError extends Error {
+  constructor() {
+    super("画像（PNG・JPEG・WebP）ではありません");
+    this.name = "UnsupportedImageError";
+  }
+}
 
 /** その組分けには、すでに有効な勝利の記録がある（記録し直すときは、先に、削除する） */
 export class WinExistsError extends Error {
@@ -45,12 +68,14 @@ export async function addWin(
   // 有効な記録は、1つの組分けに1件まで（間違えたときは、削除してから、記録し直す）
   if (await hasActiveWin(deps.db, input.matchId)) throw new WinExistsError();
 
-  const extension = IMAGE_EXTENSIONS[input.image.contentType];
-  if (!extension) throw new Error(`画像の形式が対応していません: ${input.image.contentType}`);
   if (input.image.bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("画像が大きすぎます");
+  // 種類は、宣言（content_type）でなく、中身で決める
+  const contentType = sniffImageType(input.image.bytes);
+  const extension = contentType ? IMAGE_EXTENSIONS[contentType] : undefined;
+  if (!contentType || !extension) throw new UnsupportedImageError();
 
   const screenshotKey = `screenshots/${input.guildId}/${crypto.randomUUID()}.${extension}`;
-  await deps.bucket.put(screenshotKey, input.image.bytes, { httpMetadata: { contentType: input.image.contentType } });
+  await deps.bucket.put(screenshotKey, input.image.bytes, { httpMetadata: { contentType } });
 
   try {
     // N 試合を超えた試合は、入力が何点でも、固定点で登録する
