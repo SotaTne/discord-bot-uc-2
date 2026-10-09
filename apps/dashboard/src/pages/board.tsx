@@ -127,7 +127,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description="この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
+          description="この対戦枠の組分けと勝利（削除済みの記録も含む）を、完全に削除して、未マッチングに戻します。勝利の履歴からも消え、画像も消えます。挙手は残ります。元に戻せません。"
           danger
           extra={
             (slot.matches.length > 0 || slot.excluded !== null) && (
@@ -377,8 +377,8 @@ function MatchRow({ match }: { match: Match }) {
         opened={removing}
         onClose={() => setRemoving(false)}
         title={`${label}の組分けを削除`}
-        description={winCount > 0 ? `この組分けの勝利（${winCount}件。削除済みも含む）と画像も、あわせて削除します。元に戻せません。` : "この組分けを削除します。"}
-        confirmLabel={winCount > 0 ? `勝利${winCount}件も削除して、実行する` : "削除を実行する"}
+        description={winCount > 0 ? `この組分けの勝利（${winCount}件。「勝利を削除」で削除済みにした記録も含む）を、完全に削除します。勝利の履歴からも消え、画像も消えます。元に戻せません。` : "この組分けを削除します。"}
+        confirmLabel={winCount > 0 ? `勝利${winCount}件を完全に削除して、実行する` : "削除を実行する"}
         disabled={removeMatch.isPending}
         onConfirm={() => removeMatch.mutate(match.id)}
       />

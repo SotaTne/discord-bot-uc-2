@@ -418,7 +418,7 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     await choose("KMU vs UTの操作", "組分けを削除");
 
     expect(screen.getByRole("dialog", { name: "KMU vs UTの組分けを削除" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "勝利2件も削除して、実行する" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "勝利2件を完全に削除して、実行する" })).toBeTruthy();
   });
 
   it("組分けの削除は、確認してから実行する", async () => {
