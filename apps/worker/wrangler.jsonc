@@ -5,14 +5,6 @@
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
 
-  // ビルド時の置き換え。既定は、本番（DEV=false）。開発専用のコードは、デプロイされるコードに、入らない。
-  // 開発のときだけ、`wrangler dev --define import.meta.env.DEV:true` で、上書きする（package.json の dev）。
-  // 既定を本番にしてあるので、deploy・versions upload・preview で、付け忘れても、開発専用のコードは出ない。
-  "define": { "import.meta.env.DEV": "false" },
-  // 圧縮する。実行されない分岐（`if (false) …`）が、コードごと消える。ソースマップも上げるので、本番のエラーの行は、元のコードで見られる
-  "minify": true,
-  "upload_source_maps": true,
-
   // ダッシュボード（画面）は、同じ Worker から配信する（Cookie の SameSite=Strict と、同一オリジンを成り立たせるため）。
   // 画面は、ワークスペースのパッケージ（@uc/dashboard）。依存に書いてあるので、turbo が、先に、ビルドする
   "assets": {

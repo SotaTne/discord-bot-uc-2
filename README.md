@@ -35,7 +35,7 @@ pnpm dev
 `pnpm dev` は、準備（`dev:setup`）をしてから、3つをまとめて起動する。
 
 - 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
-- 起動: worker（`wrangler dev`。開発専用のコードが入る）、ダッシュボード（Vite。`/api` は worker に proxy する）、疑似 Discord（mock。サーバーと画面）。
+- 起動: worker（`wrangler dev src/dev/entry.ts`。開発専用の入口）、ダッシュボード（Vite。`/api` は worker に proxy する）、疑似 Discord（mock。サーバーと画面）。
 
 | URL | 内容 |
 |---|---|
@@ -57,7 +57,7 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 - 「データを初期化」で、挙手・マッチング・得点・ログイン・メッセージ・時計を、初期状態に戻せる（設定・対戦枠・チームは残る）。
 
 時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示・勝利の未記録の印）が、同じ時計に従う。
-`/dev/*`（時計・状態・cron・初期化）と、疑似時計と、モックの Discord への差し替え（`DISCORD_API_BASE`）は、開発のビルドにだけ入る。本番のビルド（`wrangler deploy`）では、ビルド時の定数（`import.meta.env.DEV`。`wrangler.jsonc` の `define` の既定が false）で、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）。
+`/dev/*`（時計・状態・cron・初期化）と、疑似時計は、**開発専用の入口**（`apps/worker/src/dev/entry.ts`。`pnpm dev` だけが使う）にだけある。本番の入口（`src/index.ts`）は、`src/dev/` を、読み込まない。分岐や、ビルドの設定で隠すのでなく、入口が違うので、本番に出る可能性が、構造上、ない（`tests/worker-imports.test.ts` が、読み込みを、`tests/worker-build.test.ts` が、実際のビルドの結果を、確かめる）。
 
 ### DB を変えるとき（マイグレーション）
 
@@ -129,9 +129,9 @@ pnpm register-commands                                    # 全サーバー（�
    ```
 
    worker は、ダッシュボード（`@uc/dashboard`）に、`package.json` で依存している。`pnpm deploy`（`turbo run deploy`）は、その依存から、先にダッシュボードをビルドして（変更がなければ、キャッシュで飛ばす）、`wrangler deploy` を実行する。配信するファイルの場所は、`apps/worker/wrangler.jsonc` の `assets.directory`（`node_modules/@uc/dashboard/dist`）。
-   開発専用のコード（疑似時計・`/dev/*`・モックの Discord への差し替え）は、`wrangler.jsonc` の `define`（`import.meta.env.DEV` が、既定で false）で、デプロイされるコードから、消える。開発（`pnpm dev`）のときだけ、`--define import.meta.env.DEV:true` で、入る。
+   開発専用のコード（疑似時計・`/dev/*`）は、`apps/worker/src/dev/` に集めてあり、本番の入口（`wrangler.jsonc` の `main` = `src/index.ts`）は、読み込まない。開発（`pnpm dev`）は、別の入口（`wrangler dev src/dev/entry.ts`）で、それを足す。
    デプロイせずに確かめる方法:
-   - 本番に近い形で、ローカルで動かす（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。開発専用のコードは、入らない（`/dev/*` は、404）。
+   - 本番に近い形で、ローカルで動かす（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。本番の入口なので、開発専用のコードは、ない（`/dev/*` は、404）。
    - ビルドだけ確かめる: `cd apps/worker && pnpm exec wrangler deploy --dry-run --outdir /tmp/out`。
 
 4. Developer Portal の「Interactions Endpoint URL」に `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する。

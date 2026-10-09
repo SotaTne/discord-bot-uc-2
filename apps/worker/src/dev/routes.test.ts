@@ -3,7 +3,8 @@ import { createTestDb } from "@uc/db/testing";
 import { fixedClock } from "@uc/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
-import { devClock, setDevClockState } from "../dev/clock";
+import { createDevApp } from "./app";
+import { devClock, setDevClockState } from "./clock";
 import type { AppEnv } from "../env";
 import { GUILD_ID, createFakeR2, createSeededDb, insertWinInSlot, jst } from "../test-helpers";
 
@@ -30,15 +31,19 @@ const env = (extra: Partial<AppEnv> = {}) =>
   ({ DB: seeded.db.$client, DISCORD_API_BASE: "http://mock.local/api/v10", DISCORD_BOT_TOKEN: "t", SCREENSHOTS: createFakeR2().bucket, ...extra }) as AppEnv;
 /** 時計を、指定した日時に固定した worker に、リクエストする */
 const callAt = (at: string, path: string, init: RequestInit = {}, extra: Partial<AppEnv> = {}) =>
-  createApp({ clock: fixedClock(jst(at)) }).request(path, { headers: { Origin: "http://localhost" }, ...init }, env(extra));
+  createDevApp({ clock: fixedClock(jst(at)) }).request(path, { headers: { Origin: "http://localhost" }, ...init }, env(extra));
 
-describe("本番のビルド（import.meta.env.DEV が false）では、/dev/* は、まるごとない", () => {
+describe("本番の入口（createApp）には、/dev/* が、ない（開発の入口 createDevApp だけが、足す）", () => {
   it("どの /dev/* も、404（ルートが、組み込まれていない）。cron の処理も、動かない", async () => {
-    vi.stubEnv("DEV", false);
     for (const [method, path] of [["GET", "/dev/state"], ["GET", "/dev/clock"], ["PUT", "/dev/clock"], ["GET", "/dev/screenshots/1"], ["POST", "/dev/reset"], ["POST", "/dev/tick"]] as const) {
-      expect((await callAt("2026-10-07T12:00:00", path, { method })).status, `${method} ${path}`).toBe(404);
+      const response = await createApp({ clock: fixedClock(jst("2026-10-07T12:00:00")) }).request(path, { method, headers: { Origin: "http://localhost" } }, env());
+      expect(response.status, `${method} ${path}`).toBe(404);
     }
     expect(requests).toEqual([]);
+  });
+
+  it("開発の入口には、ある（同じルートが、200 になる）", async () => {
+    expect((await callAt("2026-10-07T12:00:00", "/dev/clock")).status).toBe(200);
   });
 });
 
@@ -66,12 +71,12 @@ describe("POST /dev/tick（開発専用）", () => {
 
 describe("/dev/clock（疑似時計）", () => {
   const put = (body: unknown) =>
-    createApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request(
+    createDevApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request(
       "/dev/clock",
       { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
       env(),
     );
-  const get = () => createApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request("/dev/clock", {}, env());
+  const get = () => createDevApp({ clock: devClock(fixedClock(jst("2026-10-07T12:00:00"))) }).request("/dev/clock", {}, env());
 
   it("最初は、本物の時計そのもの（ずれ 0）", async () => {
     expect(await (await get()).json()).toEqual({ offsetMs: 0, now: jst("2026-10-07T12:00:00").getTime() });

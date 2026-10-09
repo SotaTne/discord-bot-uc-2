@@ -6,7 +6,7 @@ export type AppEnv = {
   DISCORD_PUBLIC_KEY: string;
   DISCORD_BOT_TOKEN: string;
   DISCORD_APPLICATION_ID: string;
-  /** 開発のときだけ使う（本番のビルドでは、無視される）。モックの Discord REST の URL に差し替える */
+  /** 開発時だけ、モックの Discord REST の URL に差し替える（本番では、設定しない） */
   DISCORD_API_BASE?: string;
   /** ダッシュボードの URL（ログインリンクの先）。省略すると、リクエストを受けた URL を使う */
   PUBLIC_URL?: string;

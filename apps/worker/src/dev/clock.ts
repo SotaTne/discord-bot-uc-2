@@ -4,7 +4,7 @@ import type { Clock } from "@uc/core";
 /**
  * 開発専用の疑似時計。worker が、状態を持つ（開発用のサーバーが動いている間だけ）。
  * 「本物の時刻 + ずれ（offsetMs）」。時間は、そのまま進む。
- * 本番のビルドには入らない（`import.meta.env.DEV` の中だけで使う）。
+ * 開発の入口（dev/entry.ts）だけが使う。本番の入口（index.ts）は、読み込まない。
  */
 export type DevClockState = DevClock;
 

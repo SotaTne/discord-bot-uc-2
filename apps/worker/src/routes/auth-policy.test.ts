@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createApp } from "../app";
 import type { AppEnv } from "../env";
 import { API_PREFIX, PUBLIC_API_PATHS } from "./api";
@@ -23,7 +23,7 @@ const callWithoutCredentials = (route: { method: string; path: string }) =>
 describe("認証の方針: すべてのルートが、認証つきか、公開と決めたものか", () => {
   it("ルートを、もれなく列挙できている（空ではなく、主なルートが入っている）", () => {
     const paths = routes.map((route) => route.path);
-    expect(paths).toEqual(expect.arrayContaining(["/api/board", "/api/scores", "/api/settings", "/interactions", "/dev/state"]));
+    expect(paths).toEqual(expect.arrayContaining(["/api/board", "/api/scores", "/api/settings", "/interactions"]));
   });
 
   it("/api のルートは、公開と決めたもの以外、セッションがなければ 401", async () => {
@@ -49,22 +49,12 @@ describe("認証の方針: すべてのルートが、認証つきか、公開�
     }
   });
 
-  it("/dev は、認証がない。開発のビルドにだけある（本番のビルドでは、ルートごと、組み込まれない）", async () => {
-    const dev = routes.filter((route) => route.path.startsWith("/dev/"));
-    expect(dev.length).toBeGreaterThan(0);
-
-    // 本番（import.meta.env.DEV が false）のアプリには、/dev のルートが、1 つもない
-    vi.stubEnv("DEV", false);
-    const prodRoutes = createApp().routes.filter((route) => route.method !== "ALL");
-    vi.unstubAllEnvs();
-
-    expect(prodRoutes.filter((route) => route.path.startsWith("/dev"))).toEqual([]);
-    // /dev 以外のルートは、変わらない（重複を除いて数える）
-    expect(new Set(prodRoutes.map((route) => `${route.method} ${route.path}`)).size).toBe(routes.length - dev.length);
+  it("本番の入口（createApp）には、/dev/*（認証がない、開発専用のルート）が、1 つもない。開発の入口（createDevApp）だけが、足す", () => {
+    expect(routes.filter((route) => route.path.startsWith("/dev"))).toEqual([]);
   });
 
   it("どの方針にも入らないルートは、ない（新しい入口を足したら、ここに、認証の方針を書く）", () => {
-    const known = [`${API_PREFIX}/`, "/interactions", "/dev/"];
+    const known = [`${API_PREFIX}/`, "/interactions"];
     const unknown = routes.filter((route) => !known.some((prefix) => route.path.startsWith(prefix)));
 
     expect(unknown).toEqual([]);

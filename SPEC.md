@@ -177,7 +177,7 @@
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
-  - `/dev`: 認証はない。開発のビルドにだけ入る（`import.meta.env.DEV` の中だけ。wrangler.jsonc の `define` が、既定で false にして、minify で、コードごと消える）
+  - `/dev`: 認証はない。**開発専用の入口**（`src/dev/entry.ts`）にだけある。本番の入口（`src/index.ts`）は、`src/dev/` を、読み込まない（分岐や、ビルドの設定には、頼らない）
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
 - Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
@@ -218,9 +218,9 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - サーバーは、画面と同じ Vite の開発サーバーに載せる（`server/vite-plugin.ts`。画面は、同じ場所で配信される）。コードを変えると、次のリクエストから新しいコードで動く。**メッセージなどの状態は、プロセスのメモリにだけある**（再起動すると消える。コードを変えただけでは、消えない）。鍵だけは、`apps/mock/.dev-keys.json` に保存される。
 - 開発の準備のスクリプトは、`apps/mock/scripts/`（`setup-dev.ts`: 鍵・`.dev.vars`・シード）。
 - **擬似 Interactions**: 本物と同じ形式の JSON を、開発用の Ed25519 鍵で署名して worker に送る。worker は本番と同じ署名検証を通る。鍵は `apps/mock/.dev-keys.json` に保存して使い回す（git には入れない）。
-- **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は `DISCORD_API_BASE` を切り替えてモックに向ける。
+- **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は、環境変数 `DISCORD_API_BASE` で、モックに向ける（開発の `.dev.vars` だけに書く。本番では、設定しない）。
 - **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、cron の処理を実行する（本物の cron と同じ）。
-- **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発のビルドにだけ入る**。本番のビルドでは、`import.meta.env.DEV` が false（`wrangler.jsonc` の `define` の既定）になり、minify で、ルートも、疑似時計も、`DISCORD_API_BASE` の読み取りも、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）:
+- **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発専用の入口にだけ**ある。`apps/worker/src/dev/` に、疑似時計・`/dev/*` のルート・状態の取得・入口（`entry.ts`）を集め、本番の入口（`src/index.ts`）は、そこを読み込まない。本番のコードが、`src/dev/` を import していないこと（`tests/worker-imports.test.ts`）と、本番のビルドに、開発専用の文字列がないこと（`tests/worker-build.test.ts`）を、テストで確かめる:
   - `GET /dev/clock` / `PUT /dev/clock`: 疑似時計の状態（`{ offsetMs }`）と、いまの時刻
   - `POST /dev/tick`: いまの疑似時計で、cron の処理（募集開始・締切）を1回実行する
   - `GET /dev/state`: いまの状態を、まとめて返す（`@uc/api` の `DevSnapshot`）。挙手・チームごとの対戦数と勝利数と得点・マッチング結果・勝利の記録（集計された点数と、そのチームの何試合目か）・cron の予定と履歴・試合ごとの勝利の記録・ログインの状況を含む

@@ -1,10 +1,10 @@
 import type { Clock } from "@uc/core";
 import { deleteGuildActivity, findWin, listConfiguredGuilds, type Db } from "@uc/db";
 import { Hono } from "hono";
-import { getDevClockState, parseDevClockState, setDevClockState } from "../dev/clock";
+import { getDevClockState, parseDevClockState, setDevClockState } from "./clock";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { buildDevSnapshot } from "../dev/snapshot";
+import { buildDevSnapshot } from "./snapshot";
 import type { AppEnv } from "../env";
 import { runScheduled } from "../scheduled/run";
 
@@ -15,7 +15,7 @@ async function targetGuildId(db: Db, query: string | undefined): Promise<string 
 }
 
 /**
- * 開発専用（認証はない）。app.ts が、開発のとき（`import.meta.env.DEV`）だけ組み込む。本番のビルドには、入らない。
+ * 開発専用（認証はない）。開発の入口（dev/entry.ts → dev/app.ts）だけが組み込む。本番の入口（index.ts）は、このファイルを、読み込まない。
  * - GET /clock: 疑似時計の状態（本物の時刻 + ずれ）と、いまの時刻
  * - PUT /clock: 疑似時計の状態を設定する。worker 全体（API・Discord・cron）が、この時計に従う
  * - POST /tick: cron を待たずに、いまの疑似時計で cron の処理（募集開始・締切）を1回実行する
