@@ -1,36 +1,68 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "uc-bot",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+
+  // 環境は 3 つ。デプロイするときは、必ず、`--env staging` か `--env production` を付ける。
+  //   最上位（ここ）: ローカルの開発用。`--env` を付け忘れても、本番にもステージングにも出ない
+  //                  （名前も、D1 も、R2 も、実在しない開発用のもの。デプロイは、失敗する）
+  //   env.staging:    ステージング（develop ブランチ）
+  //   env.production: 本番（main ブランチ）
+  // バインディング（D1・R2）と cron は、環境に引き継がれないので、環境ごとに書く。
+  "name": "uc-bot-dev",
 
   // ダッシュボード（画面）は、同じ Worker から配信する（Cookie の SameSite=Strict と、同一オリジンを成り立たせるため）。
   // 画面は、ワークスペースのパッケージ（@uc/dashboard）。依存に書いてあるので、turbo が、先に、ビルドする
   "assets": {
     "directory": "node_modules/@uc/dashboard/dist",
     "not_found_handling": "single-page-application",
-    // これらのパスは、静的ファイルより先に、worker が処理する（/dev/* は、開発のときだけ、ルートがある）
+    // これらのパスは、静的ファイルより先に、worker が処理する（/dev/* は、開発の入口にだけ、ルートがある）
     "run_worker_first": ["/api/*", "/interactions", "/dev/*"]
   },
 
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "uc-bot",
-      // ローカル開発では使われない。デプロイ前に `wrangler d1 create uc-bot` の値に置き換える
+      "database_name": "uc-bot-dev",
+      // ローカル開発では、この値は使われない（ローカルの DB が、使われる）
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "node_modules/@uc/db/migrations"
     }
   ],
-
-  "r2_buckets": [
-    {
-      "binding": "SCREENSHOTS",
-      "bucket_name": "uc-bot-screenshots"
-    }
-  ],
+  "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-dev-screenshots" }],
 
   // 毎分起動する。募集開始の投稿と、試合の K 分前の締切（マッチングの確定）を、時刻が来ていれば行う
-  "triggers": { "crons": ["* * * * *"] }
+  "triggers": { "crons": ["* * * * *"] },
+
+  "env": {
+    "staging": {
+      "name": "uc-bot-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "uc-bot-staging",
+          // `wrangler d1 create uc-bot-staging` で出た ID に、置き換える（ID は、秘密ではない）
+          "database_id": "00000000-0000-0000-0000-000000000001",
+          "migrations_dir": "node_modules/@uc/db/migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-staging-screenshots" }],
+      "triggers": { "crons": ["* * * * *"] }
+    },
+    "production": {
+      "name": "uc-bot",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "uc-bot",
+          // `wrangler d1 create uc-bot` で出た ID に、置き換える（ID は、秘密ではない）
+          "database_id": "00000000-0000-0000-0000-000000000002",
+          "migrations_dir": "node_modules/@uc/db/migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-screenshots" }],
+      "triggers": { "crons": ["* * * * *"] }
+    }
+  }
 }

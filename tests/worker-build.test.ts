@@ -22,7 +22,7 @@ const PROD = ["invalid request signature", "unauthorized"];
 /** Worker をビルドして（デプロイはしない）、できたコードと、ログを返す。entry を渡すと、その入口からビルドする（既定は、wrangler.jsonc の main = 本番の入口） */
 function build(name: string, entry?: string): { code: string; log: string } {
   const dir = join(outDir, name);
-  const args = ["--filter", "@uc/worker", "exec", "wrangler", "deploy", ...(entry ? [entry] : []), "--dry-run", "--outdir", dir];
+  const args = ["--filter", "@uc/worker", "exec", "wrangler", "deploy", ...(entry ? [entry] : []), "--env", "production", "--dry-run", "--outdir", dir];
   const log = execFileSync("pnpm", args, { cwd: root, encoding: "utf8", stdio: "pipe" });
   // できたコードは、入口のファイル名（index.js / entry.js）で、出る
   const file = readdirSync(dir).find((name) => name.endsWith(".js"))!;

@@ -173,12 +173,13 @@
 
 ## 8. Cloudflare 構成
 
-- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ダッシュボード（`apps/dashboard`。Vite）は、ワークスペースのパッケージ。worker（`apps/worker`。wrangler）が、`package.json` で依存して、そのビルド結果（`node_modules/@uc/dashboard/dist`）を、静的アセットとして配信する。ビルドの順序と、キャッシュは、turbo が、依存関係から決める（`pnpm deploy`）。開発は、2 つのサーバー（worker 8787 と、ダッシュボード 5173。`/api` は proxy）。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
+- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ダッシュボード（`apps/dashboard`。Vite）は、ワークスペースのパッケージ。worker（`apps/worker`。wrangler）が、`package.json` で依存して、そのビルド結果（`node_modules/@uc/dashboard/dist`）を、静的アセットとして配信する。ビルドの順序と、キャッシュは、turbo が、依存関係から決める。開発は、2 つのサーバー（worker 8787 と、ダッシュボード 5173。`/api` は proxy）。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
   - `/dev`: 認証はない。**開発専用の入口**（`src/dev/entry.ts`）にだけある。本番の入口（`src/index.ts`）は、`src/dev/` を、読み込まない（分岐や、ビルドの設定には、頼らない）
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
+- 環境は 3 つ（`apps/worker/wrangler.jsonc`）: 最上位（ローカルの開発用。デプロイは、失敗する）・`staging`（`develop` ブランチ）・`production`（`main` ブランチ）。デプロイは、Cloudflare の Git 連携が、ブランチに入ったときに、自動で行う。マージできるのは、GitHub Actions の CI（`.github/workflows/ci.yml`）が、通った PR だけ（ブランチ保護）。手順は、`README.md`。
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
 - Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
 - 3 秒制限のある処理は、deferred response と `waitUntil` で行う。

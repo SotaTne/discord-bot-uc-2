@@ -1,0 +1,27 @@
+# CI。develop・main への PR で動く。この「ci」のチェックを、ブランチ保護で、マージの必須条件にする
+# （通っていないものは、マージできない → Cloudflare の Git 連携が、デプロイする対象に、入らない）。
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Node と pnpm は、mise.toml のバージョンを使う（手元と同じ）
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      # 型の確認と、すべてのテスト（本番のビルドに、開発専用のコードが入っていないことの確認を含む）
+      - run: pnpm check
+      # マイグレーションの履歴の整合性（ブランチ間で、番号が衝突していないか、など）
+      - run: pnpm --filter @uc/db exec drizzle-kit check

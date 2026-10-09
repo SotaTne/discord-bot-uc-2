@@ -101,44 +101,87 @@ pnpm register-commands                                    # 全サーバー（�
 固定ドメインを使うときは `NGROK_URL=<ドメイン> pnpm tunnel`。
 トンネルは worker 全体（`/api` を含む）を公開する。`/interactions` は署名、`/api` は Origin の検証とログイン（セッション）で守っている。
 
+## ブランチと、デプロイの流れ
+
+| ブランチ | 役割 | デプロイ先（Cloudflare の Git 連携が、自動で行う） |
+|---|---|---|
+| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-staging`） |
+| `main` | リリース済み | **本番**（`uc-bot`） |
+
+1. 機能の PR を、`develop` に、マージする（スカッシュ）。ステージングに出る。
+2. ステージングで確かめる（テスト用の Discord アプリで操作する）。
+3. `develop` → `main` の PR（リリースの PR）を、マージする（**マージコミット**。スカッシュにすると、次のリリースで、同じ変更が重複して見える）。本番に出る。
+4. 緊急の修正は、`main` から、ブランチを切って、`main` に PR。マージしたあと、`develop` に、取り込む。
+
+**CI が通ったものだけが、デプロイされる**: `develop` と `main` の、ブランチ保護で、次を設定する（GitHub の Settings → Branches）。
+- Require a pull request before merging（直接の push を、禁止する）
+- Require status checks to pass: **`ci`**（`.github/workflows/ci.yml`。`pnpm check` と `drizzle-kit check`）
+- Require branches to be up to date before merging（CI が見たものと、マージされるものを、同じにする）
+- 既定のブランチ（Settings → General）は、`develop`
+
+デプロイは、`develop` と `main` に、コミットが入ったときだけ動く。保護により、入れるのは、CI が通った PR のマージだけ。Cloudflare の側では、テストを、もう一度、動かさない（ビルドだけ）。
+
 ## 本番へのデプロイ（Cloudflare）
 
-1. D1 と R2 を作る。出力された D1 の ID を、`apps/worker/wrangler.jsonc` の `database_id` に書く。
+環境は、3つ（`apps/worker/wrangler.jsonc`）。デプロイのコマンドには、**必ず `--env staging` か `--env production` を付ける**。付け忘れると、実在しない開発用のリソース（`uc-bot-dev`）に向くので、デプロイは、失敗する（本番には、出ない）。
+
+### 初回のセットアップ（環境ごとに、1回）
+
+1. D1 と R2 を作る。出力された D1 の ID を、`wrangler.jsonc` の、その環境の `database_id` に書く（ID は、秘密ではない）。
 
    ```bash
    cd apps/worker
+   pnpm exec wrangler d1 create uc-bot-staging
+   pnpm exec wrangler r2 bucket create uc-bot-staging-screenshots
    pnpm exec wrangler d1 create uc-bot
    pnpm exec wrangler r2 bucket create uc-bot-screenshots
    ```
 
-2. シークレットを設定する（`DISCORD_API_BASE` は設定しない。本番のビルドでは、読まれない）。
+2. シークレットを、環境ごとに設定する（`DISCORD_API_BASE` は、設定しない。開発専用）。
 
    ```bash
-   pnpm exec wrangler secret put DISCORD_PUBLIC_KEY
-   pnpm exec wrangler secret put DISCORD_BOT_TOKEN
-   pnpm exec wrangler secret put DISCORD_APPLICATION_ID
+   pnpm exec wrangler secret put DISCORD_PUBLIC_KEY --env staging
+   pnpm exec wrangler secret put DISCORD_BOT_TOKEN --env staging
+   pnpm exec wrangler secret put DISCORD_APPLICATION_ID --env staging
+   # 本番は、--env production で、同じものを設定する
    ```
 
-3. マイグレーションを適用して、デプロイする。ダッシュボードも、同じ Worker から、静的ファイルとして配信される（Cloudflare Workers の静的アセット。Cookie の `SameSite=Strict` と、同一オリジンのため）。
+   `PUBLIC_URL`（ログインリンクの先）は、必要なら、Cloudflare の画面で、その Worker の変数として設定する。
 
-   ```bash
-   cd apps/worker
-   pnpm exec wrangler d1 migrations apply uc-bot --remote
-   cd ../..
-   pnpm deploy   # ダッシュボードをビルドして、worker をデプロイする
-   ```
+3. **Discord のアプリは、環境ごとに別にする**（Interactions Endpoint URL が、1つのアプリに、1つしか、設定できないため）。ステージング用に、テスト用のアプリと、テスト用のサーバーを、作る。
 
-   `pnpm deploy` は、ビルド（`turbo run build`。ダッシュボードのビルド。変更がなければ、キャッシュで飛ばす）のあと、`wrangler deploy` を実行する。worker は、ダッシュボード（`@uc/dashboard`）に、`package.json` で依存していて、配信するファイルの場所は、`apps/worker/wrangler.jsonc` の `assets.directory`（`node_modules/@uc/dashboard/dist`）。
-   開発専用のコード（疑似時計・`/dev/*`）は、`apps/worker/src/dev/` に集めてあり、本番の入口（`wrangler.jsonc` の `main` = `src/index.ts`）は、読み込まない。開発（`pnpm dev`）は、別の入口（`wrangler dev src/dev/entry.ts`）で、それを足す。
-   デプロイせずに確かめる方法:
-   - 本番に近い形で、ローカルで動かす（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。本番の入口なので、開発専用のコードは、ない（`/dev/*` は、404）。
-   - ビルドだけ確かめる: `cd apps/worker && pnpm exec wrangler deploy --dry-run --outdir /tmp/out`。
+4. **Cloudflare の Git 連携**を、Worker ごとに設定する（Workers & Pages → Create → Connect to Git。同じリポジトリを、2回、つなぐ）。
 
-4. Developer Portal の「Interactions Endpoint URL」に `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する。
-5. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
-6. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
+   | 項目 | ステージング | 本番 |
+   |---|---|---|
+   | Worker の名前 | `uc-bot-staging` | `uc-bot` |
+   | 本番のブランチ | `develop` | `main` |
+   | ルートのフォルダ | `/`（リポジトリのルート） | 同じ |
+   | ビルドのコマンド | `pnpm install --frozen-lockfile && pnpm build` | 同じ |
+   | デプロイのコマンド | `pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env staging && pnpm --filter @uc/worker exec wrangler deploy --env staging` | `--env production` で、同じ形 |
+   | ビルドの変数 | `NODE_VERSION` と `PNPM_VERSION`（`mise.toml` と同じ値） | 同じ |
 
-cron（毎分）は、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
+   - テストは、CI（GitHub Actions）で済んでいるので、ここでは、動かさない。
+   - マイグレーションを、デプロイの前に適用する（`&&` の前）。**後ろ向きの互換を保つ**: 新しい DB で、古いコードが、動く形にする（列や表の、削除と名前の変更は、2回に分けて出す）。
+   - `develop` と `main` 以外のブランチの、デプロイのコマンドは、実行しない設定にする（プレビューが、D1 と R2 に、触れてしまうため）。
+   - **画面で、確かめる点**: ビルドの環境で、Node 26 と pnpm 12 が、使えるか。`--env` を付けたとき、Worker の名前の確認が、通るか。
+
+5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する（環境ごとのアプリで）。
+6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
+7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
+
+cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
+
+### デプロイせずに確かめる
+- ビルドだけ（ログインは要らない）: `pnpm build` のあと、`cd apps/worker && pnpm exec wrangler deploy --env production --dry-run --outdir /tmp/out`
+- ローカルで、本番に近い形（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。本番の入口なので、開発専用のコードは、ない（`/dev/*` は、404）。
+
+### 手動でデプロイするとき（Git 連携を使わない）
+```bash
+pnpm build
+pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env staging
+pnpm --filter @uc/worker exec wrangler deploy --env staging
+```
 
 ## 開発ルール
 
