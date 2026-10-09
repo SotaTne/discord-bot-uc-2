@@ -9,6 +9,7 @@ import {
   slotHoursOnDate,
   slotPhase,
   slotStart,
+  winRecordability,
 } from "./slot-time";
 
 const jst = (text: string) => new Date(`${text}+09:00`);
@@ -158,5 +159,24 @@ describe("slotHoursOnDate（その日の、対戦枠にする試合時刻）", (
 
     expect(slotHoursOnDate(late, "2026-10-08")).toEqual([{ hour: 21, deleted: true }]);
     expect(slotHoursOnDate(late, "2026-10-09")).toEqual([]);
+  });
+});
+
+describe("winRecordability（勝利を追加できる状態: マッチング済み + 開始時刻を過ぎている）", () => {
+  const base = { slotDate: "2026-10-07", slotHour: 21 };
+
+  it("マッチング済みで、開始時刻を過ぎていれば ok。ちょうど開始時刻も ok", () => {
+    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T21:30:00") })).toBe("ok");
+    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T21:00:00") })).toBe("ok");
+    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-09T00:00:00") })).toBe("ok");
+  });
+
+  it("開始前なら not-started", () => {
+    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T20:59:59") })).toBe("not-started");
+  });
+
+  it("マッチング済みでなければ、時刻を過ぎていても not-matched（開始前でも、not-matched が先）", () => {
+    expect(winRecordability({ ...base, matched: false, now: jst("2026-10-07T22:00:00") })).toBe("not-matched");
+    expect(winRecordability({ ...base, matched: false, now: jst("2026-10-07T20:00:00") })).toBe("not-matched");
   });
 });

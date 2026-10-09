@@ -285,7 +285,7 @@ function Slots() {
   // 今日の挙手の件数を、削除の確認に出す
   const board = useBoard(undefined);
   const [hour, setHour] = useState<number | "">("");
-  const refresh = [["slots"], ["board"]];
+  const refresh = [["slots"], ["board"], ["wins"]];
   const add = useInvalidatingMutation((value: number) => unwrap(api.slots.$post({ json: { hour: value } })), refresh);
   const remove = useInvalidatingMutation((id: number) => unwrap(api.slots[":id"].$delete({ param: { id: String(id) } })), refresh);
 

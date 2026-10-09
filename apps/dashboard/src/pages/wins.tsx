@@ -1,10 +1,11 @@
 import { Button, Group, NativeSelect, SegmentedControl, Table, Text } from "@mantine/core";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Async, ConfirmButton, ErrorNote, PageTitle, RowMenu, ScreenshotLink, Section, SortableTh, nextSort, usePointsEditor, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, formatJstDateTime } from "../lib/format";
-import { useInvalidatingMutation, useWins } from "../lib/queries";
+import { useInvalidatingMutation, useUnrecordedMatches, useWins } from "../lib/queries";
 
 const REFRESH = [["scores"], ["wins"], ["board"]];
 
@@ -13,9 +14,64 @@ export function WinsPage() {
   return (
     <>
       <PageTitle>勝利記録</PageTitle>
+      <Unrecorded />
       <History />
       <ClearScores />
     </>
+  );
+}
+
+/**
+ * 勝利が未記録の組分け（マッチング済み + 試合の開始時刻を過ぎている。削除済みの試合時刻は含めない）。
+ * あるときは、メニューの「勝利記録」にも、赤い丸の印が出る。記録は、その日の対戦枠の画面で行う
+ */
+function Unrecorded() {
+  const query = useUnrecordedMatches();
+  // 取れないとき（読み込み中・失敗）は、何も出さない（メニューの印と同じ）
+  if (!query.data) return null;
+  const matches = query.data.matches;
+
+  return (
+    <Section title="勝利が未記録の組分け">
+      <Text c="dimmed" size="sm">
+        マッチング済みで、試合の開始時刻を過ぎているのに、勝利がまだ記録されていない組分けです。対戦枠の画面で、記録します。
+      </Text>
+      {matches.length === 0 ? (
+        <Text c="dimmed">ありません</Text>
+      ) : (
+        <Table.ScrollContainer minWidth={420}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>日時</Table.Th>
+                <Table.Th>組分け</Table.Th>
+                <Table.Th>削除済みの勝利</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {matches.map((match) => (
+                <Table.Tr key={match.id}>
+                  <Table.Td>
+                    {match.slotDate.slice(5).replace("-", "/")} {formatHour(match.slotHour)}
+                  </Table.Td>
+                  <Table.Td>
+                    {match.teamA.name} vs {match.teamB.name}
+                  </Table.Td>
+                  <Table.Td c="dimmed">{match.deletedWins > 0 ? `${match.deletedWins}件` : "—"}</Table.Td>
+                  <Table.Td ta="right">
+                    {/* その日の対戦枠の画面を開く */}
+                    <Link to="/" search={{ date: match.slotDate }} className="text-link" aria-label={`${match.teamA.name} vs ${match.teamB.name}（${match.slotDate} ${formatHour(match.slotHour)}）を、対戦枠で記録する`}>
+                      対戦枠で記録する
+                    </Link>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
+    </Section>
   );
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SLOTS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
@@ -24,6 +24,28 @@ describe("ログイン済みの画面の枠（レイアウト）", () => {
     const nav = await screen.findByRole("navigation", { name: "メニュー" });
     expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "勝利記録", "設定"]);
     expect(await screen.findByRole("heading", { name: "10/07（水）" })).toBeTruthy();
+  });
+
+  it("勝利が未記録の組分けがあれば、メニューの「勝利記録」に、赤い丸（件数）が付く。読み上げ用の文も付く。なければ、付かない", async () => {
+    const unrecorded = (count: number) => ({
+      body: { matches: Array.from({ length: count }, (_, index) => ({ id: index + 1, slotDate: "2026-10-06", slotHour: 23, teamA: { id: 1, name: "KMU" }, teamB: { id: 2, name: "UT" }, matchNumberA: 1, matchNumberB: 1, deletedWins: 0 })) },
+    });
+    installFakeBackend({ ...loggedIn, ...homeApis, "GET /api/unrecorded-matches": unrecorded(3) });
+    renderApp("/");
+
+    const link = (await screen.findByRole("link", { name: /^勝利記録/ })) as HTMLAnchorElement;
+    await waitFor(() => expect(link.querySelector(".nav-badge")?.textContent).toBe("3"));
+    expect(link.textContent).toContain("勝利が未記録の組分け 3件");
+    // ほかのメニューには、付かない
+    expect(screen.getAllByRole("link").filter((a) => a.querySelector(".nav-badge"))).toHaveLength(1);
+  });
+
+  it("勝利が未記録の組分けがなければ、「勝利記録」に、赤い丸は付かない", async () => {
+    installFakeBackend({ ...loggedIn, ...homeApis, "GET /api/unrecorded-matches": { body: { matches: [] } } });
+    renderApp("/");
+
+    const link = await screen.findByRole("link", { name: "勝利記録" });
+    expect(link.querySelector(".nav-badge")).toBeNull();
   });
 
   it("ヘッダーに、いまの日付・曜日・時刻（JST）を出す。サーバーの時計に従う", async () => {

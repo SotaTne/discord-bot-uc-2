@@ -1,5 +1,5 @@
 import { MAX_POINTS } from "@uc/api";
-import { defaultGuildSettings, findMatchForTeam, listWins, saveGuildSettings, saveMatchResult, setWinActive } from "@uc/db";
+import { addMatch, defaultGuildSettings, findMatchForTeam, listWins, saveGuildSettings, saveMatchResult, setWinActive } from "@uc/db";
 import { commands } from "@uc/discord";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -217,6 +217,24 @@ describe("/uc-admin-win", () => {
     it("点数が上限（100000）を超える", async () => {
       expect(await rejected(adminInteraction({ name: "x", options: options(21, [], 100_001), attachments: attachments() }))).toBe(
         "点数は0〜100000で指定してください",
+      );
+    });
+
+    it("試合の開始前（マッチング済みでも）は、記録できない。ダッシュボードを案内する", async () => {
+      await played("2026-10-07", 23); // NOW は 22:30。23 時の試合は、まだ始まっていない
+      const date = { name: "date", type: 3, value: "2026-10-07" };
+
+      expect(await rejected(adminInteraction({ name: "x", options: options(23, [date]), attachments: attachments() }))).toBe(
+        "2026-10-07 23時の試合は、まだ始まっていません。始まってから実行するか、ダッシュボードから記録してください",
+      );
+    });
+
+    it("マッチング処理が済んでいない対戦枠（管理者が、手動で組分けだけ追加した）は、記録できない。ダッシュボードを案内する", async () => {
+      await addMatch(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamAId: seeded.kmuId, teamBId: seeded.utId, createdAt: 1 });
+      const date = { name: "date", type: 3, value: "2026-10-07" };
+
+      expect(await rejected(adminInteraction({ name: "x", options: options(22, [date]), attachments: attachments() }))).toBe(
+        "2026-10-07 22時は、まだマッチング処理が済んでいません。済んでから実行するか、ダッシュボードから記録してください",
       );
     });
 

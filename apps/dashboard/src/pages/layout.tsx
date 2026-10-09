@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { ApiError, unwrap } from "../lib/errors";
 import { formatJstNow } from "../lib/format";
-import { useMe } from "../lib/queries";
+import { useMe, useUnrecordedMatches } from "../lib/queries";
 import { ErrorNote } from "../components/ui";
 
 const NAV = [
@@ -45,6 +45,9 @@ export function AppLayout() {
       await navigate({ to: "/login", hash: "" });
     },
   });
+
+  // 勝利を記録しないといけない組分けの数。あれば、「勝利記録」に、赤い丸の印で知らせる
+  const unrecorded = useUnrecordedMatches().data?.matches.length ?? 0;
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
@@ -89,6 +92,14 @@ export function AppLayout() {
                 return (
                   <Link key={item.to} to={item.to} className="nav-link" {...(active ? { "aria-current": "page" as const } : {})}>
                     {item.label}
+                    {item.to === "/wins" && unrecorded > 0 && (
+                      <>
+                        <span className="nav-badge" aria-hidden="true">
+                          {unrecorded > 99 ? "99+" : unrecorded}
+                        </span>
+                        <span className="sr-only">（勝利が未記録の組分け {unrecorded}件）</span>
+                      </>
+                    )}
                   </Link>
                 );
               })}

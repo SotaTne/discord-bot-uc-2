@@ -270,3 +270,47 @@ describe("勝利記録の画面: 得点をクリアする", () => {
     expect(backend.count("DELETE", "/api/wins")).toBe(0);
   });
 });
+
+describe("勝利記録の画面: 勝利が未記録の組分け", () => {
+  const unrecorded = (matches: unknown[]) => ({ "GET /api/unrecorded-matches": { body: { matches } } });
+  const pending = (over: Record<string, unknown> = {}) => ({
+    id: 7,
+    slotDate: "2026-10-06",
+    slotHour: 23,
+    teamA: { id: 1, name: "KMU" },
+    teamB: { id: 2, name: "UT" },
+    matchNumberA: 1,
+    matchNumberB: 2,
+    deletedWins: 0,
+    ...over,
+  });
+
+  it("日時・組分け・削除済みの勝利の件数を出す。「対戦枠で記録する」は、その日の対戦枠の画面へのリンク", async () => {
+    installFakeBackend({ ...apis(), ...unrecorded([pending(), pending({ id: 8, slotDate: "2026-10-07", slotHour: 21, teamA: { id: 2, name: "UT" }, teamB: { id: 3, name: "NGT" }, deletedWins: 2 })]) });
+    renderApp("/wins");
+
+    const section = within(await screen.findByRole("region", { name: "勝利が未記録の組分け" }));
+    const rows = (await section.findAllByRole("row")).slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+    expect(rows).toEqual([
+      ["10/06 23:00", "KMU vs UT", "—", "対戦枠で記録する"],
+      ["10/07 21:00", "UT vs NGT", "2件", "対戦枠で記録する"],
+    ]);
+    const links = section.getAllByRole("link", { name: /対戦枠で記録する/ });
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/?date=2026-10-06", "/?date=2026-10-07"]);
+  });
+
+  it("なければ「ありません」と出す", async () => {
+    installFakeBackend({ ...apis(), ...unrecorded([]) });
+    renderApp("/wins");
+
+    expect(within(await screen.findByRole("region", { name: "勝利が未記録の組分け" })).getByText("ありません")).toBeTruthy();
+  });
+
+  it("取得できなかったときは、欄を出さない（履歴は、そのまま出る）", async () => {
+    installFakeBackend({ ...apis(), "GET /api/unrecorded-matches": { status: 500, body: { error: "x" } } });
+    renderApp("/wins");
+
+    expect(await screen.findByRole("region", { name: "履歴" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "勝利が未記録の組分け" })).toBeNull();
+  });
+});

@@ -349,3 +349,46 @@ describe("GET /api/screenshots/:id", () => {
     expect((await h.call("/api/screenshots/abc", { cookie })).status).toBe(400);
   });
 });
+
+describe("GET /api/unrecorded-matches（勝利が未記録の組分け）", () => {
+  // 時計は 2026-10-07 15:00。beforeEach の組分け: 10-07 21 時（まだ始まっていない）と、10-06 23 時（始まっている）。どちらも、マッチング済み
+  type Unrecorded = { id: number; slotDate: string; slotHour: number; teamA: { name: string }; teamB: { name: string }; deletedWins: number };
+  const unrecorded = async () => (await h.json<{ matches: Unrecorded[] }>("/api/unrecorded-matches", { cookie })).body.matches;
+  const pastMatchId = async () => (await findMatchForTeam(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 23, teamId: h.seeded.kmuId }))!.matchId;
+  const recordPast = async (points = "80") =>
+    h.postForm<{ id: number }>(`/api/matches/${await pastMatchId()}/wins`, winForm({ teamId: String(h.seeded.kmuId), points }), { cookie });
+
+  it("マッチング済みで、開始時刻を過ぎていて、有効な勝利がない組分けだけを返す（開始前の組分けは、含めない）", async () => {
+    const matches = await unrecorded();
+
+    expect(matches).toMatchObject([{ id: await pastMatchId(), slotDate: "2026-10-06", slotHour: 23, teamA: { name: "KMU" }, teamB: { name: "UT" }, deletedWins: 0 }]);
+  });
+
+  it("勝利を記録すると、一覧から消える。その勝利を無効にすると、また出る（削除した勝利の件数つき）", async () => {
+    const { body } = await recordPast();
+    expect(await unrecorded()).toEqual([]);
+
+    await setActive(body.id, false);
+
+    expect(await unrecorded()).toMatchObject([{ slotDate: "2026-10-06", slotHour: 23, deletedWins: 1 }]);
+  });
+
+  it("マッチング済みでない対戦枠の、手動で追加した組分けは、含めない（マッチング処理が済むまで）", async () => {
+    await h.json("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 22, slotDate: "2026-10-05" } });
+
+    expect((await unrecorded()).map((match) => [match.slotDate, match.slotHour])).toEqual([["2026-10-06", 23]]);
+  });
+
+  it("削除済みの試合時刻の組分けは、含めない", async () => {
+    const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
+    await h.json(`/api/slots/${body.slots.find((slot) => slot.hour === 23)!.id}`, { method: "DELETE", cookie });
+
+    expect(await unrecorded()).toEqual([]);
+  });
+
+  it("古い順に並ぶ", async () => {
+    await played("2026-10-05", 22);
+
+    expect((await unrecorded()).map((match) => [match.slotDate, match.slotHour])).toEqual([["2026-10-05", 22], ["2026-10-06", 23]]);
+  });
+});

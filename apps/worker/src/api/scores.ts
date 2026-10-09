@@ -1,5 +1,5 @@
 import { winActiveInputSchema, winPointsInputSchema } from "@uc/api";
-import { calculateScores, matchNumbers, resolveRecentSlotDate } from "@uc/core";
+import { calculateScores, matchNumbers, resolveRecentSlotDate, winRecordability } from "@uc/core";
 import {
   findMatchForTeam,
   findSlot,
@@ -9,6 +9,8 @@ import {
   getGuildSettings,
   hasActiveWin,
   listGuildMatches,
+  listMatchedSlots,
+  listSlots,
   listTeams,
   listWins,
   setWinActive,
@@ -107,6 +109,47 @@ export function createScoreRoutes(deps: ApiDeps) {
     })
 
     // 勝利の記録の履歴（新しい順）。無効なものは、active が false
+    // 勝利が未記録の組分け（勝利を追加できる状態: マッチング済み + 試合の開始時刻を過ぎている。削除済みの試合時刻は含めない）。古い順。
+    // ダッシュボードの「勝利記録」の印（件数）と一覧に使う。有効な勝利がなければ未記録（削除した勝利だけがあるものも、未記録）
+    .get("/unrecorded-matches", async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const now = deps.clock.now();
+      const [matchedSlots, wins, slots, teams, guildMatches] = await Promise.all([
+        listMatchedSlots(db, { guildId }),
+        listWins(db, guildId),
+        listSlots(db, guildId),
+        listTeams(db, guildId, { includeDeleted: true }),
+        listGuildMatches(db, guildId),
+      ]);
+      const liveHours = new Set(slots.map((slot) => slot.hour));
+      const recorded = new Set(wins.filter((win) => win.active).map((win) => win.matchId));
+      const deletedWins = new Map<number, number>();
+      for (const win of wins) if (!win.active) deletedWins.set(win.matchId, (deletedWins.get(win.matchId) ?? 0) + 1);
+      const numbers = matchNumbers(guildMatches);
+      const nameOf = await teamNames(createRestFromEnv(c.env), guildId, teams);
+      const team = (id: number) => ({ id, name: nameOf.get(id) ?? String(id) });
+
+      return c.json({
+        matches: matchedSlots
+          .filter((slot) => liveHours.has(slot.slotHour) && winRecordability({ matched: true, slotDate: slot.slotDate, slotHour: slot.slotHour, now }) === "ok")
+          .flatMap((slot) =>
+            slot.pairs
+              .filter((pair) => !recorded.has(pair.matchId))
+              .map((pair) => ({
+                id: pair.matchId,
+                slotDate: slot.slotDate,
+                slotHour: slot.slotHour,
+                teamA: team(pair.teamAId),
+                teamB: team(pair.teamBId),
+                matchNumberA: numbers.get(`${pair.teamAId}#${pair.matchId}`) ?? 0,
+                matchNumberB: numbers.get(`${pair.teamBId}#${pair.matchId}`) ?? 0,
+                deletedWins: deletedWins.get(pair.matchId) ?? 0,
+              })),
+          ),
+      });
+    })
+
     .get("/wins", async (c) => {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");

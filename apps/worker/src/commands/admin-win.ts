@@ -1,5 +1,5 @@
-import { resolveRecentSlotDate } from "@uc/core";
-import { findMatchForTeam, findSlot, hasActiveWin, findTeamById, findTeamsByRoleIds, type Team } from "@uc/db";
+import { resolveRecentSlotDate, winRecordability } from "@uc/core";
+import { findMatchForTeam, findMatchSlot, findSlot, hasActiveWin, findTeamById, findTeamsByRoleIds, type Team } from "@uc/db";
 import { MAX_POINTS, dateSchema } from "@uc/api";
 import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } from "@uc/discord";
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
@@ -62,6 +62,21 @@ export const adminWin: CommandHandler = async (context) => {
     return ephemeralMessage(
       `${slotDate} ${hour}時に、${teamMention(team)} の試合はありません（マッチングされていないか、対戦していません）`,
     );
+  }
+
+  // このコマンドで記録できるのは、マッチング済みで、試合の開始時刻を過ぎた組分けだけ（日付の打ち間違いなどを止める）。
+  // ダッシュボードからなら、いつでも記録できる
+  const recordability = winRecordability({
+    matched: (await findMatchSlot(db, { guildId, slotDate, slotHour: hour }))?.status === "matched",
+    slotDate,
+    slotHour: hour,
+    now: clock.now(),
+  });
+  if (recordability === "not-matched") {
+    return ephemeralMessage(`${slotDate} ${hour}時は、まだマッチング処理が済んでいません。済んでから実行するか、ダッシュボードから記録してください`);
+  }
+  if (recordability === "not-started") {
+    return ephemeralMessage(`${slotDate} ${hour}時の試合は、まだ始まっていません。始まってから実行するか、ダッシュボードから記録してください`);
   }
 
   // 有効な記録は、1つの組分けに1件まで。間違えたときは、ダッシュボードで削除してから、記録し直す
