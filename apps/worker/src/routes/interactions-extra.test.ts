@@ -1,7 +1,7 @@
 import { fixedClock } from "@uc/core";
 import { listWins, saveMatchResult } from "@uc/db";
 import { generateDevKeyPair, signRequest } from "@uc/discord/testing";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
 import { devClock, setDevClockState } from "../dev/clock";
 import type { AppEnv } from "../env";
@@ -19,6 +19,15 @@ import {
 let keys: Awaited<ReturnType<typeof generateDevKeyPair>>;
 beforeAll(async () => {
   keys = await generateDevKeyPair();
+});
+
+// 署名の時刻は、本物の時刻の前後 5 分以内でなければ、断られる。テストの署名の時刻（1700000000）に、本物の時刻を合わせる
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_700_000_000 * 1000);
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 async function send(

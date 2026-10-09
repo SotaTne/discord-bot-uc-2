@@ -176,7 +176,7 @@
 - Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets）。
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
-  - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）
+  - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
   - `/dev`: 認証はない。開発のビルドにだけ入る（`import.meta.env.DEV` の中だけ。本番のビルドには、コードごと、ない）
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
@@ -244,7 +244,6 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - 挙手の公開範囲は、自チームだけ（可視ロールやボードは使わない）。
 
 既知の制限:
-- Interactions の署名のタイムスタンプが古いリクエストを、拒否していない（署名は検証する。再送攻撃への対策は、今後の課題）。
 - 試合時刻は、募集開始の時刻より後の、同じ日の時刻であることを前提にする（日付をまたぐ対戦枠は扱わない）。
 - Discord のレート制限に対する待ち行列は、持たない。
 - マッチングを、手動でやり直す操作は、ない（cron が確定した結果を、そのまま使う）。

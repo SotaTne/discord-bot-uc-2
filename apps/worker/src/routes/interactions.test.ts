@@ -1,7 +1,7 @@
 import { fixedClock } from "@uc/core";
 import { listTeamHandupsOnDate } from "@uc/db";
 import { generateDevKeyPair, signRequest } from "@uc/discord/testing";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
 import type { AppEnv } from "../env";
 import {
@@ -26,6 +26,16 @@ beforeAll(async () => {
     DISCORD_BOT_TOKEN: "test-token",
     DISCORD_APPLICATION_ID: "100000000000000001",
   } as AppEnv;
+});
+
+// 署名の時刻は、本物の時刻の前後 5 分以内でなければ、断られる。テストの署名の時刻（1700000000）に、本物の時刻を合わせる
+const SIGNED_AT = 1_700_000_000;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(SIGNED_AT * 1000);
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 async function post(body: string, overrides: { signature?: string; timestamp?: string } = {}) {
@@ -54,6 +64,39 @@ describe("POST /interactions", () => {
     const response = await post(JSON.stringify({ type: 1 }));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ type: 1 });
+  });
+
+  describe("署名の時刻（再送攻撃への対策）", () => {
+    const at = (secondsFromNow: number) => String(SIGNED_AT + secondsFromNow);
+    const ping = JSON.stringify({ type: 1 });
+
+    it("いまの時刻の前後 5 分以内なら、受ける（ちょうど 5 分も、受ける）", async () => {
+      for (const seconds of [0, -299, 299, -300, 300]) {
+        expect((await post(ping, { timestamp: at(seconds) })).status, `${seconds}秒`).toBe(200);
+      }
+    });
+
+    it("5 分より古い、または、先の時刻なら、署名が正しくても、401（盗まれた署名つきのリクエストを、あとから送り直せない）", async () => {
+      for (const seconds of [-301, 301, -3600, 86_400]) {
+        const response = await post(ping, { timestamp: at(seconds) });
+        expect(response.status, `${seconds}秒`).toBe(401);
+        expect(await response.json()).toEqual({ error: "invalid request signature" });
+      }
+    });
+
+    it("数字でない・桁が多すぎる時刻は、401", async () => {
+      for (const timestamp of ["abc", "", "1700000000.5", "-1700000000", "17000000000000000"]) {
+        expect((await post(ping, { timestamp })).status, timestamp).toBe(401);
+      }
+    });
+
+    it("時刻を新しくしても、署名は、その時刻に結びついている。古い署名に、新しい時刻を付けても、401", async () => {
+      const oldSignature = await signRequest({ privateKey: keys.privateKey, timestamp: at(-3600), body: ping });
+
+      const response = await post(ping, { signature: oldSignature, timestamp: at(0) });
+
+      expect(response.status).toBe(401);
+    });
   });
 
   it("署名のヘッダーがなければ 401", async () => {
