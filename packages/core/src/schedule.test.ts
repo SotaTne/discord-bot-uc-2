@@ -9,7 +9,7 @@ describe("scheduledJobsForDate", () => {
     const jobs = scheduledJobsForDate(plan);
 
     expect(jobs.map((j) => [j.key, j.kind, j.slotHour])).toEqual([
-      ["recruit:2026-10-07", "recruit", null],
+      ["recruit:2026-10-07:12", "recruit", null],
       ["cutoff:2026-10-07:21", "cutoff", 21],
       ["cutoff:2026-10-07:22", "cutoff", 22],
       ["cutoff:2026-10-07:23", "cutoff", 23],
@@ -36,7 +36,7 @@ describe("scheduledJobsForDate", () => {
   });
 
   it("対戦枠がなければ、募集開始だけ。渡した配列は書き換えない", () => {
-    expect(scheduledJobsForDate({ ...plan, slotHours: [] }).map((j) => j.key)).toEqual(["recruit:2026-10-07"]);
+    expect(scheduledJobsForDate({ ...plan, slotHours: [] }).map((j) => j.key)).toEqual(["recruit:2026-10-07:12"]);
     const hours = [23, 21];
     scheduledJobsForDate({ ...plan, slotHours: hours });
     expect(hours).toEqual([23, 21]);

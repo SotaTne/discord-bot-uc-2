@@ -4,13 +4,16 @@ import { handupDeadline, slotStart } from "./slot-time";
 export const RECRUIT_GRACE_MS = 30 * 60 * 1000;
 export const CUTOFF_GRACE_MS = 30 * 60 * 1000;
 
+/** 募集開始ジョブのキー。時刻を含むので、募集開始の時刻を変えると、新しい時刻で、もう一度、投稿できる（同じ時刻では、1 日 1 回） */
+export const recruitJobKey = (date: string, hour: number) => `recruit:${date}:${hour}`;
+
 /** 対戦枠の締切ジョブのキー。cron と、管理者の手動の確定が、同じキーで「実行する権利」を取り合う */
 export const cutoffJobKey = (date: string, hour: number) => `cutoff:${date}:${hour}`;
 
 export type ScheduledJobKind = "recruit" | "cutoff";
 
 export type ScheduledJobSpec = {
-  /** job_runs に記録するキー（例: recruit:2026-10-07 / cutoff:2026-10-07:21）。同じキーのジョブは、1回しか実行されない */
+  /** job_runs に記録するキー（例: recruit:2026-10-07:12 / cutoff:2026-10-07:21）。同じキーのジョブは、1回しか実行されない */
   key: string;
   kind: ScheduledJobKind;
   /** cutoff のときの試合時刻。recruit は null */
@@ -37,7 +40,7 @@ export function scheduledJobsForDate(input: {
   const recruitFrom = slotStart(input.date, input.recruitHour);
   const jobs: ScheduledJobSpec[] = [
     {
-      key: `recruit:${input.date}`,
+      key: recruitJobKey(input.date, input.recruitHour),
       kind: "recruit",
       slotHour: null,
       from: recruitFrom,

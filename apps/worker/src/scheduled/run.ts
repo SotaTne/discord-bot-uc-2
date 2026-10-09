@@ -21,7 +21,7 @@ export type ScheduledDeps = {
 };
 
 export type ScheduledSummary = {
-  /** 今回の実行で、実際に行ったジョブ（例: recruit:2026-10-07） */
+  /** 今回の実行で、実際に行ったジョブ（例: recruit:2026-10-07:12） */
   ran: string[];
   errors: string[];
 };

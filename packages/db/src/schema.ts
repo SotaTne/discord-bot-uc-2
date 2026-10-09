@@ -202,7 +202,7 @@ export const jobRuns = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     guildId: text("guild_id").notNull(),
-    /** 例: recruit:2026-10-07 / cutoff:2026-10-07:21 */
+    /** 例: recruit:2026-10-07:12 / cutoff:2026-10-07:21 */
     jobKey: text("job_key").notNull(),
     createdAt: integer("created_at").notNull(),
   },

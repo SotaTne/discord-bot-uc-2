@@ -52,7 +52,7 @@ describe("POST /dev/tick（開発専用）", () => {
     const response = await callAt("2026-10-07T12:00:00", "/dev/tick", { method: "POST" });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
+    expect(await response.json()).toEqual({ ran: ["recruit:2026-10-07:12"], errors: [] });
     expect(requests).toMatchObject([
       {
         url: "http://mock.local/api/v10/channels/300000000000000001/messages",

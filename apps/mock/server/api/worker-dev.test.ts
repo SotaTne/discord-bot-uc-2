@@ -23,11 +23,11 @@ describe("createWorkerDev（worker の開発用ルートを呼ぶ）", () => {
   });
 
   it("tick は、時刻を送らずに、/dev/tick を呼び、結果を返す（時計は、worker が持つ）", async () => {
-    const { sent, fetchImpl } = fakeWorker(() => ({ ran: ["recruit:2026-10-07"], errors: [] }));
+    const { sent, fetchImpl } = fakeWorker(() => ({ ran: ["recruit:2026-10-07:12"], errors: [] }));
 
     const summary = await createWorkerDev({ workerUrl: "http://worker.local", fetch: fetchImpl }, current).tick();
 
-    expect(summary).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
+    expect(summary).toEqual({ ran: ["recruit:2026-10-07:12"], errors: [] });
     expect(sent[0]?.url).toBe("http://worker.local/dev/tick");
     expect(sent[0]?.body).toBe("undefined"); // ボディなし
   });

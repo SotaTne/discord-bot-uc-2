@@ -45,9 +45,9 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
       { id: 2, teamName: "UT", match: { a: "KMU", b: "UT" }, slotDate: "2026-10-06", slotHour: 21, points: 30, countedPoints: 100, matchNumber: 6, active: true, recordedBy: admin, createdAt: jst("2026-10-07T10:00:00"), hasScreenshot: true },
       { id: 1, teamName: "KMU", match: { a: "KMU", b: "NGT" }, slotDate: "2026-10-05", slotHour: 21, points: 80, countedPoints: null, matchNumber: null, active: false, recordedBy: admin, createdAt: jst("2026-10-06T10:00:00"), hasScreenshot: false },
     ],
-    jobs: [{ key: "recruit:2026-10-07", createdAt: jst("2026-10-07T12:00:00") }],
+    jobs: [{ key: "recruit:2026-10-07:12", createdAt: jst("2026-10-07T12:00:00") }],
     schedule: [
-      { key: "recruit:2026-10-07", label: "12:00 募集開始の投稿", from: new Date(jst("2026-10-07T12:00:00")).toISOString(), until: new Date(jst("2026-10-07T13:00:00")).toISOString(), state: "done" },
+      { key: "recruit:2026-10-07:12", label: "12:00 募集開始の投稿", from: new Date(jst("2026-10-07T12:00:00")).toISOString(), until: new Date(jst("2026-10-07T13:00:00")).toISOString(), state: "done" },
       { key: "cutoff:2026-10-07:21", label: "21時の試合の締切（7分前）: マッチングの確定と投稿", from: new Date(jst("2026-10-07T20:53:00")).toISOString(), until: new Date(jst("2026-10-07T21:30:00")).toISOString(), state: "ready" },
       { key: "cutoff:2026-10-07:22", label: "22時の試合の締切（7分前）: マッチングの確定と投稿", from: new Date(jst("2026-10-07T21:53:00")).toISOString(), until: new Date(jst("2026-10-07T22:30:00")).toISOString(), state: "waiting" },
     ],

@@ -45,7 +45,7 @@ describe("募集開始", () => {
   it("募集開始の時刻になると、設定したチャンネルに投稿する（通知はしない）", async () => {
     const summary = await tick("2026-10-07T12:00:00");
 
-    expect(summary.ran).toEqual(["recruit:2026-10-07"]);
+    expect(summary.ran).toEqual(["recruit:2026-10-07:12"]);
     expect(posted).toEqual([
       { channelId: CHANNEL, content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } },
     ]);
@@ -83,6 +83,19 @@ describe("募集開始", () => {
       await tick("2026-10-07T12:00:00");
       expect(posted[0]).toMatchObject({ content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } });
     });
+  });
+
+  it("募集開始の時刻を変えると、新しい時刻で、もう一度、投稿する（同じ時刻では、1 日 1 回）", async () => {
+    await tick("2026-10-07T12:00:00");
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 13 }, 2);
+
+    expect((await tick("2026-10-07T12:30:00")).ran).toEqual([]);
+    expect((await tick("2026-10-07T13:00:00")).ran).toEqual(["recruit:2026-10-07:13"]);
+    expect((await tick("2026-10-07T13:01:00")).ran).toEqual([]);
+    expect(posted.map((post) => post.content)).toEqual([
+      "# 12:00になりましたので、本日の募集を開始します",
+      "# 13:00になりましたので、本日の募集を開始します",
+    ]);
   });
 
   it("毎分呼ばれても、1日1回しか投稿しない", async () => {
@@ -317,7 +330,7 @@ describe("失敗したとき", () => {
     const summary = await tick("2026-10-07T20:20:00");
 
     expect(summary.errors).toHaveLength(1);
-    expect(summary.errors[0]).toContain("recruit:2026-10-07");
+    expect(summary.errors[0]).toContain("recruit:2026-10-07:20");
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
   });
 });

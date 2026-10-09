@@ -168,13 +168,13 @@ describe("buildDevSnapshot", () => {
 
   describe("cron の予定と履歴", () => {
     it("今日の予定を、時刻順に、状態（済・実行できる・待ち・期限切れ）つきで返す", async () => {
-      await claimJob(seeded.db, GUILD_ID, "recruit:2026-10-07", 1);
+      await claimJob(seeded.db, GUILD_ID, "recruit:2026-10-07:12", 1);
 
       // 21時の締切は、締切の時刻（20:53）から 30 分後（21:23）の直前まで、実行できる
       const { schedule } = await snapshot(jst("2026-10-07T21:22:00"));
 
       expect(schedule.map((s) => [s.key, s.state])).toEqual([
-        ["recruit:2026-10-07", "done"],
+        ["recruit:2026-10-07:12", "done"],
         ["cutoff:2026-10-07:21", "ready"],
         ["cutoff:2026-10-07:22", "waiting"],
         ["cutoff:2026-10-07:23", "waiting"],
@@ -192,12 +192,12 @@ describe("buildDevSnapshot", () => {
     });
 
     it("実行済みのジョブの履歴を、新しい順に返す", async () => {
-      await claimJob(seeded.db, GUILD_ID, "recruit:2026-10-07", 100);
+      await claimJob(seeded.db, GUILD_ID, "recruit:2026-10-07:12", 100);
       await claimJob(seeded.db, GUILD_ID, "cutoff:2026-10-07:21", 200);
 
       expect((await snapshot()).jobs).toEqual([
         { key: "cutoff:2026-10-07:21", createdAt: 200 },
-        { key: "recruit:2026-10-07", createdAt: 100 },
+        { key: "recruit:2026-10-07:12", createdAt: 100 },
       ]);
     });
   });
