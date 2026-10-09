@@ -20,7 +20,7 @@
       "database_name": "uc-bot",
       // ローカル開発では使われない。デプロイ前に `wrangler d1 create uc-bot` の値に置き換える
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "../../packages/db/migrations"
+      "migrations_dir": "node_modules/@uc/db/migrations"
     }
   ],
 
