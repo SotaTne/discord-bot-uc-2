@@ -2,9 +2,9 @@ import type { DevSnapshot } from "@uc/api";
 import type { InteractionResponse } from "@uc/discord";
 import { generateDevKeyPair } from "@uc/discord/testing";
 import { createMockApp } from "./app";
-import { createInteractionClient, type TickSummary } from "./interaction-client";
+import { createWorkerDev, type TickSummary } from "./api/worker-dev";
+import { createDiscordServer, createMockState } from "./discord";
 import { defaultSeed } from "./seed";
-import { createMockState } from "./state";
 
 export const jst = (text: string) => Date.parse(`${text}+09:00`);
 
@@ -103,15 +103,16 @@ export function createFakeWorker(options: {
   return { calls, fetchImpl, callsTo: (path: string) => calls.filter((call) => call.path === path) };
 }
 
-/** 動作確認ページのアプリを、worker の代わりをつないで作る */
+/** 疑似 Discord のアプリを、worker の代わりをつないで作る（Discord のサーバー役と、画面用の API が、別に作られて、つながる） */
 export async function createTestMock(options: Parameters<typeof createFakeWorker>[0] = {}) {
   const keys = await generateDevKeyPair();
   const state = createMockState(defaultSeed());
   const worker = createFakeWorker(options);
-  const interactions = createInteractionClient(
+  const discord = createDiscordServer(
     { workerUrl: "http://worker.local", mockUrl: "http://mock.local", keys, applicationId: "100000000000000001", fetch: worker.fetchImpl },
     state,
   );
-  const app = createMockApp({ state, interactions, publicKeyHex: keys.publicKeyHex, workerUrl: "http://worker.local" });
-  return { app, state, worker, keys, interactions };
+  const workerDev = createWorkerDev({ workerUrl: "http://worker.local", fetch: worker.fetchImpl }, state);
+  const app = createMockApp({ state, interactions: discord.interactions, workerDev, discord });
+  return { app, state, worker, keys, interactions: discord.interactions, workerDev };
 }

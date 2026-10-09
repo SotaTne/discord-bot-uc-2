@@ -1,4 +1,3 @@
-import type { DevSnapshot } from "@uc/api";
 import {
   ApplicationCommandOptionType,
   InteractionResponseType,
@@ -36,10 +35,12 @@ export type SendResult = {
   response: InteractionResponse | undefined;
 };
 
-export type TickSummary = { ran: string[]; errors: string[] };
-
-/** 本物の Discord と同じ形式・同じ署名で、worker にコマンドやボタンの操作を送る */
-export function createInteractionClient(options: InteractionClientOptions, state: MockState) {
+/**
+ * Discord のサーバー役の、worker に向けた側。
+ * 本物の Discord と同じ形式・同じ署名で、worker の /interactions に、コマンドやボタンの操作を送る。
+ * （worker の開発用ルート /dev/* を呼ぶのは、Discord の役ではないので、api/worker-dev.ts にある）
+ */
+export function createDiscordInteractions(options: InteractionClientOptions, state: MockState) {
   const doFetch = options.fetch ?? fetch;
   const nowSeconds = options.nowSeconds ?? (() => Math.floor(Date.now() / 1000));
   const workerUrl = options.workerUrl.replace(/\/$/, "");
@@ -147,42 +148,7 @@ export function createInteractionClient(options: InteractionClientOptions, state
     return result;
   }
 
-  /** cron を待たずに、疑似時計の時刻（なければ本物の時刻）で、cron の処理を1回実行させる */
-  async function tick(): Promise<TickSummary> {
-    const devNow = state.clockIso();
-    const response = await doFetch(`${workerUrl}/dev/tick`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(devNow ? { now: devNow } : {}),
-    });
-    if (!response.ok) throw new Error(`worker が ${response.status} を返しました（DEV_CLOCK=true になっていますか）`);
-    return (await response.json()) as TickSummary;
-  }
-
-  /** 疑似時計の時刻（なければ本物の時刻）で、worker の「いまの状態」をまとめて取る（開発専用の /dev/state） */
-  async function fetchSnapshot(): Promise<DevSnapshot> {
-    const devNow = state.clockIso();
-    const response = await doFetch(`${workerUrl}/dev/state?guildId=${encodeURIComponent(state.guildId)}`, {
-      headers: devNow ? { "X-Dev-Now": devNow } : {},
-    });
-    if (!response.ok) {
-      throw new Error(`worker が ${response.status} を返しました（DEV_CLOCK=true になっていますか。まだデータがない可能性もあります）`);
-    }
-    return (await response.json()) as DevSnapshot;
-  }
-
-  /** worker の活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残る */
-  async function resetWorkerData(): Promise<void> {
-    const response = await doFetch(`${workerUrl}/dev/reset?guildId=${encodeURIComponent(state.guildId)}`, { method: "POST" });
-    if (!response.ok) throw new Error(`worker が ${response.status} を返しました（DEV_CLOCK=true になっていますか）`);
-  }
-
-  /** 保存された画像（worker の R2）を取る */
-  function fetchScreenshot(seq: string): Promise<Response> {
-    return doFetch(`${workerUrl}/dev/screenshots/${encodeURIComponent(seq)}?guildId=${encodeURIComponent(state.guildId)}`);
-  }
-
-  return { sendCommand, sendComponent, tick, fetchSnapshot, resetWorkerData, fetchScreenshot };
+  return { sendCommand, sendComponent };
 }
 
 type OptionDefinition = { name: string; type: number; required?: boolean };

@@ -1,36 +1,39 @@
 import type { DevSnapshot } from "@uc/api";
 import { commands } from "@uc/discord";
 import { Hono, type Context } from "hono";
-import { createDiscordRestMock } from "./discord-rest";
-import type { createInteractionClient } from "./interaction-client";
-import type { MockState } from "./state";
-import { renderFragments, renderPage } from "./ui";
+import type { createDiscordInteractions } from "../discord/interactions";
+import type { MockState } from "../discord/state";
+import { clockSteps } from "./clock-steps";
+import { parseJstDateTime } from "./time";
+import type { WorkerDev } from "./worker-dev";
 
-export type MockAppDeps = {
+export type MockApiDeps = {
   state: MockState;
-  interactions: ReturnType<typeof createInteractionClient>;
-  publicKeyHex: string;
-  workerUrl: string;
+  interactions: ReturnType<typeof createDiscordInteractions>;
+  workerDev: WorkerDev;
 };
-
-/** JST の日時（"2026-10-07T20:53" または秒つき）を、epoch ミリ秒にする。読めなければ null */
-export function parseJstDateTime(value: string): number | null {
-  const text = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? `${value}:00` : value;
-  const at = Date.parse(`${text}+09:00`);
-  return Number.isNaN(at) ? null : at;
-}
 
 type ActionResult = { ok: boolean; notice: string };
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : "不明なエラー");
 
-export function createMockApp(deps: MockAppDeps) {
+/**
+ * 画面用の API（JSON）。ブラウザの画面が、これだけを呼ぶ。
+ * Discord のサーバー役（../discord）と、worker の開発用ルート（./worker-dev）を、組み合わせる。
+ * - GET  /state        画面に出すものを、まとめて返す（時計・ユーザー・メッセージ・worker の状態）
+ * - POST /send         コマンドを、選んだ実行者として、順に実行する
+ * - POST /click        メッセージのボタンを押す
+ * - POST /clock        時計を動かす（動かしたら、cron が動く）
+ * - POST /reset        すべて初期状態に戻す
+ * - GET  /screenshots/:seq   worker に保存された画像
+ */
+export function createMockApi(deps: MockApiDeps) {
   const { state } = deps;
 
   /** worker の状態。取れなかったときは、理由を返す（画面に出す） */
   async function loadSnapshot(): Promise<{ snapshot: DevSnapshot | null; snapshotError: string | null }> {
     try {
-      return { snapshot: await deps.interactions.fetchSnapshot(), snapshotError: null };
+      return { snapshot: await deps.workerDev.fetchSnapshot(), snapshotError: null };
     } catch (error) {
       return { snapshot: null, snapshotError: errorText(error) };
     }
@@ -51,25 +54,33 @@ export function createMockApp(deps: MockAppDeps) {
 
   /** 時計を動かしたあとの、cron。本番と同じに、時刻が来れば、自動で動く */
   async function tickAfterClockChange(): Promise<ActionResult> {
-    const summary = await deps.interactions.tick();
+    const summary = await deps.workerDev.tick();
     return summary.errors.length === 0
       ? { ok: true, notice: "" }
       : { ok: false, notice: `cron のエラー: ${summary.errors.join(" / ")}` };
   }
 
   return new Hono()
-    .route("/api/v10", createDiscordRestMock(state))
-
-    // アップロードした画像。コマンドの添付ファイルとして、worker がこの URL から取得する
-    .get("/attachments/:id", (c) => {
-      const attachment = state.getAttachment(c.req.param("id"));
-      if (!attachment) return c.text("not found", 404);
-      return new Response(attachment.bytes, { headers: { "Content-Type": attachment.contentType } });
+    .get("/state", async (c) => {
+      const { snapshot, snapshotError } = await loadSnapshot();
+      const now = state.now();
+      return c.json({
+        guildId: state.guildId,
+        channelId: state.channelId,
+        users: state.users,
+        roles: state.roles,
+        messages: state.messages,
+        clock: { now, real: state.clockIso() === null },
+        // 時計を移せるイベント（募集開始・各対戦枠の締切・試合開始）。worker の状態から作る
+        clockSteps: clockSteps(snapshot),
+        snapshot,
+        snapshotError,
+      });
     })
 
     // 記録した勝利の画像（worker の R2 から取って、そのまま返す）
-    .get("/ui/screenshot/:seq", async (c) => {
-      const response = await deps.interactions.fetchScreenshot(c.req.param("seq")).catch(() => null);
+    .get("/screenshots/:seq", async (c) => {
+      const response = await deps.workerDev.fetchScreenshot(c.req.param("seq")).catch(() => null);
       if (!response?.ok) return c.text("not found", 404);
       return new Response(response.body, {
         headers: {
@@ -79,14 +90,9 @@ export function createMockApp(deps: MockAppDeps) {
       });
     })
 
-    .get("/", async (c) => c.html(await renderPage({ state, ...(await loadSnapshot()) })))
-
-    // 自動で書き換わる表示（時計・Discord・状態）
-    .get("/ui/fragments", async (c) => c.json(await renderFragments({ state, ...(await loadSnapshot()) })))
-
     // コマンドの実行。フォームの項目は、コマンドの定義（@uc/discord）に従って、オプションにする。
     // 実行者が複数なら、選んだ順に、1人ずつ実行する
-    .post("/ui/send", (c) =>
+    .post("/send", (c) =>
       perform(c, async (form) => {
         const name = String(form.command ?? "");
         const definition = commands.find((command) => command.name === name);
@@ -123,7 +129,7 @@ export function createMockApp(deps: MockAppDeps) {
     )
 
     // メッセージのボタンを押す。本人にだけ見えるメッセージは、その本人が押す
-    .post("/ui/click", (c) =>
+    .post("/click", (c) =>
       perform(c, async (form) => {
         const messageId = String(form.message_id ?? "");
         const message = state.messages.find((m) => m.id === messageId);
@@ -134,7 +140,7 @@ export function createMockApp(deps: MockAppDeps) {
     )
 
     // 時計を動かす（set: 指定した時刻 / day: 日を前後 / real: 現在時刻）。動かしたら、cron が自動で動く
-    .post("/ui/clock", (c) =>
+    .post("/clock", (c) =>
       perform(c, async (form) => {
         const action = String(form.action ?? "");
 
@@ -157,12 +163,14 @@ export function createMockApp(deps: MockAppDeps) {
     )
 
     // すべて初期状態に戻す（worker の活動の記録・このページのメッセージと画像・時計）
-    .post("/ui/reset", (c) =>
+    .post("/reset", (c) =>
       perform(c, async () => {
-        await deps.interactions.resetWorkerData();
+        await deps.workerDev.resetWorkerData();
         state.reset();
         state.setClock(null);
         return { ok: true, notice: "" };
       }),
     );
 }
+
+export type MockApiType = ReturnType<typeof createMockApi>;

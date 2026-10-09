@@ -5,7 +5,7 @@ import type { MockState } from "./state";
  * Discord REST の、worker が使う部分だけを真似たもの。
  * worker は DISCORD_API_BASE をこの URL に向けるだけで、本物と同じコードのまま動く。
  */
-export function createDiscordRestMock(state: MockState) {
+export function createDiscordRestRoutes(state: MockState) {
   return new Hono()
     // チャンネルへの投稿（Bot トークンが必要）
     .post("/channels/:channelId/messages", async (c) => {

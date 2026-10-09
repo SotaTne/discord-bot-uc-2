@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { defaultSeed } from "./seed";
+import { defaultSeed } from "../seed";
 import { createMockState, type MockState } from "./state";
 
 let state: MockState;

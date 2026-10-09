@@ -1,5 +1,5 @@
 import type { DevSnapshot } from "@uc/api";
-import { jstHm } from "./format";
+import { jstHm } from "./time";
 
 /** 予定のキーから、短い名前（募集開始 / 21時の締切）を作る */
 export function shortJobName(key: string): string {

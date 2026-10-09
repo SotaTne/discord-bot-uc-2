@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPublicKey, ensureEnvVar } from "./dev-vars";
+import { applyPublicKey, ensureEnvVar } from "./vars";
 
 const KEY = "abcdef0123456789";
 

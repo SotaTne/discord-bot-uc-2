@@ -1,4 +1,4 @@
-import type { Seed } from "./state";
+import type { Seed } from "./discord/state";
 
 /** 動作確認用の初期データ。ID は本物の Discord の ID に似せた数字の文字列 */
 export function defaultSeed(): Seed {

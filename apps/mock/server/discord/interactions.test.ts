@@ -1,8 +1,8 @@
 import { verifyDiscordSignature, type Interaction } from "@uc/discord";
 import { generateDevKeyPair } from "@uc/discord/testing";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createInteractionClient } from "./interaction-client";
-import { defaultSeed } from "./seed";
+import { createDiscordInteractions } from "./interactions";
+import { defaultSeed } from "../seed";
 import { createMockState, type MockState } from "./state";
 
 type Sent = { url: string; headers: Record<string, string>; body: string };
@@ -31,7 +31,7 @@ const fakeWorker = (responseBody: unknown, status = 200): typeof fetch => async 
 };
 
 const client = (fetchImpl: typeof fetch) =>
-  createInteractionClient(
+  createDiscordInteractions(
     {
       workerUrl: "http://localhost:8787/",
       mockUrl: "http://localhost:8788",
@@ -46,7 +46,7 @@ const client = (fetchImpl: typeof fetch) =>
 const alice = () => state.users[0]!;
 const admin = () => state.users[4]!;
 
-describe("createInteractionClient", () => {
+describe("createDiscordInteractions", () => {
   it("worker の /interactions に、本物と同じ形式で署名したリクエストを送る", async () => {
     await client(fakeWorker({ type: 4, data: { content: "ok", flags: 64 } })).sendCommand({
       userId: alice().id,

@@ -1,7 +1,7 @@
 import { createDiscordRest } from "@uc/discord";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createDiscordRestMock } from "./discord-rest";
-import { defaultSeed } from "./seed";
+import { createDiscordRestRoutes } from "./rest";
+import { defaultSeed } from "../seed";
 import { createMockState, type MockState } from "./state";
 
 let state: MockState;
@@ -14,7 +14,7 @@ const bot = { Authorization: "Bot dev-token", "Content-Type": "application/json"
 
 describe("Discord REST のモック", () => {
   it("チャンネルへの投稿が、公開メッセージとして保存される", async () => {
-    const app = createDiscordRestMock(state);
+    const app = createDiscordRestRoutes(state);
     const response = await app.request("/channels/c1/messages", {
       method: "POST",
       headers: bot,
@@ -26,7 +26,7 @@ describe("Discord REST のモック", () => {
   });
 
   it("Bot トークンがなければ 401", async () => {
-    const app = createDiscordRestMock(state);
+    const app = createDiscordRestRoutes(state);
     const response = await app.request("/channels/c1/messages", {
       method: "POST",
       body: JSON.stringify({ content: "x" }),
@@ -39,7 +39,7 @@ describe("Discord REST のモック", () => {
     const alice = state.users[0]!;
     state.markPending("tok", { userId: alice.id, channelId: state.channelId, ephemeral: true });
 
-    const app = createDiscordRestMock(state);
+    const app = createDiscordRestRoutes(state);
     const response = await app.request("/webhooks/app1/tok/messages/@original", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -51,7 +51,7 @@ describe("Discord REST のモック", () => {
   });
 
   it("知らないインタラクションのトークンは 404", async () => {
-    const app = createDiscordRestMock(state);
+    const app = createDiscordRestRoutes(state);
     const response = await app.request("/webhooks/app1/unknown/messages/@original", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -61,14 +61,14 @@ describe("Discord REST のモック", () => {
   });
 
   it("ロール一覧を返す", async () => {
-    const app = createDiscordRestMock(state);
+    const app = createDiscordRestRoutes(state);
     const response = await app.request(`/guilds/${state.guildId}/roles`, { headers: bot });
     const roles = (await response.json()) as { name: string }[];
     expect(roles.map((r) => r.name)).toContain("KMU");
   });
 
   it("worker が使う @uc/discord の REST クライアントから、そのまま呼べる", async () => {
-    const mock = createDiscordRestMock(state);
+    const mock = createDiscordRestRoutes(state);
     const baseUrl = "http://mock.local/api/v10";
     const rest = createDiscordRest({
       token: "dev-token",

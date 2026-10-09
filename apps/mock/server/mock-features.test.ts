@@ -1,10 +1,10 @@
 import type { Interaction } from "@uc/discord";
 import { generateDevKeyPair } from "@uc/discord/testing";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createDiscordRestMock } from "./discord-rest";
-import { createInteractionClient } from "./interaction-client";
+import { createDiscordRestRoutes } from "./discord/rest";
+import { createDiscordInteractions } from "./discord/interactions";
 import { defaultSeed } from "./seed";
-import { createMockState, type MockState } from "./state";
+import { createMockState, type MockState } from "./discord/state";
 
 let keys: Awaited<ReturnType<typeof generateDevKeyPair>>;
 let state: MockState;
@@ -32,7 +32,7 @@ function fakeWorker(respond: (url: string) => unknown) {
 }
 
 const clientFor = (fetchImpl: typeof fetch) =>
-  createInteractionClient(
+  createDiscordInteractions(
     { workerUrl: "http://worker.local", mockUrl: "http://mock.local/", keys, applicationId: "100000000000000001", fetch: fetchImpl },
     state,
   );
@@ -69,7 +69,7 @@ describe("MockState: 時計・添付ファイル・メッセージの置き換�
   });
 });
 
-describe("InteractionClient: 疑似時計・添付ファイル・ボタン・cron", () => {
+describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", () => {
   it("疑似時計が設定されていれば X-Dev-Now ヘッダーで伝える。なければ付けない", async () => {
     const { sent, fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "ok" } }));
     const client = clientFor(fetchImpl);
@@ -116,7 +116,7 @@ describe("InteractionClient: 疑似時計・添付ファイル・ボタン・cro
   });
 
   it("worker の返信の編集が、応答（考え中）より先に届いても、受け付ける（実際の Discord でも、起こり得る順序）", async () => {
-    const rest = createDiscordRestMock(state);
+    const rest = createDiscordRestRoutes(state);
     // worker が、応答を返す前に、返信の編集を送ってくる
     const earlyEdit: typeof fetch = async (_input, init) => {
       const interaction = JSON.parse(String(init?.body)) as Interaction;
@@ -171,25 +171,5 @@ describe("InteractionClient: 疑似時計・添付ファイル・ボタン・cro
     await clientFor(fetchImpl).sendComponent({ userId: alice().id, customId: "score-clear:cancel", messageId: "none" });
 
     expect(state.messages).toMatchObject([{ content: "管理者ではありません", visibleTo: alice().id }]);
-  });
-
-  it("tick は、疑似時計があればその時刻を /dev/tick に送り、結果を返す", async () => {
-    const { sent, fetchImpl } = fakeWorker(() => ({ ran: ["recruit:2026-10-07"], errors: [] }));
-    state.setClock(jst("2026-10-07T12:00:00"));
-
-    const summary = await clientFor(fetchImpl).tick();
-
-    expect(summary).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
-    expect(sent[0]?.url).toBe("http://worker.local/dev/tick");
-    expect(JSON.parse(sent[0]!.body)).toEqual({ now: "2026-10-07T03:00:00.000Z" });
-  });
-
-  it("tick は、疑似時計がなければ時刻を送らない。worker が 404（DEV_CLOCK 無効）なら、理由つきで失敗する", async () => {
-    const ok = fakeWorker(() => ({ ran: [], errors: [] }));
-    await clientFor(ok.fetchImpl).tick();
-    expect(JSON.parse(ok.sent[0]!.body)).toEqual({});
-
-    const notFound: typeof fetch = async () => new Response("{}", { status: 404 });
-    await expect(clientFor(notFound).tick()).rejects.toThrow("DEV_CLOCK");
   });
 });
