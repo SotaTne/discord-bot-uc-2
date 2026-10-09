@@ -10,6 +10,21 @@ export function jstDateOf(at: Date): string {
 }
 
 /** JST の「日付 + 時」の開始時刻 */
+/** 試合時刻（登録）の、削除の状態。deletedAt は、削除した時刻（epoch ms）。削除していなければ null */
+export type SlotHourEntry = { hour: number; deletedAt: number | null };
+
+/**
+ * その日の、対戦枠にする試合時刻。削除していない時刻は、いつでも出す。
+ * 削除した時刻は、削除した日までの対戦枠を出す（deleted: true）。それ以降の日付には出さない。
+ * 記録の有無には、よらない（削除した日までは、記録がなくても出る）。追加し直すと（deletedAt が null に戻ると）、全部の日付に出る。
+ */
+export function slotHoursOnDate(entries: readonly SlotHourEntry[], date: string): { hour: number; deleted: boolean }[] {
+  return entries
+    .filter((entry) => entry.deletedAt === null || date <= jstDateOf(new Date(entry.deletedAt)))
+    .map((entry) => ({ hour: entry.hour, deleted: entry.deletedAt !== null }))
+    .sort((a, b) => a.hour - b.hour);
+}
+
 export function slotStart(slotDate: string, slotHour: number): Date {
   assertHour(slotHour);
   return new Date(Date.parse(`${slotDate}T00:00:00Z`) + slotHour * HOUR_MS - JST_OFFSET_MS);

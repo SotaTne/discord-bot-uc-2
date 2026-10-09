@@ -183,78 +183,78 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
   });
 });
 
-describe("試合時刻を削除したあとの対戦枠", () => {
+describe("試合時刻を削除したあとの対戦枠（論理削除。削除した日までの対戦枠が、残る）", () => {
   const deleteHour = async (hour: number) => {
     const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
     return h.json(`/api/slots/${body.slots.find((slot) => slot.hour === hour)!.id}`, { method: "DELETE", cookie });
   };
-  const hours = async () => (await h.json<{ slots: (Slot & { deleted: boolean })[] }>("/api/board", { cookie })).body.slots.map((slot) => [slot.hour, slot.deleted]);
+  /** その日の対戦枠（時刻・削除済みか・マッチング済みか） */
+  const hours = async (date: string) =>
+    (await h.json<{ slots: (Slot & { deleted: boolean })[] }>(`/api/board?date=${date}`, { cookie })).body.slots.map((slot) => [slot.hour, slot.deleted, slot.matched]);
+  const addMatch = (slotHour: number, slotDate?: string) =>
+    h.json<{ id?: number; error?: string }>("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour, ...(slotDate ? { slotDate } : {}) } });
 
-  it("マッチング済みの対戦枠は、削除した試合時刻でも、記録として出す（deleted: true）。時刻の順に並ぶ", async () => {
+  it("今日（2026-10-07）に削除すると、削除した日（今日）までの対戦枠は、記録がなくても「削除済み」で出る。翌日からは出ない。削除していない時刻は、どの日も出る", async () => {
+    await deleteHour(21);
+
+    expect(await hours("2026-10-07")).toEqual([[21, true, false], [22, false, false], [23, false, false]]);
+    expect(await hours("2026-09-01")).toEqual([[21, true, false], [22, false, false], [23, false, false]]);
+    expect(await hours("2026-10-08")).toEqual([[22, false, false], [23, false, false]]);
+  });
+
+  it("マッチング済みの記録（組分け）は、削除しても残る", async () => {
     await withChannel();
     await raise(h.seeded.kmuId);
     await raise(h.seeded.utId);
     await confirm();
 
-    expect((await deleteHour(21)).status).toBe(200);
+    await deleteHour(21);
 
-    expect(await hours()).toEqual([
-      [21, true],
-      [22, false],
-      [23, false],
-    ]);
-    const slot = await slotOf(21);
-    expect(slot.matched).toBe(true);
-    expect(slot.matches).toHaveLength(1);
+    expect(await hours("2026-10-07")).toEqual([[21, true, true], [22, false, false], [23, false, false]]);
+    expect((await slotOf(21)).matches).toHaveLength(1);
   });
 
-  it("削除した試合時刻の対戦枠をやり直すときは、notify が true でも、Discord に投稿しない（やり直しは、できる）", async () => {
+  it("削除済みの対戦枠にも、組分けを追加できる（出ている日だけ。出ない日は 404）", async () => {
+    await deleteHour(21);
+
+    expect((await addMatch(21)).status).toBe(201);
+    expect(await addMatch(21, "2026-10-08")).toMatchObject({ status: 404, body: { error: "slot_not_found" } });
+  });
+
+  it("削除済みの対戦枠は、やり直せない（404）。組分けも勝利も、消えない。マッチング処理も、実行できない（404）", async () => {
     const posted = await withChannel();
     await raise(h.seeded.kmuId);
     await raise(h.seeded.utId);
     await confirm();
+    await deleteHour(21);
     posted.length = 0;
-    await deleteHour(21);
 
-    const { status, body } = await h.json<{ notified?: boolean }>("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour: 21, notify: true } });
+    expect((await reopen()).status).toBe(404);
+    expect((await confirm()).status).toBe(404);
 
-    expect(status).toBe(200);
-    expect(body.notified).toBe(false);
     expect(posted).toEqual([]);
-    // やり直したあとも、挙手が残っているので、削除済みの対戦枠は、未マッチングとして、画面に残る
-    expect(await hours()).toEqual([
-      [21, true],
-      [22, false],
-      [23, false],
-    ]);
-    expect((await slotOf(21)).matched).toBe(false);
-  });
-
-  it("削除した試合時刻でも、画面に出ている（記録が残っている）対戦枠には、組分けを追加できる。記録のない時刻には、追加できない（404）", async () => {
-    await raise(h.seeded.kmuId);
-    await deleteHour(21);
-    await deleteHour(22);
-    const add = (slotHour: number) =>
-      h.json<{ id?: number; error?: string }>("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour } });
-
-    const onShown = await add(21);
-    const onHidden = await add(22);
-
-    expect(onShown.status).toBe(201);
-    expect(onHidden).toMatchObject({ status: 404, body: { error: "slot_not_found" } });
+    expect((await slotOf(21)).matched).toBe(true);
     expect((await slotOf(21)).matches).toHaveLength(1);
   });
 
-  it("未マッチングでも、その日に、挙手が残っていれば、削除した試合時刻の対戦枠を出す。記録が何もなければ、出さない", async () => {
-    await raise(h.seeded.kmuId);
-
+  it("同じ時刻を追加し直すと、元に戻る（別の行は作らない）。記録も、全部の日付で、また出る", async () => {
+    await addMatch(21);
     await deleteHour(21);
-    await deleteHour(22);
+    expect(await hours("2026-10-08")).toEqual([[22, false, false], [23, false, false]]);
 
-    expect(await hours()).toEqual([
-      [21, true],
-      [23, false],
-    ]);
+    const { status } = await h.json<{ id: number }>("/api/slots", { method: "POST", cookie, body: { hour: 21 } });
+
+    expect(status).toBe(201);
+    expect(await hours("2026-10-08")).toEqual([[21, false, false], [22, false, false], [23, false, false]]);
+    expect((await slotOf(21)).matches).toHaveLength(1);
   });
 
+  it("削除した時刻は、設定の一覧（GET /api/slots）には出ない。挙手もできない", async () => {
+    await deleteHour(21);
+
+    const { body } = await h.json<{ slots: { hour: number }[] }>("/api/slots", { cookie });
+    expect(body.slots.map((slot) => slot.hour)).toEqual([22, 23]);
+    const handup = await h.json("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour: 21 } });
+    expect(handup.status).toBe(404);
+  });
 });

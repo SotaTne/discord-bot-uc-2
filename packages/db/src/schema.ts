@@ -32,6 +32,8 @@ export const slots = sqliteTable(
     /** 試合開始時刻（JST の時） */
     hour: integer("hour").notNull(),
     createdAt: integer("created_at").notNull(),
+    /** 削除した時刻（論理削除）。入っていれば、削除済みの試合時刻。同じ時刻を追加し直すと、null に戻る */
+    deletedAt: integer("deleted_at"),
   },
   (t) => [
     uniqueIndex("slots_guild_hour").on(t.guildId, t.hour),

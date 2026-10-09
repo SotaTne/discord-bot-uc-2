@@ -86,6 +86,7 @@ CREATE TABLE `slots` (
 	`guild_id` text NOT NULL,
 	`hour` integer NOT NULL,
 	`created_at` integer NOT NULL,
+	`deleted_at` integer,
 	CONSTRAINT "slots_hour_range" CHECK("slots"."hour" BETWEEN 0 AND 23)
 );
 --> statement-breakpoint

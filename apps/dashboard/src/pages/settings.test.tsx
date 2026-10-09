@@ -199,8 +199,8 @@ describe("設定の画面: 試合時刻", () => {
     fireEvent.click(await screen.findByRole("button", { name: "21:00の試合時刻を削除" }));
 
     const dialog = within(screen.getByRole("dialog", { name: "21:00の試合時刻を削除" }));
-    expect(dialog.getByText(/今後、この時刻の募集・挙手・マッチングは行われません/)).toBeTruthy();
-    expect(dialog.getByText(/マッチング済みの対戦枠の記録（組分け・勝利）は残り、対戦枠の画面に「削除済み」として出ます/)).toBeTruthy();
+    expect(dialog.getByText(/この時刻の募集・挙手・マッチングは、今から行われません/)).toBeTruthy();
+    expect(dialog.getByText(/削除した日（今日）までの対戦枠は、「削除済み」として、対戦枠の画面に残ります/)).toBeTruthy();
     expect(dialog.getByText(/同じ時刻を追加し直すと、元に戻ります/)).toBeTruthy();
     // ダイアログを開いただけでは、削除しない
     expect(backend.count("DELETE", "/api/slots/11")).toBe(0);

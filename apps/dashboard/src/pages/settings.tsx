@@ -272,8 +272,8 @@ function RevokeOnReissue({ initial }: { initial: SettingsValues }) {
 /** 試合時刻を削除する前の、確認に出す説明。残るもの・止まるもの・今日の挙手の件数を、書く */
 function removeSlotDescription(hour: number, today: { matched: boolean; handups: number } | undefined): string {
   const lines = [
-    `${formatHour(hour)}の試合時刻を削除します。今後、この時刻の募集・挙手・マッチングは行われません。`,
-    "マッチング済みの対戦枠の記録（組分け・勝利）は残り、対戦枠の画面に「削除済み」として出ます。まだ組まれていない挙手は、組まれません。",
+    `${formatHour(hour)}の試合時刻を削除します。この時刻の募集・挙手・マッチングは、今から行われません。`,
+    "削除した日（今日）までの対戦枠は、「削除済み」として、対戦枠の画面に残ります。組分けと勝利の記録も、そのまま残ります（削除済みの対戦枠では、マッチング処理と、やり直しはできません）。",
   ];
   if (today && !today.matched && today.handups > 0) lines.push(`今日は、この時刻に、${today.handups}件の挙手が入っています（組まれません）。`);
   lines.push("同じ時刻を追加し直すと、元に戻ります。");

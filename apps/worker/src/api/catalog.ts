@@ -42,7 +42,7 @@ export function createCatalogRoutes(deps: ApiDeps) {
     .delete("/slots/:id", async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
-      const deleted = await deleteSlot(createDb(c.env.DB), c.get("auth").guildId, id);
+      const deleted = await deleteSlot(createDb(c.env.DB), c.get("auth").guildId, id, deps.clock.now().getTime());
       return deleted ? c.json({ ok: true as const }) : c.json({ error: "not_found" as const }, 404);
     })
 

@@ -110,7 +110,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
   // やり直すとき、Discord に、マッチングのキャンセルを投稿するか（初期は、投稿する）
   const [notifyCancel, setNotifyCancel] = useState(true);
   const reopen = useInvalidatingMutation(
-    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: !slot.deleted && notifyCancel } })),
+    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: notifyCancel } })),
     REFRESH,
   );
   const winCount = slot.matches.filter((match) => match.win).length + slot.matches.reduce((sum, match) => sum + match.deletedWins, 0);
@@ -127,11 +127,9 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直したあとも、マッチング処理は実行できません（Discord には、投稿しません）。" : ""}`}
+          description="この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
           danger
           extra={
-            // 削除済みの試合時刻の対戦枠は、通知しない（チェックも、出さない）
-            !slot.deleted &&
             (slot.matches.length > 0 || slot.excluded !== null) && (
               <Checkbox
                 label="Discord に、マッチングのキャンセルを投稿する（組まれていたチームに通知します）"
@@ -162,13 +160,14 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
       {/* 左: 時刻（目印）・状態・この対戦枠への操作 */}
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
-        <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
-          {slot.matched ? "マッチング済み" : slot.deleted ? "未マッチング" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
-        </Badge>
-        {/* 削除した試合時刻の対戦枠。記録（挙手・組分け）が残っているので、出している（背景の色も、変える） */}
-        {slot.deleted && (
-          <Badge color="gray" variant="outline" tt="none" title="設定で削除した試合時刻です。記録だけが残っています">
+        {/* 状態は、3 つ: 未マッチング（受付の段階つき）/ マッチング済み / 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
+        {slot.deleted ? (
+          <Badge color="gray" variant="filled" tt="none" title="設定で削除した試合時刻です。削除した日までの対戦枠が、残っています">
             削除済み
+          </Badge>
+        ) : (
+          <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
+            {slot.matched ? "マッチング済み" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
           </Badge>
         )}
       </Stack>
@@ -180,8 +179,8 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             <Title order={3} c="dimmed">
               挙手 {slot.handups.length > 0 && `（${slot.handups.length}）`}
             </Title>
-            {/* 削除済みの試合時刻は、マッチング処理を実行できない（マッチング済みの記録の、やり直しだけできる） */}
-            {(!slot.deleted || slot.matched) && slotAction}
+            {/* 削除済みの試合時刻は、マッチング処理も、やり直しも、しない（組分けと勝利の記録だけを、扱う） */}
+            {!slot.deleted && slotAction}
           </Group>
           <ErrorNote error={confirm.error ?? reopen.error} />
           {reopen.data?.notifyFailed && (
@@ -189,7 +188,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               やり直しはできましたが、Discord への投稿に失敗しました。必要なら、チームに、直接お知らせください。
             </Text>
           )}
-          {slot.handups.length === 0 && slot.matched && (
+          {slot.handups.length === 0 && (slot.matched || slot.deleted) && (
             <Text c="dimmed" size="sm">
               まだありません
             </Text>

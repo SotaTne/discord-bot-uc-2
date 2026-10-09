@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "244377a6-265c-4bd6-ae79-66919902938e",
+  "id": "b3f27f69-d550-49b2-97a6-965cfd2234c3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "dashboard_links": {
@@ -585,6 +585,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },

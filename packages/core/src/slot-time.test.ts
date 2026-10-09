@@ -6,6 +6,7 @@ import {
   isAcceptingHandups,
   jstDateOf,
   resolveRecentSlotDate,
+  slotHoursOnDate,
   slotPhase,
   slotStart,
 } from "./slot-time";
@@ -128,5 +129,34 @@ describe("formatJstTime", () => {
   it("JST の HH:MM で表す（UTC の日付をまたぐ場合も）", () => {
     expect(formatJstTime(jst("2026-10-07T14:05:30"))).toBe("14:05");
     expect(formatJstTime(new Date("2026-10-07T15:30:00Z"))).toBe("00:30");
+  });
+});
+
+describe("slotHoursOnDate（その日の、対戦枠にする試合時刻）", () => {
+  const entries = [
+    { hour: 23, deletedAt: null },
+    { hour: 21, deletedAt: jst("2026-10-07T15:00:00").getTime() },
+    { hour: 22, deletedAt: null },
+  ];
+
+  it("削除していない時刻は、どの日にも出る。時刻の順", () => {
+    expect(slotHoursOnDate(entries, "2026-10-09").map((slot) => slot.hour)).toEqual([22, 23]);
+    expect(slotHoursOnDate(entries, "2026-01-01").map((slot) => slot.hour)).toEqual([21, 22, 23]);
+  });
+
+  it("削除した時刻は、削除した日（JST）までは、「削除済み」で出る。翌日からは出ない", () => {
+    expect(slotHoursOnDate(entries, "2026-10-07")).toEqual([
+      { hour: 21, deleted: true },
+      { hour: 22, deleted: false },
+      { hour: 23, deleted: false },
+    ]);
+    expect(slotHoursOnDate(entries, "2026-10-08").map((slot) => slot.hour)).toEqual([22, 23]);
+  });
+
+  it("削除した日は、UTC ではなく、JST で数える（UTC の 15:00 以降は、JST の翌日）", () => {
+    const late = [{ hour: 21, deletedAt: new Date("2026-10-07T15:30:00Z").getTime() }];
+
+    expect(slotHoursOnDate(late, "2026-10-08")).toEqual([{ hour: 21, deleted: true }]);
+    expect(slotHoursOnDate(late, "2026-10-09")).toEqual([]);
   });
 });
