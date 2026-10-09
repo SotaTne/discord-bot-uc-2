@@ -197,10 +197,12 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ├─ apps/
 │  ├─ worker/      Hono。/interactions、cron、/api/*、/dev/*（開発専用）、ダッシュボードの静的配信
 │  ├─ dashboard/   Vite + React の管理画面
+│  ├─ cron/        Google Apps Script。毎分、POST /cron を呼ぶ（呼ぶ先と間隔だけ。処理は packages/cron）
 │  └─ mock/        開発専用。疑似 Discord と動作確認ページ
 ├─ packages/
 │  ├─ api/         zod スキーマのみ（worker の検証と dashboard のフォーム検証で共有）
 │  ├─ core/        純粋なドメイン規則（マッチング、得点、勝利の記録の確認、時刻）
+│  ├─ cron/        cron を起こす処理の本体（リクエストの作り方と応答の判定）。Apps Script と mock が使う
 │  ├─ db/          D1 スキーマ、マイグレーション、リポジトリ
 │  └─ discord/     REST クライアント、署名検証、コマンド定義と登録
 └─ SPEC.md
@@ -221,10 +223,9 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - 開発の準備のスクリプトは、`apps/mock/scripts/`（`setup-dev.ts`: 鍵・`.dev.vars`・シード）。
 - **擬似 Interactions**: 本物と同じ形式の JSON を、開発用の Ed25519 鍵で署名して worker に送る。worker は本番と同じ署名検証を通る。鍵は `apps/mock/.dev-keys.json` に保存して使い回す（git には入れない）。
 - **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は、環境変数 `DISCORD_API_BASE` で、モックに向ける（開発の `.dev.vars` だけに書く。本番では、設定しない）。
-- **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、cron の処理を実行する（本物の cron と同じ）。
+- **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、本番の Apps Script と同じ入口（`POST /cron`。合言葉つき。作り方と判定は `packages/cron`）を呼んで、cron を起こす。
 - **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発専用の入口にだけ**ある。`apps/worker/src/dev/` に、疑似時計・`/dev/*` のルート・状態の取得・入口（`entry.ts`）を集め、本番の入口（`src/index.ts`）は、そこを読み込まない。本番のコードが、`src/dev/` を import していないこと（`tests/worker-imports.test.ts`）と、本番のビルドに、開発専用の文字列がないこと（`tests/worker-build.test.ts`）を、テストで確かめる:
   - `GET /dev/clock` / `PUT /dev/clock`: 疑似時計の状態（`{ offsetMs }`）と、いまの時刻
-  - `POST /dev/tick`: いまの疑似時計で、cron の処理（募集開始・締切）を1回実行する
   - `GET /dev/state`: いまの状態を、まとめて返す（`@uc/api` の `DevSnapshot`）。挙手・チームごとの対戦数と勝利数と得点・マッチング結果・勝利の記録（集計された点数と、そのチームの何試合目か）・cron の予定と履歴・試合ごとの勝利の記録・ログインの状況を含む
   - `GET /dev/screenshots/:seq`: 保存した画像（ログインなし）
   - `POST /dev/reset`: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残す

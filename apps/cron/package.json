@@ -1,5 +1,5 @@
 {
-  "name": "@uc/cron",
+  "name": "@uc/cron-app",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,6 +7,9 @@
     "push": "pnpm build && clasp push",
     "typecheck": "tsc",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@uc/cron": "workspace:*"
   },
   "devDependencies": {
     "@google/clasp": "catalog:",

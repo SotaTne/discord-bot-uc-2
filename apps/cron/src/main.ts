@@ -1,27 +1,23 @@
+import { runTick } from "@uc/cron";
 import { CRON_INTERVAL_MINUTES, SECRET_PROPERTY, TARGETS } from "./config";
-import { buildRequests, describeResponse } from "./requests";
 
 /**
  * 毎分、実行される。ステージングと本番の Worker に、cron を起こす POST を、同時に送る（Worker は、すぐ 202 を返す）。
+ * 作り方と判定は @uc/cron（開発の mock と同じ）。ここは、送り方（fetchAll）と、合言葉の読み方（プロパティ）だけ。
  * 待ち時間は、いちばん遅い 1 件の分だけで済む（1 日の実行時間の上限に、収めるため）
  */
 function tick() {
-  const requests = buildRequests(TARGETS, PropertiesService.getScriptProperties().getProperty(SECRET_PROPERTY));
-  if (!requests) {
-    console.error(`合言葉（スクリプトのプロパティ ${SECRET_PROPERTY}）が、設定されていません`);
-    return;
-  }
-
-  try {
-    const responses = UrlFetchApp.fetchAll(requests.map(({ url, options }) => ({ url, ...options })));
-    responses.forEach((response, index) => {
-      const line = describeResponse(requests[index]!.target, response.getResponseCode(), response.getContentText());
-      if (line) console.error(line);
-    });
-  } catch (error) {
-    // 通信そのものの失敗（名前が引けない など）。次の分に、もう一度呼ぶ
-    console.error(`呼べませんでした ${String(error)}`);
-  }
+  runTick({
+    targets: TARGETS,
+    secret: PropertiesService.getScriptProperties().getProperty(SECRET_PROPERTY),
+    send: async (requests) =>
+      UrlFetchApp.fetchAll(requests.map(({ url, options }) => ({ url, ...options }))).map((response) => ({
+        status: response.getResponseCode(),
+        body: response.getContentText(),
+      })),
+  })
+    .then((lines) => lines.forEach((line) => console.error(line)))
+    .catch((error) => console.error(String(error)));
 }
 
 /** 時間トリガーを作る（すでにあれば、作り直す。間隔は、config.ts）。最初に 1 回だけ、手で実行する */

@@ -2,7 +2,7 @@ import type { DevClock, DevSnapshot } from "@uc/api";
 import type { InteractionResponse } from "@uc/discord";
 import { generateDevKeyPair } from "@uc/discord/testing";
 import { createMockApp } from "./app";
-import { createWorkerDev, type TickSummary } from "./api/worker-dev";
+import { createWorkerDev } from "./api/worker-dev";
 import { createDiscordServer, createMockState } from "./discord";
 import { defaultSeed } from "./seed";
 
@@ -57,6 +57,9 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
   };
 }
 
+/** テストで、mock が worker に送る合言葉 */
+export const TEST_CRON_SECRET = "test-cron-secret";
+
 export type WorkerCall = { method: string; path: string; search: string; headers: Record<string, string>; body: string };
 
 /** worker の代わり。受け取った呼び出しを記録して、決めた応答を返す */
@@ -67,8 +70,8 @@ export function createFakeWorker(options: {
   interaction?: InteractionResponse | ((body: string) => InteractionResponse);
   /** /interactions の HTTP ステータス（200 以外なら、署名の検証に失敗したときなど） */
   interactionStatus?: number;
-  tick?: TickSummary;
-  tickStatus?: number;
+  /** POST /cron の HTTP ステータス（既定は、受け付けた 202） */
+  cronStatus?: number;
   /** PUT /dev/clock の HTTP ステータス */
   clockStatus?: number;
   resetStatus?: number;
@@ -101,7 +104,7 @@ export function createFakeWorker(options: {
       workerClock = JSON.parse(String(init?.body)) as DevClock;
       return json({ ...workerClock, now: 0 });
     }
-    if (url.pathname === "/dev/tick") return json(options.tick ?? { ran: [], errors: [] }, options.tickStatus ?? 200);
+    if (url.pathname === "/cron") return (options.cronStatus ?? 202) === 202 ? json({ accepted: true }, 202) : json({ error: "x" }, options.cronStatus);
     if (url.pathname === "/dev/reset") return json({ ok: true }, options.resetStatus ?? 200);
     if (url.pathname.startsWith("/dev/screenshots/")) {
       const shot = options.screenshot ?? { status: 404 };
@@ -125,7 +128,7 @@ export async function createTestMock(options: Parameters<typeof createFakeWorker
     { workerUrl: "http://worker.local", mockUrl: "http://mock.local", keys, applicationId: "100000000000000001", fetch: worker.fetchImpl },
     state,
   );
-  const workerDev = createWorkerDev({ workerUrl: "http://worker.local", fetch: worker.fetchImpl }, state);
+  const workerDev = createWorkerDev({ workerUrl: "http://worker.local", cronSecret: TEST_CRON_SECRET, fetch: worker.fetchImpl }, state);
   const app = createMockApp({ state, interactions: discord.interactions, workerDev, discord, ...(autoTick ? { autoTick } : {}) });
   return { app, state, worker, keys, interactions: discord.interactions, workerDev };
 }

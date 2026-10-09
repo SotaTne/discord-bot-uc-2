@@ -11,7 +11,7 @@
 1. Worker 側に、合言葉を置く: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）（`/cron` が、合言葉つきで動くようになる）。
 2. <https://script.google.com> で、新しいプロジェクトを作る。「プロジェクトの設定」から、ID を、`apps/cron/.clasp.json`（`.clasp.example.json` をコピー）の `scriptId` に書く。
 3. 「プロジェクトの設定」→「スクリプト プロパティ」に、`CRON_SECRET` を、1 と同じ値で登録する。
-4. 手元で `pnpm --filter @uc/cron exec clasp login` を実行してから、`pnpm --filter @uc/cron push`（ビルドして、Apps Script に置く）。
+4. 手元で `pnpm --filter @uc/cron-app exec clasp login` を実行してから、`pnpm --filter @uc/cron-app push`（ビルドして、Apps Script に置く）。
 5. Apps Script の画面で、`installTrigger` を、1 回、手で実行する（Google の権限の確認が出る）。
 
 動いているかは、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（ジョブを実行した回と、失敗した回だけ、出る）。

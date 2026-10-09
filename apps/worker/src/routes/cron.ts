@@ -1,10 +1,8 @@
 import type { Clock } from "@uc/core";
 import { Hono } from "hono";
-import { createDb } from "../db";
-import { createRestFromEnv } from "../discord";
 import type { AppEnv } from "../env";
 import { requireCronSecret } from "../middleware/require-cron-secret";
-import { runScheduled } from "../scheduled/run";
+import { runCron } from "../scheduled/run-cron";
 
 export const CRON_PATH = "/cron";
 
@@ -15,13 +13,7 @@ export const CRON_PATH = "/cron";
  */
 export function createCronRoute(deps: { clock: Clock }) {
   return new Hono<{ Bindings: AppEnv }>().use(requireCronSecret).post("/", (c) => {
-    c.executionCtx.waitUntil(
-      runScheduled({ db: createDb(c.env.DB), rest: createRestFromEnv(c.env), clock: deps.clock })
-        .then((summary) => {
-          if (summary.ran.length > 0 || summary.errors.length > 0) console.log("cron(http):", JSON.stringify(summary));
-        })
-        .catch((error) => console.error("cron(http) に失敗しました", error)),
-    );
+    c.executionCtx.waitUntil(runCron(c.env, deps.clock, "http"));
     return c.json({ accepted: true as const }, 202);
   });
 }

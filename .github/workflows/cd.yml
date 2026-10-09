@@ -52,9 +52,26 @@ jobs:
       # --secrets-file は、足すだけ（消えない）。消すときは、wrangler secret delete
       - name: シークレットのファイルを、一時的に作る
         run: |
-          printf 'DISCORD_BOT_TOKEN=%s\n' "$DISCORD_BOT_TOKEN" > "$RUNNER_TEMP/secrets.env"
-          # CRON_SECRET は、登録されているときだけ渡す（未登録の間は、/cron が、すべて断る）
-          if [ -n "$CRON_SECRET" ]; then printf 'CRON_SECRET=%s\n' "$CRON_SECRET" >> "$RUNNER_TEMP/secrets.env"; fi
+          secrets_file="$RUNNER_TEMP/secrets.env"
+          : > "$secrets_file"
+
+          # 必須の秘密。登録されていなければ、ここでデプロイを止める
+          for name in DISCORD_BOT_TOKEN; do
+            value="${!name}"
+            if [ -z "$value" ]; then
+              echo "::error::${name} が、この環境の Secrets に登録されていません"
+              exit 1
+            fi
+            printf '%s=%s\n' "$name" "$value" >> "$secrets_file"
+          done
+
+          # 任意の秘密。登録されているときだけ渡す（未登録の間は、/cron が、すべて断る）
+          for name in CRON_SECRET; do
+            value="${!name}"
+            if [ -n "$value" ]; then
+              printf '%s=%s\n' "$name" "$value" >> "$secrets_file"
+            fi
+          done
       - run: >
           pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
           --secrets-file "$RUNNER_TEMP/secrets.env"

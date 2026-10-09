@@ -1,12 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { createMockApp } from "./app";
 import { createWorkerDev } from "./api/worker-dev";
+import { DEV_CRON_SECRET } from "./dev-cron";
 import { createDiscordServer, createMockState, type MockState } from "./discord";
 import { loadOrCreateDevKeys } from "./keys";
 import { defaultSeed } from "./seed";
 import type { DevKeyPair } from "@uc/discord/testing";
 
-export type MockEnv = Partial<Record<"PORT" | "WORKER_URL" | "MOCK_URL" | "DISCORD_APPLICATION_ID", string | undefined>>;
+export type MockEnv = Partial<Record<"PORT" | "WORKER_URL" | "MOCK_URL" | "DISCORD_APPLICATION_ID" | "CRON_SECRET", string | undefined>>;
 
 /** 鍵（.dev-keys.json に保存される）を読む。なければ作る */
 export const loadKeys = () => loadOrCreateDevKeys(fileURLToPath(new URL("../.dev-keys.json", import.meta.url)));
@@ -26,7 +27,7 @@ export function buildMockApp(input: { state: MockState; keys: DevKeyPair; env?: 
   const applicationId = env.DISCORD_APPLICATION_ID ?? "100000000000000001";
 
   const discord = createDiscordServer({ workerUrl, mockUrl, keys, applicationId }, state);
-  const workerDev = createWorkerDev({ workerUrl }, state);
+  const workerDev = createWorkerDev({ workerUrl, cronSecret: env.CRON_SECRET ?? DEV_CRON_SECRET }, state);
   // 実際の開発サーバーでは、時計が動いている間、cron（毎分）を、自動で実行する
   return createMockApp({ state, interactions: discord.interactions, workerDev, discord, autoTick: true });
 }

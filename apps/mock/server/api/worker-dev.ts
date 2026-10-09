@@ -1,13 +1,14 @@
 import type { DevClock, DevSnapshot } from "@uc/api";
+import { runTick, type Send } from "@uc/cron";
 import type { MockState } from "../discord/state";
 
 export type WorkerDevOptions = {
   /** worker の URL（例: http://localhost:8787） */
   workerUrl: string;
+  /** POST /cron の合言葉（worker の CRON_SECRET と同じ値） */
+  cronSecret: string;
   fetch?: typeof fetch;
 };
-
-export type TickSummary = { ran: string[]; errors: string[] };
 
 const NOT_DEV = "worker が開発用のサーバー（pnpm dev）で動いていますか。本番のビルドには、/dev/* はありません";
 
@@ -31,11 +32,20 @@ export function createWorkerDev(options: WorkerDevOptions, state: MockState) {
     if (!response.ok) throw new Error(`worker が ${response.status} を返しました（${NOT_DEV}）`);
   }
 
-  /** cron を待たずに、いまの疑似時計で、cron の処理を1回実行させる */
-  async function tick(): Promise<TickSummary> {
-    const response = await doFetch(`${workerUrl}/dev/tick`, { method: "POST" });
-    if (!response.ok) throw new Error(`worker が ${response.status} を返しました（${NOT_DEV}）`);
-    return (await response.json()) as TickSummary;
+  /**
+   * cron を起こす。本番の Apps Script（apps/cron）と同じに、worker の POST /cron を、合言葉つきで呼ぶ（作り方と判定は @uc/cron。送り方だけ fetch）。
+   * worker は、すぐ 202 を返して、処理は、そのあとで行う。結果は、状態（cron の履歴）に出る。失敗（合言葉の間違いなど）は、例外にする
+   */
+  async function tick(): Promise<void> {
+    const send: Send = (requests) =>
+      Promise.all(
+        requests.map(async ({ url, options }) => {
+          const response = await doFetch(url, { method: "POST", headers: options.headers });
+          return { status: response.status, body: await response.text() };
+        }),
+      );
+    const lines = await runTick({ targets: [{ name: "worker", url: `${workerUrl}/cron` }], secret: options.cronSecret, send });
+    if (lines.length > 0) throw new Error(`cron を起こせませんでした: ${lines.join(" / ")}`);
   }
 
   /**

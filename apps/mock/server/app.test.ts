@@ -98,16 +98,16 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     const mock = await createTestMock({}, true, () => real);
 
     await mock.app.request("/mock-api/state");
-    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(0); // 同じ分
+    expect(mock.worker.callsTo("/cron")).toHaveLength(0); // 同じ分
 
     real += 60_000;
     await mock.app.request("/mock-api/state");
     await mock.app.request("/mock-api/state");
-    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(1);
+    expect(mock.worker.callsTo("/cron")).toHaveLength(1);
 
     real += 120_000;
     await mock.app.request("/mock-api/state");
-    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(2);
+    expect(mock.worker.callsTo("/cron")).toHaveLength(2);
   });
 });
 
@@ -232,7 +232,7 @@ describe("ボタンを押す（POST /mock-api/click）", () => {
 
 describe("時計の操作（POST /mock-api/clock）", () => {
   it("日時を指定すると、その時刻になり、cron が自動で1回動く", async () => {
-    const mock = await createTestMock({ tick: { ran: ["cutoff:2026-10-07:21"], errors: [] } });
+    const mock = await createTestMock();
 
     const result = await json(await post(mock.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }));
 
@@ -240,7 +240,7 @@ describe("時計の操作（POST /mock-api/clock）", () => {
     expect(mock.state.now()).toBe(jst("2026-10-07T20:53:00"));
     // 先に、worker に、時計（本物の時刻 + ずれ）を伝えてから、cron を実行する
     expect(JSON.parse(mock.worker.callsTo("/dev/clock")[0]!.body)).toEqual({ offsetMs: jst("2026-10-07T20:53:00") - REAL_NOW });
-    expect(mock.worker.callsTo("/dev/tick")).toHaveLength(1);
+    expect(mock.worker.callsTo("/cron")).toHaveLength(1);
   });
 
   it("移っても、時計は止まらない（本物の時刻が進めば、同じだけ進む）", async () => {
@@ -277,13 +277,11 @@ describe("時計の操作（POST /mock-api/clock）", () => {
     expect(mock.state.now()).toBe(REAL_NOW);
   });
 
-  it("cron がエラーになったら、その理由を返す。worker が受け付けない（開発用のサーバーではない）ときも、理由を返す", async () => {
-    const failed = await createTestMock({ tick: { ran: [], errors: ["cutoff:2026-10-07:21: Discord が応答しません"] } });
-    const result = await json(await post(failed.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }));
-    expect(result).toEqual({ ok: false, notice: "cron のエラー: cutoff:2026-10-07:21: Discord が応答しません" });
-
-    const disabled = await createTestMock({ tickStatus: 404 });
-    expect((await json(await post(disabled.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }))).notice).toContain("pnpm dev");
+  it("cron を起こせなかったとき（合言葉の間違い・worker が受け付けない など）は、その理由を返す", async () => {
+    const rejected = await createTestMock({ cronStatus: 401 });
+    const result = await json(await post(rejected.app, "/mock-api/clock", { action: "set", value: "2026-10-07T20:53" }));
+    expect(result.ok).toBe(false);
+    expect(result.notice).toContain("HTTP 401");
   });
 
   it("不正な日時・操作は、理由を返して、時計は動かさず、cron も動かさない", async () => {
@@ -292,7 +290,7 @@ describe("時計の操作（POST /mock-api/clock）", () => {
     expect((await json(await post(mock.app, "/mock-api/clock", { action: "set", value: "xx" }))).notice).toContain("日時");
     expect((await json(await post(mock.app, "/mock-api/clock", { action: "jump" }))).ok).toBe(false);
     expect(mock.state.now()).toBe(REAL_NOW);
-    expect(mock.worker.callsTo("/dev/tick")).toEqual([]);
+    expect(mock.worker.callsTo("/cron")).toEqual([]);
   });
 });
 

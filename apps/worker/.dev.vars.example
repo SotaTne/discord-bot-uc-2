@@ -7,3 +7,5 @@ DISCORD_BOT_TOKEN=dev-token
 DISCORD_APPLICATION_ID=100000000000000001
 # 開発時はモックの Discord REST に向ける。本番のビルドでは、この値は読まれない（コードごと消える）
 DISCORD_API_BASE=http://localhost:8788/api/v10
+# POST /cron の合言葉。開発時は、apps/mock が、この値で cron を起こす（apps/mock/server/dev-cron.ts と同じ値。setup-dev が書く）。本番の値は、GitHub の Secrets にだけある
+CRON_SECRET=dev-cron-secret
