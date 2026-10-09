@@ -1,6 +1,6 @@
 // gas-cd.yml: Apps Script の毎分のトリガーが、あることを保証する。
 // ウェブアプリ（apps/cron の doPost）に、合言葉つきで POST する。合言葉が合えば、doPost が installTrigger を実行して、「ok」と返す（何度でも、同じ結果）。
-import { StepError, requireEnv, runStep } from "./support";
+import { StepError, requireEnv, runStep } from "./support.ts";
 
 export const webAppUrl = (deploymentId: string) => `https://script.google.com/macros/s/${deploymentId}/exec`;
 

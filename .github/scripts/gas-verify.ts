@@ -1,7 +1,7 @@
 // gas-cd.yml: Apps Script のプロジェクトと、ウェブアプリのデプロイが、あるかを確かめる（なければ、置く前に止める）。
 // なぜ止めるか: create や deployment をしていない・削除した・ID の間違い、のどれでも、置いても、どこにも届かないため。
 import { execFileSync } from "node:child_process";
-import { StepError, requireEnv, runStep } from "./support";
+import { StepError, requireEnv, runStep } from "./support.ts";
 
 /** `clasp list-deployments` の出力に、ウェブアプリのデプロイの ID があるか。なければ StepError */
 export function checkDeployments(output: string, deploymentId: string): void {

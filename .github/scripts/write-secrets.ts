@@ -5,7 +5,7 @@
 // 渡す秘密の一覧は、下の SECRETS に書く（足すときは、cd.yml の deploy ジョブの env にも、同じ名前を足す。tests/write-secrets.test.ts が、そろっているかを確かめる）。
 // 値は、環境変数から読む（コマンドの引数に出さない）。
 import { chmodSync, writeFileSync } from "node:fs";
-import { StepError, runStep, type Env } from "./support";
+import { StepError, runStep, type Env } from "./support.ts";
 
 export type SecretsSpec = {
   /** 必ず渡す秘密。空なら、エラーにして止まる（デプロイを止める） */

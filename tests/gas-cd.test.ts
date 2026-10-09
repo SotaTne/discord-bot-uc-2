@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { REQUIRED_ENV, buildClaspFiles } from "../.github/scripts/gas-prepare";
 import { ensureTrigger, webAppUrl } from "../.github/scripts/gas-ensure-trigger";
@@ -74,6 +74,17 @@ describe("gas-cd.yml", () => {
   it("使うスクリプトが、実在する", () => {
     for (const [, file] of workflow.matchAll(/\.github\/scripts\/([\w-]+\.ts)/g)) {
       expect(() => readFileSync(new URL(`../.github/scripts/${file}`, import.meta.url)), file).not.toThrow();
+    }
+  });
+});
+
+describe(".github/scripts", () => {
+  it("相対の import は、拡張子（.ts）つき（vitest は、なくても読めるが、CD の node は、なければ、読めない）", () => {
+    const dir = new URL("../.github/scripts/", import.meta.url);
+    for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts"))) {
+      for (const [, path] of readFileSync(new URL(file, dir), "utf8").matchAll(/from "(\.[^"]*)"/g)) {
+        expect(path, `${file}: ${path}`).toMatch(/\.ts$/);
+      }
     }
   });
 });

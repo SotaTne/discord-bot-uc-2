@@ -4,7 +4,7 @@
 import { chmodSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { StepError, requireEnv, runStep, type Env } from "./support";
+import { StepError, requireEnv, runStep, type Env } from "./support.ts";
 
 export const REQUIRED_ENV = ["CLASPRC_JSON", "CRON_SECRET", "GAS_SCRIPT_ID", "GAS_DEPLOYMENT_ID"] as const;
 
