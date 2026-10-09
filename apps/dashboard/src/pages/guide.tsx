@@ -69,7 +69,7 @@ export function GuidePage({ source = guideSource }: { source?: string }) {
         </Stack>
       </Paper>
       <Paper className="surface" p="lg">
-        <Typography>
+        <Typography className="guide">
           <Chunk source={before} />
           {source.includes(COMMANDS_MARKER) && <CommandsTable />}
           <Chunk source={after} />
