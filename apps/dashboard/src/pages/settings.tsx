@@ -1,7 +1,7 @@
 import { handupDeadline, formatJstTime } from "@uc/core";
-import { HERE_TARGET, type SettingsInput } from "@uc/api";
-import { Anchor, Badge, Button, Checkbox, Group, MultiSelect, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { HERE_TARGET, type SettingsInput, type SettingsUpdate } from "@uc/api";
+import { Alert, Anchor, Badge, Button, Checkbox, Group, Modal, MultiSelect, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
@@ -36,7 +36,7 @@ type SettingsValues = SettingsInput;
 /** 設定の保存。API は全項目をまとめて受け取るので、いまの設定に、そのセクションの項目だけを重ねて送る */
 function useSaveSettings(initial: SettingsValues) {
   const save = useInvalidatingMutation(
-    (values: Partial<SettingsValues>) => unwrap(api.settings.$put({ json: { ...initial, ...values } })),
+    (values: Partial<SettingsUpdate>) => unwrap(api.settings.$put({ json: { ...initial, ...values } })),
     [["settings"], ["scores"]],
   );
   return save;
@@ -115,6 +115,64 @@ function MentionTargets({ value, onChange }: { value: string[]; onChange: (value
   );
 }
 
+const MENTION_LABEL = { none: "なし", teams: "チーム全て", roles: "選んだロール" } as const;
+
+/**
+ * 募集開始の時刻・締切を変えるときの確認。参加者の行動に、かかわるので、変更を、チャンネルに知らせるかを、選ばせる
+ * （打ち間違いを、すぐ直すときに、知らせないでおける）。通知先は、募集開始の投稿と同じ。
+ */
+function ChangeDialog(props: {
+  opened: boolean;
+  onClose: () => void;
+  recruit: { from: number; to: number } | null;
+  cutoff: { from: number; to: number } | null;
+  /** 今日の挙手の件数。募集開始を後ろにずらすと、新しい時刻まで、取り消せなくなる */
+  handups: number;
+  mentionMode: keyof typeof MENTION_LABEL;
+  onConfirm: (notify: boolean) => void;
+}) {
+  const [notify, setNotify] = useState(true);
+  // 開くたびに、初期値（知らせる）に戻す
+  useEffect(() => {
+    if (props.opened) setNotify(true);
+  }, [props.opened]);
+  const later = props.recruit !== null && props.recruit.to > props.recruit.from;
+  return (
+    <Modal opened={props.opened} onClose={props.onClose} title="募集開始・締切を変更します" centered>
+      <Stack gap="md">
+        <Stack gap={2}>
+          {props.recruit && <Text size="sm">募集開始: {pad(props.recruit.from)} → {pad(props.recruit.to)}</Text>}
+          {props.cutoff && <Text size="sm">締切: 試合の {props.cutoff.from} 分前 → {props.cutoff.to} 分前</Text>}
+        </Stack>
+        {later && props.handups > 0 && (
+          <Alert color="yellow" role="alert" p="xs">
+            今日の挙手が {props.handups} 件あります。挙手は残りますが、新しい時刻まで、取り消せません。
+          </Alert>
+        )}
+        <Checkbox
+          label="チャンネルに、変更を通知する"
+          description={`通知先は、募集開始の投稿と同じです（いまの設定: ${MENTION_LABEL[props.mentionMode]}）`}
+          checked={notify}
+          onChange={(event) => setNotify(event.currentTarget.checked)}
+        />
+        <Group gap="xs" wrap="nowrap" justify="flex-end">
+          <Button variant="default" onClick={props.onClose}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={() => {
+              props.onClose();
+              props.onConfirm(notify);
+            }}
+          >
+            変更する
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 /** Discord への投稿（募集開始・マッチング結果）の設定 */
 function PostSettings({ initial }: { initial: SettingsValues }) {
   const slotHours = useSlotHours();
@@ -123,7 +181,11 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
   const [mentionMode, setMentionMode] = useState(initial.recruitMentionMode);
   const [mentionTargets, setMentionTargets] = useState(initial.recruitMentionTargets);
+  const [confirming, setConfirming] = useState(false);
   const save = useSaveSettings(initial);
+  // 今日の挙手の件数を、確認に出す
+  const board = useBoard(undefined);
+  const handupsToday = (board.data?.slots ?? []).reduce((total, slot) => total + slot.handups.length, 0);
 
   const errors = {
     channelId: validateChannelId(channelId),
@@ -138,17 +200,28 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
     mentionMode !== initial.recruitMentionMode ||
     mentionTargets.join(",") !== initial.recruitMentionTargets.join(",");
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!valid) return;
+  const recruitChange = valid && Number(recruitHour) !== initial.recruitHour ? { from: initial.recruitHour, to: Number(recruitHour) } : null;
+  const cutoffChange = valid && Number(cutoffMinutes) !== initial.cutoffMinutes ? { from: initial.cutoffMinutes, to: Number(cutoffMinutes) } : null;
+  const nextChannelId = channelId.trim() === "" ? null : channelId.trim();
+
+  function saveWith(notifyChange: boolean | undefined) {
     save.mutate({
-      channelId: channelId.trim() === "" ? null : channelId.trim(),
+      channelId: nextChannelId,
       recruitHour: Number(recruitHour),
       cutoffMinutes: Number(cutoffMinutes),
       recruitMentionMode: mentionMode,
       // 「ロールを選ぶ」以外のときは、選んだ通知先は、使われない（残しておくと、あとで戻したときに、選び直さなくてよい）
       recruitMentionTargets: mentionTargets,
+      ...(notifyChange === undefined ? {} : { notifyChange }),
     });
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!valid) return;
+    // 募集開始の時刻・締切を変えて、投稿先があるときは、変更を知らせるかを、確認する
+    if ((recruitChange || cutoffChange) && nextChannelId) setConfirming(true);
+    else saveWith(undefined);
   }
 
   // 今の入力で、今日の予定がどうなるか（保存する前に、確かめられる）
@@ -214,6 +287,15 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
             )}
           </SettingRow>
         </Stack>
+        <ChangeDialog
+          opened={confirming}
+          onClose={() => setConfirming(false)}
+          recruit={recruitChange}
+          cutoff={cutoffChange}
+          handups={handupsToday}
+          mentionMode={mentionMode}
+          onConfirm={(notify) => saveWith(notify)}
+        />
         <Stack mt="md">
           <SaveRow
             pending={save.isPending}
@@ -229,6 +311,16 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
               setMentionTargets(initial.recruitMentionTargets);
             }}
           />
+          {!dirty && save.data?.notified && (
+            <Text size="sm" c="green" role="status">
+              チャンネルに、変更を通知しました
+            </Text>
+          )}
+          {save.data?.notifyFailed && (
+            <Text size="sm" c="red" role="alert">
+              設定は保存しましたが、チャンネルへの通知に失敗しました
+            </Text>
+          )}
         </Stack>
       </form>
     </Section>

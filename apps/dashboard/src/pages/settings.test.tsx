@@ -69,6 +69,98 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     });
   });
 
+  describe("募集開始の時刻・締切の変更（投稿先があるとき、変更を知らせるかを、確認する）", () => {
+    const putOk = (notified = true) => ({ "PUT /api/settings": () => ({ body: { ok: true, notified, notifyFailed: false } }) });
+    const board = (handups: number) => ({
+      body: {
+        date: "2026-10-07",
+        today: "2026-10-07",
+        rule: { fixedAfterMatches: 5, fixedPoints: 100 },
+        slots: [{ hour: 21, matched: false, handups: Array.from({ length: handups }, (_, id) => ({ id })) }],
+      },
+    });
+    const dialog = () => within(screen.getByRole("dialog"));
+    const changeAndSave = async (labelText: string, value: string) => {
+      fireEvent.change(await screen.findByLabelText(labelText), { target: { value } });
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+    };
+
+    it("募集開始の時刻を変えると、確認が出る。知らせる（初期）で変更すると、notifyChange: true で保存して、「通知しました」と出る", async () => {
+      let current = { ...SETTINGS };
+      const backend = installFakeBackend({
+        ...apis(),
+        "GET /api/settings": () => ({ body: current }),
+        "PUT /api/settings": (request) => {
+          current = { ...current, ...(request.json as object) };
+          return { body: { ok: true, notified: true, notifyFailed: false } };
+        },
+      });
+      renderApp("/settings");
+      await changeAndSave("募集開始時刻（JST）", "15");
+
+      expect(dialog().getByText("募集開始: 12:00 → 15:00")).toBeTruthy();
+      expect((dialog().getByLabelText("チャンネルに、変更を通知する") as HTMLInputElement).checked).toBe(true);
+      expect(dialog().getByText(/いまの設定: なし/)).toBeTruthy();
+      expect(backend.last("PUT", "/api/settings")).toBeUndefined(); // 確認するまで、保存しない
+
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ recruitHour: 15, notifyChange: true }));
+      expect(await screen.findByText("チャンネルに、変更を通知しました")).toBeTruthy();
+    });
+
+    it("通知のチェックを外すと、notifyChange: false で保存する（打ち間違いを、すぐ直すとき）", async () => {
+      const backend = installFakeBackend({ ...apis(), ...putOk(false) });
+      renderApp("/settings");
+      await changeAndSave("締切（試合の何分前）", "5");
+
+      expect(dialog().getByText("締切: 試合の 7 分前 → 5 分前")).toBeTruthy();
+      fireEvent.click(dialog().getByLabelText("チャンネルに、変更を通知する"));
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ cutoffMinutes: 5, notifyChange: false }));
+      expect(screen.queryByText("チャンネルに、変更を通知しました")).toBeNull();
+    });
+
+    it("募集開始を後ろにずらして、今日の挙手があるときは、「残るが、新しい時刻まで取り消せない」と警告する。前にずらすときは、警告しない", async () => {
+      installFakeBackend({ ...apis(), ...putOk(), "GET /api/board": board(2) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+      await waitFor(() => expect(screen.getByLabelText("募集開始時刻（JST）")).toBeTruthy());
+      await new Promise((resolve) => setTimeout(resolve, 50)); // 挙手の件数を、取るのを待つ
+      await changeAndSave("募集開始時刻（JST）", "15");
+      expect(dialog().getByRole("alert").textContent).toContain("今日の挙手が 2 件あります");
+      fireEvent.click(dialog().getByRole("button", { name: "キャンセル" }));
+
+      await changeAndSave("募集開始時刻（JST）", "10");
+      expect(dialog().queryByRole("alert")).toBeNull();
+    });
+
+    it("キャンセルすると、保存しない。通知先だけ・点数だけの変更や、投稿先が空のときは、確認を出さずに、保存する", async () => {
+      const backend = installFakeBackend({ ...apis(), ...putOk() });
+      renderApp("/settings");
+      await changeAndSave("募集開始時刻（JST）", "15");
+      fireEvent.click(dialog().getByRole("button", { name: "キャンセル" }));
+      expect(backend.last("PUT", "/api/settings")).toBeUndefined();
+
+      fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "12" } });
+      fireEvent.click(screen.getByRole("radio", { name: "チーム全て" }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ recruitMentionMode: "teams" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect((backend.last("PUT", "/api/settings")?.json as { notifyChange?: boolean }).notifyChange).toBeUndefined();
+    });
+
+    it("通知に失敗したら、設定は保存したことと、通知に失敗したことを、出す", async () => {
+      installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true, notified: false, notifyFailed: true } }) });
+      renderApp("/settings");
+      await changeAndSave("締切（試合の何分前）", "5");
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      expect((await screen.findByRole("alert")).textContent).toContain("チャンネルへの通知に失敗しました");
+    });
+  });
+
   describe("募集開始の通知先", () => {
     const save = (backend: ReturnType<typeof installFakeBackend>) => backend.last("PUT", "/api/settings")?.json;
 
