@@ -13,7 +13,7 @@ export const CRON_INTERVAL_MINUTES = 1;
 export const SECRET_PROPERTY = "CRON_SECRET";
 
 /**
- * ウェブアプリのデプロイの ID（`pnpm deployment` の出力の、AKfycb… の部分）。start / stop / health と、push のウェブアプリの更新が使う。
- * 秘密ではない（URL の一部。守りは、合言葉）。Apps Script は 1 つなので、誰が実行しても、同じ値。最初の `pnpm deployment` のあと、ここに書く
+ * ウェブアプリのデプロイの ID（AKfycb…）。start / stop / health と、push のウェブアプリの更新が使う。
+ * 秘密ではない（URL の一部。守りは、合言葉）。Apps Script は 1 つなので、誰が実行しても、同じ値。最初の `pnpm push` が、ウェブアプリのデプロイを作って、ここに書く（コミットする）
  */
 export const WEB_APP_DEPLOYMENT_ID = "";

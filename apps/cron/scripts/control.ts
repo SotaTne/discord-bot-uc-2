@@ -33,7 +33,7 @@ if (import.meta.main) {
     console.error(`使い方: control.ts <${COMMAND_ACTIONS.join(" | ")}>`);
     process.exitCode = 2;
   } else if (!WEB_APP_DEPLOYMENT_ID) {
-    console.error("src/config.ts の WEB_APP_DEPLOYMENT_ID が、空です。`pnpm deployment` の出力の、AKfycb… の部分を、書いてください");
+    console.error("src/config.ts の WEB_APP_DEPLOYMENT_ID が、空です。`pnpm push` を実行してください（初回は、ウェブアプリのデプロイを作って、ID を書きます）");
     process.exitCode = 2;
   } else if (!CRON_SECRET) {
     console.error("apps/cron/.env.local に、CRON_SECRET がありません。ルートで `pnpm update-cron-secret` を実行してください");
