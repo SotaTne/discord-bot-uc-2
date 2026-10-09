@@ -1,0 +1,10 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  // 画面は、サーバーのコードを、型としてしか、使わない（`import type`。実行時には、読み込まない）
+  "include": ["."]
+}

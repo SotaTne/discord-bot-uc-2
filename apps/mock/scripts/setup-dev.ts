@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPublicKey, ensureEnvVar } from "./dev-vars";
-import { loadOrCreateDevKeys } from "../src/keys";
-import { defaultSeed } from "../src/seed";
+import { loadOrCreateDevKeys } from "../server/keys";
+import { defaultSeed } from "../server/seed";
 import { buildSeedSql } from "./seed-sql";
 
 /**

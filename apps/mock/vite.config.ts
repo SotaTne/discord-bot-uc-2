@@ -1,12 +1,13 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { mockServerPlugin } from "./src/vite-plugin";
+import { mockServerPlugin } from "./server/vite-plugin";
 
 /**
- * 疑似 Discord のサーバー（Discord のサーバー役 + 画面用の API）。画面はない（画面は apps/mock-ui）。
- * Vite の開発サーバーに載せて、コードを変えると、読み直される。メッセージなどの状態は、保ったまま。
+ * 疑似 Discord。1 つの Vite の開発サーバーに、2 つを載せる。
+ * - 画面（client/。React）: ブラウザで開く。サーバーには、HTTP（/mock-api）で話すだけ
+ * - サーバー（server/）: Discord のサーバー役（/api/v10）と、画面用の API（/mock-api）。コードを変えると読み直される。メッセージなどの状態は、保ったまま
  */
 export default defineConfig({
-  appType: "custom",
-  plugins: [mockServerPlugin({ env: process.env })],
+  plugins: [react(), mockServerPlugin({ env: process.env })],
   server: { port: Number(process.env.PORT ?? 8788), strictPort: true },
 });

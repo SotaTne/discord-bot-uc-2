@@ -203,13 +203,13 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - 画面と API の型は **Hono RPC**（`hc<ApiType>`）で共有する。worker は、API の型を宣言ファイル（`dist/types`）として出力し、dashboard は型だけを参照する（ランタイムの依存は持たない）。
 - 画面の部品は Mantine（表・フォーム・バッジ・確認など。ライト / ダークに対応。見た目の既定は `apps/dashboard/src/theme.ts`）。自前の CSS は、無効な行の取り消し線だけ。Tailwind は使わない。TanStack Start も使わない（Interactions を受ける worker を軽く保つため）。
 
-### 動作確認用モック（apps/mock・apps/mock-ui）
+### 動作確認用モック（apps/mock）
 
-- 本番と同じコードを通したまま、Discord だけを差し替える。3 つに分かれる:
-  - **Discord のサーバー役**（`apps/mock/src/discord`）: 世界の状態（ユーザー・ロール・メッセージ・添付）、worker が呼ぶ REST（`/api/v10`）、添付ファイルの配信、worker への署名つき Interactions の送信。
-  - **画面用の API**（`apps/mock/src/api`。`/mock-api`）: 状態の取得・コマンドの実行・ボタン・時計・初期化・画像。worker の開発用ルート（`/dev/*`）を呼ぶのも、こちら。Discord のサーバー役を、組み合わせて使う（逆は、ない）。
-  - **画面**（`apps/mock-ui`）: React のアプリ。サーバーには、`/mock-api` で話すだけ（型だけ `@uc/mock/api` から受け取る）。
-- サーバー（apps/mock）は、Vite の開発サーバーに載せる（`src/vite-plugin.ts`）。コードを変えると、次のリクエストから新しいコードで動く。**メッセージなどの状態は、プロセスのメモリにだけある**（再起動すると消える。コードを変えただけでは、消えない）。鍵だけは、`apps/mock/.dev-keys.json` に保存される。
+- 本番と同じコードを通したまま、Discord だけを差し替える。1 つのパッケージの中で、3 つに分かれる:
+  - **Discord のサーバー役**（`apps/mock/server/discord`）: 世界の状態（ユーザー・ロール・メッセージ・添付）、worker が呼ぶ REST（`/api/v10`）、添付ファイルの配信、worker への署名つき Interactions の送信。
+  - **画面用の API**（`apps/mock/server/api`。`/mock-api`）: 状態の取得・コマンドの実行・ボタン・時計・初期化・画像。worker の開発用ルート（`/dev/*`）を呼ぶのも、こちら。Discord のサーバー役を、組み合わせて使う（逆は、ない）。
+  - **画面**（`apps/mock/client`）: React のアプリ。サーバーには、`/mock-api` で話すだけ（サーバーのコードは、型（`import type`）としてしか使わず、実行時には読み込まない）。型の確認も、サーバー（Node）と画面（ブラウザ）で、別の設定（`server/tsconfig.json`・`client/tsconfig.json`）。
+- サーバーは、画面と同じ Vite の開発サーバーに載せる（`server/vite-plugin.ts`。画面は、同じ場所で配信される）。コードを変えると、次のリクエストから新しいコードで動く。**メッセージなどの状態は、プロセスのメモリにだけある**（再起動すると消える。コードを変えただけでは、消えない）。鍵だけは、`apps/mock/.dev-keys.json` に保存される。
 - 開発の準備のスクリプトは、`apps/mock/scripts/`（`setup-dev.ts`: 鍵・`.dev.vars`・シード）。
 - **擬似 Interactions**: 本物と同じ形式の JSON を、開発用の Ed25519 鍵で署名して worker に送る。worker は本番と同じ署名検証を通る。鍵は `apps/mock/.dev-keys.json` に保存して使い回す（git には入れない）。
 - **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は `DISCORD_API_BASE` を切り替えてモックに向ける。
@@ -220,7 +220,7 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
   - `GET /dev/screenshots/:seq`: 保存した画像（ログインなし）
   - `POST /dev/reset`: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残す
 - cron の予定（いつ、どのジョブを実行できるか）は、`@uc/core` の `scheduledJobsForDate` で決める。実行する側（`runScheduled`）と、画面に出す予定が、同じ規則を使う。
-- **ページ**（apps/mock-ui。コマンドを実行することと、いまの状態を常に見られることだけ。説明文・使い方・cron の操作は置かない）:
+- **ページ**（apps/mock/client。コマンドを実行することと、いまの状態を常に見られることだけ。説明文・使い方・cron の操作は置かない）:
   - いま: 日付（1日ずつ前後。カレンダーはない）・時刻（直せる）・イベントの時刻（募集開始・各対戦枠の締切・各対戦枠の試合開始）へ移るボタン・「現在時刻」。時計を動かしたら、cron を自動で1回動かす（本番は毎分動くのと同じ）。
   - 実行者: 複数選べる。コマンドは、選んだ全員として、順に実行する。フォームの外にある。
   - コマンド: 選ぶと、そのフォームだけが出る。フォームは、コマンドの定義（`@uc/discord`）から作るので、コマンドやオプションを変えても追従する。

@@ -1,5 +1,5 @@
 import { hc } from "hono/client";
-import type { MockApiType } from "@uc/mock/api";
+import type { MockApiType } from "../server/api";
 
 /** 画面用の API（/mock-api）を、型付きで呼ぶクライアント。呼ぶたびに、いまの fetch を使う（テストで差し替えられる） */
 export const mockApi = hc<MockApiType>("/mock-api", {

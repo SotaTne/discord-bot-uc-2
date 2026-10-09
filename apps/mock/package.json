@@ -2,24 +2,33 @@
   "name": "@uc/mock",
   "private": true,
   "type": "module",
-  "exports": {
-    "./api": "./src/api/index.ts"
-  },
   "scripts": {
     "dev": "vite --configLoader runner",
+    "build": "vite build",
     "setup-dev": "tsx scripts/setup-dev.ts",
-    "typecheck": "tsc",
+    "typecheck": "tsc -p server && tsc -p client",
     "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",
+    "@mantine/core": "catalog:",
+    "@mantine/hooks": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@uc/api": "workspace:*",
     "@uc/discord": "workspace:*",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@uc/db": "workspace:*",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

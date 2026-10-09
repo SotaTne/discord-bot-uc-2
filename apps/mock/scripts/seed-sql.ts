@@ -1,4 +1,4 @@
-import type { Seed } from "../src/discord/state";
+import type { Seed } from "../server/discord/state";
 
 const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
 

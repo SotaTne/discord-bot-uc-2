@@ -1,8 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node"]
-  },
-  "include": ["src", "scripts", "vite.config.ts", "vitest.config.ts"]
+  // サーバー（Node）と、画面（ブラウザ）は、別の設定で、型を確かめる（typecheck で、両方を実行する）
+  "files": [],
+  "references": [{ "path": "./server" }, { "path": "./client" }]
 }

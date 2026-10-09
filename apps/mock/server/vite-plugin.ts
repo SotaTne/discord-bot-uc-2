@@ -17,7 +17,7 @@ export function mockServerPlugin(options: { env?: MockEnv } = {}): Plugin {
   let cache: { module: unknown; handler: ReturnType<typeof getRequestListener> } | undefined;
 
   async function handlerFor(server: ViteDevServer) {
-    const module = (await server.ssrLoadModule("/src/index.ts")) as typeof import("./index");
+    const module = (await server.ssrLoadModule("/server/index.ts")) as typeof import("./index");
     persisted.keys ??= await module.loadKeys();
     persisted.state ??= module.createState();
     if (cache?.module !== module) {
@@ -31,7 +31,7 @@ export function mockServerPlugin(options: { env?: MockEnv } = {}): Plugin {
     name: "uc-mock-server",
     apply: "serve",
     async configureServer(server) {
-      const module = (await server.ssrLoadModule("/src/index.ts")) as typeof import("./index");
+      const module = (await server.ssrLoadModule("/server/index.ts")) as typeof import("./index");
       persisted.keys ??= await module.loadKeys();
       const publicKey = (persisted.keys as { publicKeyHex: string }).publicKeyHex;
       server.httpServer?.once("listening", () => {
