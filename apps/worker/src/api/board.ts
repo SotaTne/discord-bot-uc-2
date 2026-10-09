@@ -26,7 +26,7 @@ import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { deleteScreenshots } from "../usecases/clear-scores";
-import { matchingCancelledMessage } from "../scheduled/messages";
+import { postMatchingCancelled } from "../messages";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, UnsupportedImageError, WinExistsError, describeWin, addWin } from "../usecases/add-win";
 import { teamNames } from "../usecases/team-names";
@@ -223,14 +223,12 @@ export function createBoardRoutes(deps: ApiDeps) {
       if ((input.notify ?? true) && announced && settings.channelId) {
         try {
           const teams = await listTeams(db, guildId, { includeDeleted: true });
-          await createRestFromEnv(c.env).createMessage(settings.channelId, {
-            content: matchingCancelledMessage({
-              hour: input.slotHour,
-              pairs: before.matches.map((match): [number, number] => [match.teamAId, match.teamBId]),
-              excluded: excludedTeamId,
-              teamById: new Map(teams.map((team) => [team.id, team])),
-            }),
-            allowed_mentions: { parse: ["roles"] },
+          await postMatchingCancelled(createRestFromEnv(c.env), {
+            channelId: settings.channelId,
+            hour: input.slotHour,
+            pairs: before.matches.map((match): [number, number] => [match.teamAId, match.teamBId]),
+            excluded: excludedTeamId,
+            teams,
           });
           notified = true;
         } catch (error) {

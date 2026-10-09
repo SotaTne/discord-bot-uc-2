@@ -11,7 +11,7 @@ import {
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { recruitMessage } from "./messages";
+import { postRecruit } from "../messages";
 
 export type ScheduledDeps = {
   db: Db;
@@ -81,10 +81,7 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       run:
         spec.kind === "recruit"
           ? async () => {
-              await deps.rest.createMessage(channelId, {
-                content: recruitMessage(guild.recruitHour),
-                allowed_mentions: { parse: [] },
-              });
+              await postRecruit(deps.rest, { channelId, hour: guild.recruitHour });
             }
           : () =>
               confirmMatching(deps, {

@@ -1,7 +1,8 @@
 import { jstDateOf } from "@uc/core";
 import { withdrawHandup } from "@uc/db";
 import { ephemeralMessage, getIntegerOption } from "@uc/discord";
-import { resolveCaller, teamMention } from "./caller";
+import { teamMention } from "../messages/mention";
+import { resolveCaller } from "./caller";
 import type { CommandHandler } from "./registry";
 import { checkAcceptingSlot } from "./slot-access";
 

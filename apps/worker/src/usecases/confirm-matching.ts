@@ -9,7 +9,7 @@ import {
   type Db,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
-import { matchingMessage } from "../scheduled/messages";
+import { postMatchingResult } from "../messages";
 
 /**
  * その対戦枠の挙手を打ち切って（マッチング済みにして）、マッチングを確定し、結果を保存して投稿する。
@@ -63,14 +63,6 @@ export async function confirmMatching(
   // 投稿先のチャンネルが設定されていなければ、結果の保存だけを行う
   if (input.channelId === null) return;
   const teams = await listTeams(db, input.guildId, { includeDeleted: true });
-  await deps.rest.createMessage(input.channelId, {
-    content: matchingMessage({
-      hour: input.slotHour,
-      result: announced,
-      teamById: new Map(teams.map((team) => [team.id, team])),
-    }),
-    // マッチング結果は、チームに通知する
-    allowed_mentions: { parse: ["roles"] },
-  });
+  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, teams });
 }
 

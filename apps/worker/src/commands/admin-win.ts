@@ -4,7 +4,8 @@ import { MAX_POINTS, dateSchema } from "@uc/api";
 import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } from "@uc/discord";
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
 import { editDeferredResponse } from "./deferred";
-import { teamMention } from "./caller";
+import { winMessage } from "../messages/win";
+import { teamMention } from "../messages/mention";
 import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, UnsupportedImageError, describeWin, addWin, type WinReport } from "../usecases/add-win";
 import type { CommandContext, CommandHandler } from "./registry";
 
@@ -134,19 +135,4 @@ async function saveAndSummarize(context: CommandContext, input: WinInput): Promi
   );
   const report = await describeWin(db, { guildId: input.guildId, teamId: input.team.id, id });
   return winMessage(input, report);
-}
-
-function winMessage(input: WinInput, report: WinReport): string {
-  const lines = [
-    // 対戦枠（日付 × 時刻）だけでは、同じ対戦枠の別の組分けと区別できないので、組分け（誰と誰か）も出す
-    `${teamMention(input.team)} ${input.slotDate} ${input.slotHour}時（${input.opponent ? `${teamMention(input.team)} vs ${teamMention(input.opponent)}` : "組分け"}）の勝利を追加しました（${report.countedPoints ?? input.points}pt）`,
-  ];
-  if (report.matchNumber !== null) {
-    lines.push(
-      report.fixed
-        ? `- ${report.matchNumber}試合目: ${report.fixedAfterMatches}試合を超えているので、集計は一律${report.fixedPoints}ptになります`
-        : `- ${report.matchNumber}試合目: 集計は${report.countedPoints}ptです`,
-    );
-  }
-  return lines.join("\n");
 }

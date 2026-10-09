@@ -1,6 +1,7 @@
 import type { Team } from "@uc/db";
 import { describe, expect, it } from "vitest";
-import { matchingMessage, recruitMessage } from "./messages";
+import { matchingMessage } from "./matching";
+import { recruitMessage } from "./recruit";
 
 const team = (id: number): Team => ({ id, guildId: "g", roleId: `role${id}`, createdAt: 1, deletedAt: null });
 const teamById = new Map([

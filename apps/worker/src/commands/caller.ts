@@ -37,5 +37,3 @@ export async function resolveCaller(
   return { ok: true, caller: { guildId, userId: member.user.id, team } };
 }
 
-/** チームのロールのメンション表示（ephemeral の返信なので、通知は飛ばない） */
-export const teamMention = (team: Team) => `<@&${team.roleId}>`;
