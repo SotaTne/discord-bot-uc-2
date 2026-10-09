@@ -22,7 +22,7 @@ describe("ログイン済みの画面の枠（レイアウト）", () => {
     renderApp("/");
 
     const nav = await screen.findByRole("navigation", { name: "メニュー" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "勝利記録", "設定"]);
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "勝利記録", "設定", "ガイド"]);
     expect(await screen.findByRole("heading", { name: "10/07（水）" })).toBeTruthy();
   });
 

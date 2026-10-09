@@ -15,9 +15,12 @@
     "@tanstack/react-router": "catalog:",
     "@uc/api": "workspace:*",
     "@uc/core": "workspace:*",
+    "@uc/discord": "workspace:*",
     "hono": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:"
   },
   "devDependencies": {
     "@testing-library/dom": "catalog:",

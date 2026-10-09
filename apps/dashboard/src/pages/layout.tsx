@@ -13,6 +13,7 @@ const NAV = [
   { to: "/teams", label: "チーム" },
   { to: "/wins", label: "勝利記録" },
   { to: "/settings", label: "設定" },
+  { to: "/guide", label: "ガイド" },
 ] as const;
 
 /**
