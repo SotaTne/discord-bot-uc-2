@@ -46,7 +46,7 @@ export function AppLayout() {
     },
   });
 
-  // 勝利を記録しないといけない組分けの数。あれば、「勝利記録」に、赤い丸の印で知らせる
+  // 勝利を記録しないといけない組分けの数。あれば、「勝利記録」の右上に、小さな赤い点で知らせる（数字は、出さない）
   const unrecorded = useUnrecordedMatches().data?.matches.length ?? 0;
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -91,15 +91,11 @@ export function AppLayout() {
                 const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
                 return (
                   <Link key={item.to} to={item.to} className="nav-link" {...(active ? { "aria-current": "page" as const } : {})}>
-                    {item.label}
-                    {item.to === "/wins" && unrecorded > 0 && (
-                      <>
-                        <span className="nav-badge" aria-hidden="true">
-                          {unrecorded > 99 ? "99+" : unrecorded}
-                        </span>
-                        <span className="sr-only">（勝利が未記録の組分け {unrecorded}件）</span>
-                      </>
-                    )}
+                    <span className="nav-label">
+                      {item.label}
+                      {item.to === "/wins" && unrecorded > 0 && <span className="nav-dot" aria-hidden="true" />}
+                    </span>
+                    {item.to === "/wins" && unrecorded > 0 && <span className="sr-only">（勝利が未記録の組分け {unrecorded}件）</span>}
                   </Link>
                 );
               })}

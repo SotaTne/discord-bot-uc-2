@@ -49,8 +49,9 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
   border-bottom: 2px solid transparent;
   font-weight: 500;
 }
-/* 勝利の記録が必要な組分けがあるとき、メニューの「勝利記録」に付く赤い丸。数字で幅が揺れないように、最小の幅を決めている */
-.nav-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; box-sizing: border-box; border-radius: 999px; background: var(--mantine-color-red-filled); color: #fff; font-size: 11px; font-weight: 600; line-height: 1; vertical-align: 1px; }
+/* 勝利の記録が必要な組分けがあるとき、メニューの「勝利記録」の右上に付く、小さな赤い点（数字は、出さない） */
+.nav-label { position: relative; }
+.nav-dot { position: absolute; top: -2px; right: -9px; width: 8px; height: 8px; border-radius: 50%; background: var(--mantine-color-red-filled); }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .nav-link:hover { color: var(--mantine-color-text); }
 .nav-link[aria-current="page"] { color: var(--mantine-color-text); border-bottom-color: var(--mantine-color-primary-filled); }
