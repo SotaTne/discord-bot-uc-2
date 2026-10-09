@@ -83,7 +83,7 @@ function Scoreboard({ onOpen }: { onOpen: (teamId: number) => void }) {
                           </UnstyledButton>
                         </Table.Td>
                         <Table.Td>
-                          <Group gap={6} wrap="nowrap" onClick={(event) => event.stopPropagation()}>
+                          <Group gap={6} wrap="nowrap">
                             {handupsOf(team.teamId).map((handup) => (
                               <Badge
                                 key={handup.id}
@@ -96,7 +96,11 @@ function Scoreboard({ onOpen }: { onOpen: (teamId: number) => void }) {
                                     <CloseButton
                                       size="xs"
                                       disabled={withdraw.isPending}
-                                      onClick={() => withdraw.mutate(handup.id)}
+                                      // 行の「詳細を開く」に、クリックを伝えない。止めるのは、このボタンだけ（周りの空白は、行のクリックとして、詳細を開く）
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        withdraw.mutate(handup.id);
+                                      }}
                                       aria-label={`${team.name}の${formatHour(handup.hour)}の挙手を取り消す`}
                                     />
                                   )

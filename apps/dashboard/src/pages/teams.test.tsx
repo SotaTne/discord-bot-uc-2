@@ -75,6 +75,17 @@ describe("チームの画面: 今日の挙手", () => {
     await waitFor(() => expect(backend.count("DELETE", "/api/handups/11")).toBe(1));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("タグの周りの空白（挙手の列の、タグ以外の場所）を押しても、行を押したことになり、詳細が開く", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+
+    const kmu = (await screen.findAllByRole("row")).find((row) => within(row).queryByText("KMU") && within(row).queryByText("21:00"))!;
+    // タグを並べる箱は、列の幅いっぱいに広がる。その空白を押す（タグそのものではなく、箱を押す）
+    fireEvent.click(within(kmu).getByText("22:00").closest(".mantine-Group-root")!);
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
 });
 
 describe("チームの画面: チームの詳細（行を押すと、全組分けと結果）", () => {
