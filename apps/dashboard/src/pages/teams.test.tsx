@@ -66,6 +66,23 @@ describe("チームの画面: 今日の挙手", () => {
     expect(within(kmu).queryByRole("button", { name: "KMUの22:00の挙手を取り消す" })).toBeNull();
   });
 
+  it("マッチング済みの対戦枠で、組まれなかったチーム（奇数で外れた）の挙手は、組まれた挙手と、色を分ける（どちらも取り消せない）", async () => {
+    const board = {
+      ...today,
+      slots: [{ hour: 22, phase: "closed", matched: true, excluded: UT, handups: [handupOf(13, KMU), handupOf(14, UT)], matches: [] }],
+    };
+    installFakeBackend({ ...apis(), "GET /api/board": { body: board } });
+    renderApp("/teams");
+
+    const paired = await screen.findByTitle("マッチング済み（取り消せません）");
+    const excluded = screen.getByTitle("組まれませんでした（マッチング済み。取り消せません）");
+    expect(paired.textContent).toBe("22:00");
+    expect(excluded.textContent).toBe("22:00");
+    // 色は、Mantine のバッジの style（色の変数）に出る。同じ見た目ではないことを確かめる
+    expect(excluded.getAttribute("style")).not.toBe(paired.getAttribute("style"));
+    expect(screen.queryByRole("button", { name: /挙手を取り消す/ })).toBeNull();
+  });
+
   it("タグの ✕ で、その挙手を取り消す（行は開かない）", async () => {
     const backend = installFakeBackend({ ...apis(), "DELETE /api/handups/11": { body: { ok: true } } });
     renderApp("/teams");

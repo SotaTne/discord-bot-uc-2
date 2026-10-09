@@ -35,7 +35,10 @@ function Scoreboard({ openIds, onToggle }: { openIds: number[]; onToggle: (teamI
   );
   const handupsOf = (teamId: number) =>
     (board.data?.slots ?? []).flatMap((slot) =>
-      slot.handups.filter((handup) => handup.team.id === teamId).map((handup) => ({ id: handup.id, hour: slot.hour, matched: slot.matched })),
+      slot.handups
+        .filter((handup) => handup.team.id === teamId)
+        // 状態: まだ（未マッチング）/ 組まれた / 組まれなかった（マッチング済みで、奇数のため、外れた）
+        .map((handup) => ({ id: handup.id, hour: slot.hour, matched: slot.matched, status: (!slot.matched ? "pending" : slot.excluded?.id === teamId ? "excluded" : "paired") as HandupStatus })),
     );
   // 並び替え（見出しを押して切り替える）。何も選んでいないときは、得点の高い順（順位の順）
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
@@ -95,10 +98,10 @@ function Scoreboard({ openIds, onToggle }: { openIds: number[]; onToggle: (teamI
                             {handupsOf(team.teamId).map((handup) => (
                               <Badge
                                 key={handup.id}
-                                color={handup.matched ? "green" : "gray"}
+                                color={handupColor[handup.status]}
                                 variant="light"
                                 tt="none"
-                                title={handup.matched ? "マッチング済み（取り消せません）" : undefined}
+                                title={handupTitle[handup.status]}
                                 rightSection={
                                   handup.matched ? undefined : (
                                     <CloseButton
@@ -227,6 +230,15 @@ function TeamHistory({ teamId, name }: { teamId: number; name: string }) {
     </section>
   );
 }
+
+/** 挙手のタグの色と説明。マッチング済みの対戦枠の挙手は、取り消せない */
+type HandupStatus = "pending" | "paired" | "excluded";
+const handupColor: Record<HandupStatus, string> = { pending: "gray", paired: "green", excluded: "orange" };
+const handupTitle: Record<HandupStatus, string | undefined> = {
+  pending: undefined,
+  paired: "マッチング済み（取り消せません）",
+  excluded: "組まれませんでした（マッチング済み。取り消せません）",
+};
 
 const compareBy: Record<SortKey, (a: ScoreTeam, b: ScoreTeam) => number> = {
   rank: (a, b) => b.total - a.total,
