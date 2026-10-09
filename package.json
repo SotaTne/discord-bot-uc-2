@@ -18,6 +18,7 @@
     "register-commands": "pnpm --filter @uc/discord run register-commands"
   },
   "devDependencies": {
+    "@actions/core": "catalog:",
     "@types/node": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",

@@ -1,6 +1,6 @@
 // gas-cd.yml: Apps Script の毎分のトリガーが、あることを保証する。
 // ウェブアプリ（apps/cron の doPost）に、合言葉つきで POST する。合言葉が合えば、doPost が installTrigger を実行して、「ok」と返す（何度でも、同じ結果）。
-import { StepError, requireEnv, runStep } from "./support.ts";
+import { StepError, maskSecrets, requireEnv, runStep } from "./support.ts";
 
 export const webAppUrl = (deploymentId: string) => `https://script.google.com/macros/s/${deploymentId}/exec`;
 
@@ -24,6 +24,7 @@ export async function ensureTrigger(input: { deploymentId: string; secret: strin
 
 if (import.meta.main) {
   await runStep(async () => {
+    maskSecrets([process.env.CRON_SECRET]);
     const { GAS_DEPLOYMENT_ID, CRON_SECRET } = requireEnv(process.env, ["GAS_DEPLOYMENT_ID", "CRON_SECRET"], "Environment「gas」の設定");
     await ensureTrigger({ deploymentId: GAS_DEPLOYMENT_ID!, secret: CRON_SECRET! });
     console.log("毎分のトリガーを、保証しました");

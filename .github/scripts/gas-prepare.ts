@@ -4,7 +4,7 @@
 import { chmodSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { StepError, requireEnv, runStep, type Env } from "./support.ts";
+import { StepError, maskSecrets, requireEnv, runStep, type Env } from "./support.ts";
 
 export const REQUIRED_ENV = ["CLASPRC_JSON", "CRON_SECRET", "GAS_SCRIPT_ID", "GAS_DEPLOYMENT_ID"] as const;
 
@@ -24,6 +24,7 @@ export function buildClaspFiles(env: Env): { clasprc: string; project: string } 
 
 if (import.meta.main) {
   await runStep(() => {
+    maskSecrets([process.env.CLASPRC_JSON, process.env.CRON_SECRET]);
     const files = buildClaspFiles(process.env);
     // ログイン情報は、自分だけが読めるファイルにする
     const clasprc = join(homedir(), ".clasprc.json");
