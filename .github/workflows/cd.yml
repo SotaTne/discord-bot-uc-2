@@ -31,7 +31,11 @@ jobs:
     env:
       DEPLOY_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      # Worker に渡す値。秘密は、Bot のトークンだけ（公開鍵とアプリの ID は、公開してよい値）
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_PUBLIC_KEY: ${{ vars.DISCORD_PUBLIC_KEY }}
+      DISCORD_APPLICATION_ID: ${{ vars.DISCORD_APPLICATION_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -39,7 +43,18 @@ jobs:
       - run: pnpm build
       # マイグレーションを、先に適用する。新しい DB で、古いコードが動く形にしておくこと（README の「DB を変えるとき」）
       - run: pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
-      - run: pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
+      # シークレットは、デプロイと一緒に、Cloudflare に渡す（GitHub が、唯一の置き場。Cloudflare に、手動で置かない）。
+      # --secrets-file は、足すだけ（消えない）。消すときは、wrangler secret delete
+      - name: シークレットのファイルを、一時的に作る
+        run: printf 'DISCORD_BOT_TOKEN=%s\n' "$DISCORD_BOT_TOKEN" > "$RUNNER_TEMP/secrets.env"
+      - run: >
+          pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
+          --secrets-file "$RUNNER_TEMP/secrets.env"
+          --var "DISCORD_PUBLIC_KEY:$DISCORD_PUBLIC_KEY"
+          --var "DISCORD_APPLICATION_ID:$DISCORD_APPLICATION_ID"
+      - name: シークレットのファイルを、消す
+        if: always()
+        run: rm -f "$RUNNER_TEMP/secrets.env"
 
   # スラッシュコマンドを、Discord に登録する（毎回、全部を、上書きする。何度実行しても、同じ結果）
   register-commands:
@@ -48,9 +63,11 @@ jobs:
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     env:
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-      DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
-      # 指定すると、そのサーバーだけに登録する（すぐに反映される）。ステージング向け。本番は、設定しない（全サーバー）
-      DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
+      DISCORD_APPLICATION_ID: ${{ vars.DISCORD_APPLICATION_ID }}
+      # 指定すると、そのサーバーだけに登録する（すぐに反映される）。ステージング向け。
+      # 本番（main）では、変数を設定していても、空にする（全サーバーに登録する）。
+      # ※ 式は「main でない && 変数 || 空」の向きに書く。空文字は偽として扱われるので、「main && 空 || 変数」と書くと、main でも変数が返る
+      DISCORD_GUILD_ID: ${{ github.ref_name != 'main' && vars.DISCORD_GUILD_ID || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

@@ -146,24 +146,24 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm exec wrangler r2 bucket create uc-bot-screenshots
    ```
 
-2. シークレット（Worker の実行時に使う）を、環境ごとに設定する（`DISCORD_API_BASE` は、設定しない。開発専用）。
-
-   ```bash
-   pnpm exec wrangler secret put DISCORD_PUBLIC_KEY --env staging
-   pnpm exec wrangler secret put DISCORD_BOT_TOKEN --env staging
-   pnpm exec wrangler secret put DISCORD_APPLICATION_ID --env staging
-   # 本番は、--env production で、同じものを設定する
-   ```
-
-   `PUBLIC_URL`（ログインリンクの先）は、必要なら、Cloudflare の画面で、その Worker の変数として設定する。
+2. **シークレットは、GitHub だけに置く**（Cloudflare に、手動で、`wrangler secret put` しない）。CD が、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す。値を変えるときは、GitHub の値を変えて、CD を再実行する。
+   - `--secrets-file` は、**足すだけ**で、消さない。GitHub から消した秘密を、Cloudflare からも消すときは、`pnpm --filter @uc/worker exec wrangler secret delete <名前> --env <環境>`。
+   - `DISCORD_API_BASE` は、設定しない（開発専用）。`PUBLIC_URL`（ログインリンクの先）は、必要なら、Cloudflare の画面で、その Worker の変数として設定する。
 
 3. **Discord のアプリは、環境ごとに別にする**（Interactions Endpoint URL が、1つのアプリに、1つしか、設定できないため）。ステージング用に、テスト用のアプリと、テスト用のサーバーを、作る。
 
-4. **GitHub の Environments** を、作る（Settings → Environments）。`staging` と `production`。それぞれに、Secrets を設定する。
-   - `CLOUDFLARE_API_TOKEN`: Cloudflare の API トークン。Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。環境ごとに、別のトークンにしてよい。
-   - `CLOUDFLARE_ACCOUNT_ID`: アカウントの ID。
-   - `DISCORD_BOT_TOKEN` と `DISCORD_APPLICATION_ID`: コマンドの登録に使う（その環境の、Discord のアプリのもの。Worker の実行時の同名のシークレット（手順 2）と、同じ値）。
-   - Variables: `DISCORD_GUILD_ID`（任意）。指定すると、そのサーバーだけに登録する（すぐに反映される）。ステージング向け。本番は、設定しない（全サーバー）。
+4. **GitHub の Environments** を、作る（Settings → Environments）。`staging` と `production`。それぞれに、次を設定する（値は、その環境の、Cloudflare と Discord のアプリのもの）。
+
+   | 名前 | 種類 | 内容 |
+   |---|---|---|
+   | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。環境ごとに、別のトークンにしてよい |
+   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、これだけ**）。Worker の実行時と、コマンドの登録に、使う |
+   | `CLOUDFLARE_ACCOUNT_ID` | Variable | アカウントの ID（秘密ではない） |
+   | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
+   | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
+   | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |
+
+   - `main` のときは、`DISCORD_GUILD_ID` を、ワークフローが、必ず、空にする（本番は、常に、全サーバーに登録する）。
    - Deployment branches: `staging` は `develop`、`production` は `main` に、限る（ほかのブランチからは、その環境のシークレットを、使えない）。
    - 本番だけ、Required reviewers（承認者）を付けると、本番へのデプロイの前に、承認の画面が出る（任意）。
 

@@ -179,7 +179,7 @@
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
   - `/dev`: 認証はない。**開発専用の入口**（`src/dev/entry.ts`）にだけある。本番の入口（`src/index.ts`）は、`src/dev/` を、読み込まない（分岐や、ビルドの設定には、頼らない）
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
-- 環境は 3 つ（`apps/worker/wrangler.jsonc`）: 最上位（ローカルの開発用。デプロイは、失敗する）・`staging`（`develop` ブランチ）・`production`（`main` ブランチ）。デプロイは、GitHub Actions（`.github/workflows/cd.yml`）が、ブランチに入ったときに、そのコミットの CI（`ci.yml`）が通ったときだけ、自動で行う（マイグレーションの適用 → `wrangler deploy --env …` → スラッシュコマンドの登録。登録を、デプロイの後にして、「新しいコマンドを、古い Worker が処理できない」期間を、なくす）。マージできるのは、CI が通った PR だけ（ブランチ保護）。Cloudflare の API トークンは、GitHub の Environments に置く。手順は、`README.md`。
+- 環境は 3 つ（`apps/worker/wrangler.jsonc`）: 最上位（ローカルの開発用。デプロイは、失敗する）・`staging`（`develop` ブランチ）・`production`（`main` ブランチ）。デプロイは、GitHub Actions（`.github/workflows/cd.yml`）が、ブランチに入ったときに、そのコミットの CI（`ci.yml`）が通ったときだけ、自動で行う（マイグレーションの適用 → `wrangler deploy --env …` → スラッシュコマンドの登録。登録を、デプロイの後にして、「新しいコマンドを、古い Worker が処理できない」期間を、なくす）。マージできるのは、CI が通った PR だけ（ブランチ保護）。秘密（Cloudflare の API トークン、Discord の Bot のトークン）は、GitHub の Environments だけに置き、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す（手動で、Cloudflare に置かない）。公開してよい値（公開鍵、アプリの ID）は、Variables にして、`--var` で渡す。手順は、`README.md`。
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
 - Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
 - 3 秒制限のある処理は、deferred response と `waitUntil` で行う。
