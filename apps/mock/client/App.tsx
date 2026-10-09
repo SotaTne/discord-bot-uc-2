@@ -70,8 +70,10 @@ function Screen() {
           </Group>
         </div>
 
-        <div className="stage">
+        <div className="feed-col">
           <Feed state={state} />
+        </div>
+        <div className="state-col">
           <StatePanel state={state} />
         </div>
       </div>

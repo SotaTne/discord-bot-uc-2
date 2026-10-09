@@ -26,40 +26,47 @@ h1, h2, h3 { text-wrap: balance; }
 
 .surface { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--mantine-radius-md); }
 
-/* 画面の骨組み */
-.page { max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; gap: 20px; }
-.workbench { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
-.rail { display: grid; gap: 20px; position: sticky; top: 16px; }
-.stage { display: grid; gap: 28px; min-width: 0; }
-@media (max-width: 900px) {
+/* 画面の骨組み: 開いたら、操作・Discord・状態が、スクロールなしで見える */
+.page { max-width: 1680px; margin: 0 auto; padding: 12px 16px 16px; display: grid; gap: 12px; }
+.workbench { display: grid; grid-template-columns: 320px minmax(0, 1fr) clamp(320px, 25vw, 460px); gap: 16px; align-items: start; }
+.rail { display: grid; gap: 12px; position: sticky; top: 12px; }
+.feed-col, .state-col { display: grid; gap: 24px; min-width: 0; }
+.state-col { grid-column: 2; grid-row: 1; }
+.feed-col { grid-column: 3; grid-row: 1; position: sticky; top: 12px; }
+@media (max-width: 1100px) {
+  .workbench { grid-template-columns: 320px minmax(0, 1fr); }
+  .feed-col { grid-column: 2; grid-row: 1; position: static; }
+  .state-col { grid-column: 2; grid-row: 2; }
+}
+@media (max-width: 760px) {
   .workbench { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; }
+  .feed-col, .state-col { grid-column: 1; grid-row: auto; }
 }
 
 .section-title { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
 
-/* 時計: 日付を送る・時刻を直す・出来事へ移る、を 1 枚にまとめる */
-.clock { display: grid; gap: 14px; padding: 14px 16px; }
-.clock-main { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-.clock-date { display: flex; align-items: center; gap: 6px; }
+/* 時計: 日付・時刻・出来事へ移るボタン・現在時刻を、1 行にまとめる（狭いときだけ折り返す） */
+.clock { padding: 8px 12px; }
+.clock-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.clock-date { display: flex; align-items: center; gap: 4px; }
 .clock-date strong { min-width: 6em; text-align: center; font-size: 15px; font-weight: 600; }
 .clock-time {
-  font-size: 40px; line-height: 1; font-weight: 600; letter-spacing: -0.02em;
+  font-size: 30px; line-height: 1; font-weight: 600; letter-spacing: -0.02em; width: 4.1em;
   border: 1px solid transparent; background: transparent; color: inherit; font-family: inherit;
-  padding: 2px 8px; border-radius: 8px; transition: border-color 0.12s, background-color 0.12s;
+  padding: 2px 6px; border-radius: 8px; transition: border-color 0.12s, background-color 0.12s;
 }
 .clock-time::-webkit-calendar-picker-indicator { display: none; }
 .clock-time:hover { border-color: var(--rule); }
 .clock-time:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.clock-grow { flex: 1; }
-.clock-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(104px, 1fr); gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 2px; }
+.clock-steps { flex: 1 1 520px; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(96px, 1fr); gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; }
 .step {
-  display: grid; gap: 1px; text-align: left; padding: 7px 10px; font: inherit; cursor: pointer; color: inherit;
+  display: grid; gap: 0; text-align: left; padding: 4px 9px; font: inherit; cursor: pointer; color: inherit;
   background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
   transition: border-color 0.12s, background-color 0.12s;
 }
-.step b { font-size: 15px; font-weight: 600; }
-.step span { font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+.step b { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.step span { font-size: 11px; line-height: 1.3; color: var(--ink-muted); white-space: nowrap; }
 .step:hover { border-color: var(--accent); }
 .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .step[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -84,7 +91,8 @@ h1, h2, h3 { text-wrap: balance; }
 .command .admin { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-muted); white-space: nowrap; }
 
 /* Discord の画面 */
-.discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr); height: min(620px, calc(100vh - 150px)); min-height: 360px; }
+.discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr); height: max(50vh, 340px); }
+@media (max-width: 1100px) { .discord { height: 360px; } }
 .discord-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 44px; background: var(--dc-bar); border-bottom: 1px solid var(--dc-line); color: var(--dc-strong); font-weight: 600; font-size: 15px; }
 .discord-head .hash { color: var(--dc-muted); font-size: 20px; font-weight: 400; }
 .msgs { overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 12px; }
@@ -116,9 +124,9 @@ h1, h2, h3 { text-wrap: balance; }
 .dc-btn:focus-visible { outline: 2px solid var(--dc-link); outline-offset: 2px; }
 
 /* 状態（worker の中身） */
-.fixtures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.fixture { display: grid; gap: 8px; justify-items: start; padding: 12px 14px; }
-.fixture-time { font-size: 24px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+.fixtures { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.fixture { display: grid; gap: 8px; justify-items: start; padding: 10px 12px; }
+.fixture-time { font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 
 .rows { display: grid; }
 .row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 16px; padding: 9px 14px; }

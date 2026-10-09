@@ -43,23 +43,21 @@ export function ClockBar({ state }: { state: MockStateData }) {
           onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
         />
 
-        <span className="clock-grow" />
+        <div className="clock-steps">
+          {state.clockSteps.map((step) => {
+            const active = jstHm(step.at) === jstHm(now);
+            // ラベルは「20:53 21時の締切」の形。時刻は太く、説明は、その下に出す
+            const description = step.label.replace(/^\d\d:\d\d\s*/, "");
+            return (
+              <button key={step.label} type="button" className="step" aria-pressed={active} onClick={() => move({ action: "set", value: `${date}T${jstHm(step.at)}` })}>
+                <b>{jstHm(step.at)}</b> <span>{description}</span>
+              </button>
+            );
+          })}
+        </div>
         <Button variant={real ? "light" : "default"} aria-pressed={real} onClick={() => move({ action: "real" })}>
           現在時刻
         </Button>
-      </div>
-
-      <div className="clock-steps">
-        {state.clockSteps.map((step) => {
-          const active = jstHm(step.at) === jstHm(now);
-          // ラベルは「20:53 21時の締切」の形。時刻は太く、説明は、その下に出す
-          const description = step.label.replace(/^\d\d:\d\d\s*/, "");
-          return (
-            <button key={step.label} type="button" className="step" aria-pressed={active} onClick={() => move({ action: "set", value: `${date}T${jstHm(step.at)}` })}>
-              <b>{jstHm(step.at)}</b> <span>{description}</span>
-            </button>
-          );
-        })}
       </div>
     </header>
   );
