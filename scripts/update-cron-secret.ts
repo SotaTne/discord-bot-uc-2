@@ -50,7 +50,8 @@ export function readEnvValue(text: string, key: string): string | null {
 export function plan(): string[] {
   return [
     `GitHub の Environments（${ENVIRONMENTS.join("・")}）の Secrets の ${SECRET_NAME} を、新しい値に取り替える（gh コマンド）`,
-    `Apps Script のスクリプトプロパティを、新しい値に取り替える（古い合言葉で認証する。古い合言葉・デプロイの ID がないときは、手で貼る）`,
+    "Apps Script のスクリプトプロパティを、新しい値に取り替える（.env.local の古い合言葉で、ウェブアプリに set-secret を送る）",
+    "  ※ 初回（.env.local に古い合言葉がない、または、config.ts のデプロイの ID が空）は、自動では取り替えられない。画面に出る値を、Apps Script の「スクリプト プロパティ」に、手で貼る",
     `${ENV_FILE} の ${SECRET_NAME} を、新しい値に書き換える`,
     "新しい値を、1 回だけ、画面に出す",
     "デプロイは、しない（Worker に届くのは、次のデプロイのとき。それまでは、/cron が 401 になる）",

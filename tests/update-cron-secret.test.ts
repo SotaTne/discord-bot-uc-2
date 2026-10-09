@@ -29,6 +29,7 @@ describe("実行前の表示と、次にやること", () => {
   it("デプロイは、しないと、先に伝える。両方の環境を対象にする", () => {
     expect(ENVIRONMENTS).toEqual(["staging", "production"]);
     expect(plan().join("\n")).toContain("デプロイは、しない");
+    expect(plan().join("\n")).toContain("初回");
     expect(nextSteps(true).join("\n")).toContain("cd を、develop と main の両方で");
   });
 
