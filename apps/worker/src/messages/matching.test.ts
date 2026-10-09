@@ -1,7 +1,6 @@
 import type { Team } from "@uc/db";
 import { describe, expect, it } from "vitest";
 import { matchingMessage } from "./matching";
-import { recruitMessage } from "./recruit";
 
 const team = (id: number): Team => ({ id, guildId: "g", roleId: `role${id}`, createdAt: 1, deletedAt: null });
 const teamById = new Map([
@@ -9,12 +8,6 @@ const teamById = new Map([
   [2, team(2)],
   [3, team(3)],
 ]);
-
-describe("recruitMessage", () => {
-  it("募集開始の時刻を入れる", () => {
-    expect(recruitMessage(12)).toBe("# 12:00になりましたので、本日の募集を開始します");
-  });
-});
 
 describe("matchingMessage", () => {
   it("組分けを、チームのロールのメンションで出す（ロールの名前で見え、通知もされる）", () => {

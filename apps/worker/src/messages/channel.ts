@@ -2,7 +2,7 @@ import type { MatchingResult } from "@uc/core";
 import type { Team } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
 import { matchingCancelledMessage, matchingMessage } from "./matching";
-import { recruitMessage } from "./recruit";
+import { NO_MENTION, recruitMessage, type RecruitMention } from "./recruit";
 
 /**
  * 投稿先のチャンネルに、投稿する（Worker が、チャンネルへ投稿するのは、ここだけ）。
@@ -12,9 +12,17 @@ export type ChannelPoster = Pick<DiscordRest, "createMessage">;
 
 const teamsById = (teams: readonly Team[]) => new Map(teams.map((team) => [team.id, team]));
 
-/** 募集開始。誰にも、通知しない */
-export async function postRecruit(rest: ChannelPoster, input: { channelId: string; hour: number }): Promise<void> {
-  await rest.createMessage(input.channelId, { content: recruitMessage(input.hour), allowed_mentions: { parse: [] } });
+/** 募集開始。設定した通知先（ロール・@here）にだけ、通知する（既定は、誰にも通知しない） */
+export async function postRecruit(
+  rest: ChannelPoster,
+  input: { channelId: string; hour: number; mention?: RecruitMention },
+): Promise<void> {
+  const mention = input.mention ?? NO_MENTION;
+  await rest.createMessage(input.channelId, {
+    content: recruitMessage(input.hour, mention),
+    // 通知する相手を、ここで、はっきり決める（本文に、ほかのメンションが紛れても、通知されない）
+    allowed_mentions: { parse: mention.here ? ["everyone"] : [], roles: mention.roleIds },
+  });
 }
 
 /** マッチング結果。組まれたチームと、組まれなかったチームのロールに、通知する */

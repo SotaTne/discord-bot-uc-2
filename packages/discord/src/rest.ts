@@ -5,8 +5,12 @@ export const DISCORD_API_BASE = `${RouteBases.api}`;
 
 export type MessagePayload = {
   content?: string;
-  /** 指定しないと、本文中のメンションが通知される。通知したくないときは { parse: [] } を渡す */
-  allowed_mentions?: { parse: string[] };
+  /**
+   * 指定しないと、本文中のメンションが通知される。通知したくないときは { parse: [] } を渡す。
+   * parse に "roles" を入れると、本文中のロールのメンションが、すべて通知される。roles に ID を渡すと、そのロールだけが通知される（どちらか一方）。
+   * @here・@everyone は、parse に "everyone" を入れたときだけ通知される
+   */
+  allowed_mentions?: { parse?: string[]; roles?: string[] };
   flags?: number;
 };
 

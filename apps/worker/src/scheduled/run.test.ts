@@ -47,8 +47,42 @@ describe("募集開始", () => {
 
     expect(summary.ran).toEqual(["recruit:2026-10-07"]);
     expect(posted).toEqual([
-      { channelId: CHANNEL, content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [] } },
+      { channelId: CHANNEL, content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } },
     ]);
+  });
+
+  describe("通知先（設定）", () => {
+    const withMention = (recruitMentionMode: "none" | "teams" | "roles", recruitMentionTargets: string[] = []) =>
+      saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitMentionMode, recruitMentionTargets }, 2);
+
+    it("チーム全て: 登録済みのチームのロールに、通知する", async () => {
+      await withMention("teams");
+      await tick("2026-10-07T12:00:00");
+
+      expect(posted).toEqual([
+        {
+          channelId: CHANNEL,
+          content: `<@&${KMU_ROLE}> <@&${UT_ROLE}>\n# 12:00になりましたので、本日の募集を開始します`,
+          allowedMentions: { parse: [], roles: [KMU_ROLE, UT_ROLE] },
+        },
+      ]);
+    });
+
+    it("ロールを選ぶ: 選んだロールと @here に、通知する", async () => {
+      await withMention("roles", ["200000000000000099", "here"]);
+      await tick("2026-10-07T12:00:00");
+
+      expect(posted[0]).toMatchObject({
+        content: "@here <@&200000000000000099>\n# 12:00になりましたので、本日の募集を開始します",
+        allowedMentions: { parse: ["everyone"], roles: ["200000000000000099"] },
+      });
+    });
+
+    it("ロールを選ぶ（選んだものがない）・なし: 誰にも通知しない（チームのロールを持っていても）", async () => {
+      await withMention("roles", []);
+      await tick("2026-10-07T12:00:00");
+      expect(posted[0]).toMatchObject({ content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } });
+    });
   });
 
   it("毎分呼ばれても、1日1回しか投稿しない", async () => {

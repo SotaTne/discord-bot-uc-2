@@ -5,13 +5,14 @@ import {
   listConfiguredGuilds,
   listMatchSlots,
   listSlotHours,
+  listTeams,
   releaseJob,
   type Db,
   type GuildSettingsValues,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { postRecruit } from "../messages";
+import { postRecruit, recruitMention } from "../messages";
 
 export type ScheduledDeps = {
   db: Db;
@@ -81,7 +82,11 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       run:
         spec.kind === "recruit"
           ? async () => {
-              await postRecruit(deps.rest, { channelId, hour: guild.recruitHour });
+              await postRecruit(deps.rest, {
+                channelId,
+                hour: guild.recruitHour,
+                mention: recruitMention(guild, guild.recruitMentionMode === "teams" ? await listTeams(db, guild.guildId) : []),
+              });
             }
           : () =>
               confirmMatching(deps, {

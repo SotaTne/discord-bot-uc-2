@@ -8,3 +8,4 @@
 //   mention.ts    チームのロールのメンション
 // ※ コマンドの、短い失敗の案内（「時刻を指定してください」など）は、処理の流れと、一緒に、各コマンドに、書いている。
 export { postMatchingCancelled, postMatchingResult, postRecruit, type ChannelPoster } from "./channel";
+export { recruitMention, type RecruitMention } from "./recruit";
