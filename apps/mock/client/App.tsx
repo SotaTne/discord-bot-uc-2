@@ -40,9 +40,15 @@ function Screen() {
   return (
     <main className="page">
       <ClockBar state={state} />
-      <div className="workbench">
-        <div className="rail">
-          <div className="surface controls">
+      <div className="quad">
+        <div className="cell">
+          <StatePanel state={state} part="overview" />
+        </div>
+        <div className="cell">
+          <Feed state={state} />
+        </div>
+        <div className="cell">
+          <div className="controls surface">
             <section aria-label="実行者">
               <Title order={2} className="section-title">
                 実行者
@@ -55,26 +61,22 @@ function Screen() {
               </Title>
               <CommandForm state={state} selectedUsers={selected} />
             </section>
+            <Group justify="flex-start">
+              <Button
+                variant="subtle"
+                color="gray"
+                size="compact-sm"
+                onClick={() => {
+                  if (window.confirm("挙手・マッチング・得点・ログインと、このページのメッセージ・時計を、すべて初期状態に戻します。よろしいですか？")) reset.mutate(formOf({}));
+                }}
+              >
+                データを初期化
+              </Button>
+            </Group>
           </div>
-          <Group justify="flex-start">
-            <Button
-              variant="subtle"
-              color="gray"
-              size="compact-sm"
-              onClick={() => {
-                if (window.confirm("挙手・マッチング・得点・ログインと、このページのメッセージ・時計を、すべて初期状態に戻します。よろしいですか？")) reset.mutate(formOf({}));
-              }}
-            >
-              データを初期化
-            </Button>
-          </Group>
         </div>
-
-        <div className="feed-col">
-          <Feed state={state} />
-        </div>
-        <div className="state-col">
-          <StatePanel state={state} />
+        <div className="cell">
+          <StatePanel state={state} part="history" />
         </div>
       </div>
     </main>

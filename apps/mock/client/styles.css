@@ -26,22 +26,17 @@ h1, h2, h3 { text-wrap: balance; }
 
 .surface { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--mantine-radius-md); }
 
-/* 画面の骨組み: 開いたら、操作・Discord・状態が、スクロールなしで見える */
-.page { max-width: 1680px; margin: 0 auto; padding: 12px 16px 16px; display: grid; gap: 12px; }
-.workbench { display: grid; grid-template-columns: 320px minmax(0, 1fr) clamp(320px, 25vw, 460px); gap: 16px; align-items: start; }
-.rail { display: grid; gap: 12px; position: sticky; top: 12px; }
-.feed-col, .state-col { display: grid; gap: 24px; min-width: 0; }
-.state-col { grid-column: 2; grid-row: 1; }
-.feed-col { grid-column: 3; grid-row: 1; position: sticky; top: 12px; }
-@media (max-width: 1100px) {
-  .workbench { grid-template-columns: 320px minmax(0, 1fr); }
-  .feed-col { grid-column: 2; grid-row: 1; position: static; }
-  .state-col { grid-column: 2; grid-row: 2; }
-}
-@media (max-width: 760px) {
-  .workbench { grid-template-columns: minmax(0, 1fr); }
-  .rail { position: static; }
-  .feed-col, .state-col { grid-column: 1; grid-row: auto; }
+/* 画面の骨組み: 時計の下を、縦横 1/2 ずつの 4 区画に分ける。左上がチャット、右上が状態、左下が操作、右下が履歴 */
+.page { max-width: 1680px; margin: 0 auto; padding: 12px 16px 16px; display: grid; gap: 12px; height: 100vh; grid-template-rows: auto minmax(0, 1fr); box-sizing: border-box; }
+.quad { display: grid; /* 左上 状態 / 右上 チャット / 左下 操作 / 右下 履歴 */ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; min-height: 0; }
+.cell { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.cell > * { flex: none; }
+.cell > .discord { flex: 1; }
+@media (max-width: 900px), (max-height: 560px) {
+  .page { height: auto; }
+  .quad { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .cell { overflow: visible; }
+  .discord { height: 360px; }
 }
 
 .section-title { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
@@ -73,9 +68,9 @@ h1, h2, h3 { text-wrap: balance; }
 .step[aria-pressed="true"] span { color: rgb(255 255 255 / 0.85); }
 
 /* 操作パネル（実行者・コマンド・フォーム） */
-.controls { display: grid; }
-.controls > section { padding: 14px 16px; }
-.controls > section + section { border-top: 1px solid var(--rule); }
+.controls { display: grid; gap: 14px; padding: 14px 16px; }
+.command-pane { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .command-pane { grid-template-columns: minmax(0, 1fr); } }
 
 .command-list { display: grid; gap: 1px; margin: 0 -6px; }
 .command {
@@ -91,8 +86,7 @@ h1, h2, h3 { text-wrap: balance; }
 .command .admin { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-muted); white-space: nowrap; }
 
 /* Discord の画面 */
-.discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr); height: max(50vh, 340px); }
-@media (max-width: 1100px) { .discord { height: 360px; } }
+.discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr);  }
 .discord-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 44px; background: var(--dc-bar); border-bottom: 1px solid var(--dc-line); color: var(--dc-strong); font-weight: 600; font-size: 15px; }
 .discord-head .hash { color: var(--dc-muted); font-size: 20px; font-weight: 400; }
 .msgs { overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 12px; }

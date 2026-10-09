@@ -57,7 +57,7 @@ export function CommandForm({ state, selectedUsers }: { state: MockStateData; se
   }
 
   return (
-    <Stack gap="md">
+    <div className="command-pane">
       <div className="command-list" role="tablist" aria-orientation="vertical" aria-label="コマンド">
         {commands.map((command) => (
           <button key={command.name} type="button" className="command" role="tab" aria-selected={command.name === current} title={command.description} onClick={() => setCurrent(command.name)}>
@@ -80,7 +80,7 @@ export function CommandForm({ state, selectedUsers }: { state: MockStateData; se
           </Stack>
         </form>
       )}
-    </Stack>
+    </div>
   );
 }
 

@@ -16,10 +16,11 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-/** 状態: 対戦枠（今日）・チームごとの 挙手中・対戦数・勝利数・得点・マッチングログ・勝利記録 */
-export function StatePanel({ state }: { state: MockStateData }) {
+/** 状態。overview: 対戦枠（今日）・チームごとの 挙手中・対戦数・勝利数・得点 / history: マッチングログ・勝利記録 */
+export function StatePanel({ state, part }: { state: MockStateData; part: "overview" | "history" }) {
   const { snapshot, snapshotError } = state;
   if (!snapshot) {
+    if (part === "history") return null;
     return (
       <Text role="alert" c="red">
         worker の状態を取得できません: {snapshotError ?? "不明なエラー"}
@@ -29,10 +30,17 @@ export function StatePanel({ state }: { state: MockStateData }) {
 
   return (
     <Stack gap="xl">
-      <Fixtures snapshot={snapshot} />
-      <Teams state={state} snapshot={snapshot} />
-      <Rounds snapshot={snapshot} />
-      <Wins snapshot={snapshot} />
+      {part === "overview" ? (
+        <>
+          <Fixtures snapshot={snapshot} />
+          <Teams state={state} snapshot={snapshot} />
+        </>
+      ) : (
+        <>
+          <Rounds snapshot={snapshot} />
+          <Wins snapshot={snapshot} />
+        </>
+      )}
     </Stack>
   );
 }
