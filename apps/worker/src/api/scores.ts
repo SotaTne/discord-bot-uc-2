@@ -1,5 +1,5 @@
 import { winActiveInputSchema, winPointsInputSchema } from "@uc/api";
-import { calculateScores, resolveRecentSlotDate } from "@uc/core";
+import { calculateScores, matchNumbers, resolveRecentSlotDate } from "@uc/core";
 import {
   findMatchForTeam,
   findSlot,
@@ -8,6 +8,7 @@ import {
   countMatchesByTeam,
   getGuildSettings,
   hasActiveWin,
+  listGuildMatches,
   listTeams,
   listWins,
   setWinActive,
@@ -17,7 +18,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { toCoreWins } from "../scoring/events";
+import { toCoreMatches, toCoreWins } from "../scoring/events";
 import { clearScores } from "../usecases/clear-scores";
 import { loadScores, pointsForWin } from "../usecases/scores";
 import { teamNames } from "../usecases/team-names";
@@ -50,6 +51,59 @@ export function createScoreRoutes(deps: ApiDeps) {
             };
           })
           .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)),
+      });
+    })
+
+    // チームごとの、全組分け（古い順）と、その結果。勝利・敗北（相手の勝利）・未記録（有効な勝利がない）。チームの行を押したときの詳細に使う
+    .get("/teams/:id/history", async (c) => {
+      const id = parseId(c.req.param("id"));
+      if (id === null) return c.json({ error: "invalid_id" as const }, 400);
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+
+      const team = await findTeamById(db, guildId, id);
+      if (!team) return c.json({ error: "not_found" as const }, 404);
+
+      const [{ settings, scores }, matches, wins, teams] = await Promise.all([
+        loadScores(db, guildId),
+        listGuildMatches(db, guildId),
+        listWins(db, guildId),
+        listTeams(db, guildId, { includeDeleted: true }),
+      ]);
+      const nameOf = await teamNames(createRestFromEnv(c.env), guildId, teams);
+      const numbers = matchNumbers(toCoreMatches(matches));
+      const name = (teamId: number) => nameOf.get(teamId) ?? String(teamId);
+
+      return c.json({
+        team: { id, name: name(id) },
+        rule: { fixedAfterMatches: settings.fixedAfterMatches, fixedPoints: settings.fixedPoints },
+        matches: matches
+          .filter((match) => match.teamAId === id || match.teamBId === id)
+          .map((match) => {
+            const opponentId = match.teamAId === id ? match.teamBId : match.teamAId;
+            const ofMatch = wins.filter((win) => win.matchId === match.id);
+            const active = ofMatch.find((win) => win.active);
+            return {
+              matchId: match.id,
+              slotDate: match.slotDate,
+              slotHour: match.slotHour,
+              opponent: { id: opponentId, name: name(opponentId) },
+              // そのチームの、何試合目か（1 始まり）
+              matchNumber: numbers.get(`${id}#${match.id}`) ?? 0,
+              result: !active ? ("none" as const) : active.teamId === id ? ("win" as const) : ("loss" as const),
+              // 有効な勝利（勝ったのは、そのチームか、相手）。points は記録した点数、countedPoints は集計に使われる点数
+              win: active
+                ? {
+                    id: active.id,
+                    winner: { id: active.teamId, name: name(active.teamId) },
+                    points: active.points,
+                    countedPoints: scores.get(String(active.teamId))?.wins.find((win) => win.id === active.id)?.points ?? active.points,
+                    hasScreenshot: active.screenshotKey !== null,
+                  }
+                : null,
+              deletedWins: ofMatch.length - (active ? 1 : 0),
+            };
+          }),
       });
     })
 

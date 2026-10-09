@@ -228,6 +228,74 @@ describe("PUT /api/wins/:id/points（点数の修正）", () => {
   });
 });
 
+describe("GET /api/teams/:id/history（チームごとの、全組分けと結果）", () => {
+  type History = {
+    team: { id: number; name: string };
+    rule: { fixedAfterMatches: number; fixedPoints: number };
+    matches: {
+      matchId: number;
+      slotDate: string;
+      slotHour: number;
+      opponent: { name: string };
+      matchNumber: number;
+      result: "win" | "loss" | "none";
+      win: { winner: { name: string }; points: number; countedPoints: number; hasScreenshot: boolean } | null;
+      deletedWins: number;
+    }[];
+  };
+  const history = (teamId: number, who = cookie) => h.json<History & { error?: string }>(`/api/teams/${teamId}/history`, { cookie: who });
+
+  it("そのチームの全組分けを、古い順に返す。相手・何試合目か・結果（勝利 / 敗北 / 未記録）が付く", async () => {
+    // beforeEach で、KMU vs UT が、10/06 23時と 10/07 21時にある。10/06 は KMU が勝ち、10/07 は UT が勝つ
+    await insertWinInSlot(h.seeded.db, { guildId: GUILD_ID, teamId: h.seeded.kmuId, slotDate: "2026-10-06", slotHour: 23, points: 80, screenshotKey: "k", recordedBy: "a", createdAt: 1 });
+    await insertWinInSlot(h.seeded.db, { guildId: GUILD_ID, teamId: h.seeded.utId, slotDate: "2026-10-07", slotHour: 21, points: 70, screenshotKey: null, recordedBy: "a", createdAt: 2 });
+
+    const { body } = await history(h.seeded.kmuId);
+
+    expect(body.team.name).toBe("KMU");
+    expect(body.matches.map((m) => [m.slotDate, m.slotHour, m.opponent.name, m.matchNumber, m.result])).toEqual([
+      ["2026-10-06", 23, "UT", 1, "win"],
+      ["2026-10-07", 21, "UT", 2, "loss"],
+    ]);
+    expect(body.matches[0]?.win).toMatchObject({ winner: { name: "KMU" }, points: 80, countedPoints: 80, hasScreenshot: true });
+    expect(body.matches[1]?.win).toMatchObject({ winner: { name: "UT" }, points: 70, hasScreenshot: false });
+  });
+
+  it("勝利のない組分けは、未記録。削除した勝利は、件数だけ数える（結果には使わない）", async () => {
+    const id = await seedWin(h.seeded.kmuId, 1, 80);
+    await setActive(id, false);
+
+    const { body } = await history(h.seeded.kmuId);
+
+    const withDeleted = body.matches.find((m) => m.slotDate === "2026-09-01");
+    expect(withDeleted).toMatchObject({ result: "none", win: null, deletedWins: 1 });
+    expect(body.matches.filter((m) => m.result === "none")).toHaveLength(3);
+  });
+
+  it("N 試合を超えた試合の勝利は、記録した点数と、集計に使われる点数の両方を返す", async () => {
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, fixedAfterMatches: 1 }, 1);
+    await seedWin(h.seeded.kmuId, 1, 80);
+    await seedWin(h.seeded.kmuId, 2, 30);
+
+    const { body } = await history(h.seeded.kmuId);
+
+    expect(body.rule).toEqual({ fixedAfterMatches: 1, fixedPoints: 100 });
+    const second = body.matches.find((m) => m.slotDate === "2026-09-02");
+    expect(second?.win).toMatchObject({ points: 30, countedPoints: 100 });
+    expect(second?.matchNumber).toBe(2);
+  });
+
+  it("存在しないチーム・削除したチームは 404。ID が不正なら 400。別のサーバーのチームは見えない", async () => {
+    const other = await h.login({ guildId: "999999999999999999" });
+
+    expect((await history(9999)).status).toBe(404);
+    expect((await h.json("/api/teams/abc/history", { cookie })).status).toBe(400);
+    expect((await history(h.seeded.kmuId, other)).status).toBe(404);
+    await h.json(`/api/teams/${h.seeded.utId}`, { method: "DELETE", cookie });
+    expect((await history(h.seeded.utId)).status).toBe(404);
+  });
+});
+
 describe("GET /api/wins", () => {
   it("記録した人を、Discord での表示名でも返す。取れない人は、ID のまま", async () => {
     await seedWin(h.seeded.kmuId, 1, 10);
