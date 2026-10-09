@@ -1,27 +1,33 @@
+import { CRON_INTERVAL_MINUTES, TARGETS, secretPropertyOf } from "./config";
 import { buildRequests, describeResponse } from "./requests";
-import { TARGETS } from "./targets";
 
-/** 毎分、実行される。ステージングと本番の Worker に、cron を起こす POST を送る（片方が失敗しても、もう片方は呼ぶ） */
+/**
+ * 毎分、実行される。ステージングと本番の Worker に、cron を起こす POST を、同時に送る（Worker は、すぐ 202 を返す）。
+ * 待ち時間は、いちばん遅い 1 件の分だけで済む（1 日の実行時間の上限に、収めるため）
+ */
 function tick() {
   const properties = PropertiesService.getScriptProperties();
   const { requests, missing } = buildRequests(TARGETS, (property) => properties.getProperty(property));
 
-  for (const target of missing) console.error(`${target.name}: 合言葉（スクリプトのプロパティ ${target.secretProperty}）が、設定されていません`);
-  for (const { target, url, options } of requests) {
-    try {
-      const response = UrlFetchApp.fetch(url, options);
-      const line = describeResponse(target, response.getResponseCode(), response.getContentText());
-      if (line) console.log(line);
-    } catch (error) {
-      console.error(`${target.name}: 呼べませんでした ${String(error)}`);
-    }
+  for (const target of missing) console.error(`${target.name}: 合言葉（スクリプトのプロパティ ${secretPropertyOf(target)}）が、設定されていません`);
+  if (requests.length === 0) return;
+
+  try {
+    const responses = UrlFetchApp.fetchAll(requests.map(({ url, options }) => ({ url, ...options })));
+    responses.forEach((response, index) => {
+      const line = describeResponse(requests[index]!.target, response.getResponseCode(), response.getContentText());
+      if (line) console.error(line);
+    });
+  } catch (error) {
+    // 通信そのものの失敗（名前が引けない など）。次の分に、もう一度呼ぶ
+    console.error(`呼べませんでした ${String(error)}`);
   }
 }
 
-/** 毎分のトリガーを作る（すでにあれば、作り直す）。最初に 1 回だけ、手で実行する */
+/** 時間トリガーを作る（すでにあれば、作り直す。間隔は、config.ts）。最初に 1 回だけ、手で実行する */
 function installTrigger() {
   removeTrigger();
-  ScriptApp.newTrigger("tick").timeBased().everyMinutes(1).create();
+  ScriptApp.newTrigger("tick").timeBased().everyMinutes(CRON_INTERVAL_MINUTES).create();
 }
 
 /** cron を止める（使わない期間の節約）。もう一度動かすときは、installTrigger */

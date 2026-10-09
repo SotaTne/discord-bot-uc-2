@@ -1,4 +1,4 @@
-import type { Target } from "./targets";
+import { secretPropertyOf, type Target } from "./config";
 
 export type CronRequest = {
   target: Target;
@@ -14,7 +14,7 @@ export function buildRequests(targets: readonly Target[], readSecret: (property:
   const requests: CronRequest[] = [];
   const missing: Target[] = [];
   for (const target of targets) {
-    const secret = readSecret(target.secretProperty);
+    const secret = readSecret(secretPropertyOf(target));
     if (!secret) {
       missing.push(target);
       continue;
@@ -25,18 +25,10 @@ export function buildRequests(targets: readonly Target[], readSecret: (property:
 }
 
 /**
- * 応答を、ログに出す 1 行にする。何も起きなかった（毎分の、いつもの応答）ときは null（ログを増やさない）。
- * 失敗（ステータスが 200 でない、または、Worker の処理に失敗したジョブがある）は、必ず出す
+ * 応答を、ログに出す 1 行にする。「受け付けた」（202）のときは null（毎分の、いつもの応答なので、ログを増やさない）。
+ * それ以外は、必ず出す（処理の結果は、Worker のログに出る）
  */
 export function describeResponse(target: Target, status: number, body: string): string | null {
-  if (status !== 200) return `${target.name}: 失敗 (HTTP ${status}) ${body.slice(0, 200)}`;
-  let summary: { ran?: string[]; errors?: string[] };
-  try {
-    summary = JSON.parse(body) as { ran?: string[]; errors?: string[] };
-  } catch {
-    return `${target.name}: 応答を読めません ${body.slice(0, 200)}`;
-  }
-  if (summary.errors?.length) return `${target.name}: ジョブの失敗 ${summary.errors.join(" / ")}`;
-  if (summary.ran?.length) return `${target.name}: 実行 ${summary.ran.join(", ")}`;
-  return null;
+  if (status === 202) return null;
+  return `${target.name}: 失敗 (HTTP ${status}) ${body.slice(0, 200)}`;
 }
