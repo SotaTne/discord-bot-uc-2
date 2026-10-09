@@ -1,9 +1,13 @@
-# CI。develop・main への PR で動く。この「ci」のチェックを、ブランチ保護で、マージの必須条件にする
+# CI。develop・main への PR と、develop・main への push（マージ後）で動く。
+# PR の「ci」のチェックを、ブランチ保護で、マージの必須条件にする
 # （通っていないものは、マージできない → Cloudflare の Git 連携が、デプロイする対象に、入らない）。
+# push（マージ後）の実行は、デプロイを止めない（デプロイは、Cloudflare 側で、並行して動く）。マージされた結果が、そのブランチで、通っているかの確認と、記録のため。
 name: ci
 
 on:
   pull_request:
+    branches: [develop, main]
+  push:
     branches: [develop, main]
 
 concurrency:

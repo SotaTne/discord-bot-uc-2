@@ -119,6 +119,8 @@ pnpm register-commands                                    # 全サーバー（�
 - Require branches to be up to date before merging（CI が見たものと、マージされるものを、同じにする）
 - 既定のブランチ（Settings → General）は、`develop`
 
+`develop` と `main` に、コミットが入った（マージされた）あとにも、CI が動く（マージ後の結果が、そのブランチで通っているかの確認。デプロイは、止めない）。
+
 デプロイは、`develop` と `main` に、コミットが入ったときだけ動く。保護により、入れるのは、CI が通った PR のマージだけ。Cloudflare の側では、テストを、もう一度、動かさない（ビルドだけ）。
 
 ## 本番へのデプロイ（Cloudflare）
