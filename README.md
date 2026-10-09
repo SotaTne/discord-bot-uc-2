@@ -18,6 +18,7 @@ pnpm check   # 型チェックとテスト
 
 | 場所 | 役割 |
 |---|---|
+| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（`apps/cron/README.md`） |
 | `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る。`src/` は、本番に載る画面のコードだけ。開発専用の設定（`/api` の proxy）は `dev/` に置き、`vite.config.ts` が、開発サーバー（`command === "serve"`）のときだけ使う |
 | `apps/mock` | 開発専用の疑似 Discord。`server/`（Discord のサーバー役 `discord/` と、画面用の API `api/`）・`client/`（画面。Vite + React + Mantine + TanStack Query。サーバーには HTTP で話すだけ）・`scripts/`（開発の準備）。1 つの Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |
@@ -167,7 +168,8 @@ pnpm register-commands                                    # 全サーバー（�
    | 名前 | 種類 | 内容 |
    |---|---|---|
    | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
-   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、この2つだけ**）。Worker の実行時と、コマンドの登録に、使う |
+   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン。Worker の実行時と、コマンドの登録に、使う |
+   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**環境ごとに、別の値**にする。同じ値を、`apps/cron` の Apps Script のプロパティにも、登録する |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
    | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |
@@ -180,7 +182,11 @@ pnpm register-commands                                    # 全サーバー（�
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
-cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
+cron（毎分）は、2 通りで起こせる。
+- Cloudflare の Cron Trigger: 環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
+- `apps/cron` の Google Apps Script: 毎分、`POST /cron`（合言葉つき）を呼ぶ。Cloudflare の cron が、ステージングで動かなかったので、こちらを使う。設定は、`apps/cron/README.md`。
+
+どちらで起こされても、処理は同じで、ジョブは「実行する権利」を取ってから動くので、二重には実行されない。
 
 **後ろ向きの互換を保つ**: マイグレーションは、コードより先に適用され、コマンドの登録は、コードより後になる。そのため、新しい DB で、古いコードが、動くようにする（列や表の、削除と名前の変更は、2回に分けて出す）。コマンドも、同じ考え方で、コードが、古い定義と新しい定義の、両方を処理できる状態を、保つ（コマンドや必須のオプションの削除は、2回に分けて出す）。
 

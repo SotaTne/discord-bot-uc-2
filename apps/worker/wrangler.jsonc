@@ -18,7 +18,7 @@
     "directory": "node_modules/@uc/dashboard/dist",
     "not_found_handling": "single-page-application",
     // これらのパスは、静的ファイルより先に、worker が処理する（/dev/* は、開発の入口にだけ、ルートがある）
-    "run_worker_first": ["/api/*", "/interactions", "/dev/*"]
+    "run_worker_first": ["/api/*", "/interactions", "/cron", "/dev/*"]
   },
 
   "d1_databases": [
