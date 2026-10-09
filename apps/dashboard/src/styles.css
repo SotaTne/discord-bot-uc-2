@@ -88,4 +88,5 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 .text-link:hover { text-decoration: underline; }
 
 .mermaid-diagram { overflow-x: auto; margin: var(--mantine-spacing-md) 0; }
-.mermaid-diagram svg { max-width: 100%; height: auto; }
+.mermaid-diagram { text-align: center; }
+.mermaid-diagram svg { max-width: min(100%, 460px) !important; height: auto; }
