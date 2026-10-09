@@ -73,7 +73,7 @@ describe("チームの画面: 今日の挙手", () => {
     fireEvent.click(await screen.findByRole("button", { name: "KMUの21:00の挙手を取り消す" }));
 
     await waitFor(() => expect(backend.count("DELETE", "/api/handups/11")).toBe(1));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("region", { name: "KMUの詳細" })).toBeNull();
   });
 
   it("タグの周りの空白（挙手の列の、タグ以外の場所）を押しても、行を押したことになり、詳細が開く", async () => {
@@ -84,21 +84,23 @@ describe("チームの画面: 今日の挙手", () => {
     // タグを並べる箱は、列の幅いっぱいに広がる。その空白を押す（タグそのものではなく、箱を押す）
     fireEvent.click(within(kmu).getByText("22:00").closest(".mantine-Group-root")!);
 
-    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "KMUの詳細" })).toBeTruthy();
   });
 });
 
-describe("チームの画面: チームの詳細（行を押すと、全組分けと結果）", () => {
-  it("チームの名前を押すと、右から詳細が開く。全組分けを、古い順に、相手・結果・点数つきで出す", async () => {
+describe("チームの画面: チームの詳細（行を押すと、その行の下に、全組分けと結果を開く）", () => {
+  it("チームの名前を押すと、その行の下に詳細が開く。全組分けを、古い順に、相手・結果・点数つきで出す", async () => {
     const backend = installFakeBackend({ ...apis(), "GET /api/teams/1/history": { body: history() } });
     renderApp("/teams");
 
     fireEvent.click(await screen.findByRole("button", { name: "KMUの詳細を開く" }));
 
-    const drawer = within(await screen.findByRole("dialog", { name: "KMU" }));
+    const drawer = within(await screen.findByRole("region", { name: "KMUの詳細" }));
     expect(backend.count("GET", "/api/teams/1/history")).toBe(1);
-    // 見出しの下に、得点・順位・試合数・勝利数
-    expect(drawer.getByText("250pt（1位）・5試合・3勝")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "KMUの詳細を閉じる" }).getAttribute("aria-expanded")).toBe("true");
+    // 詳細は、KMU の行のすぐ下の行に出る
+    const detailRow = screen.getByRole("region", { name: "KMUの詳細" }).closest("tr")!;
+    expect(detailRow.previousElementSibling?.textContent).toContain("KMU");
     const rows = (await drawer.findAllByRole("row")).slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
     expect(rows).toEqual([
       ["1試合目", "10/05 21:00", "UT", "勝利", "80pt", "画像"],
@@ -112,15 +114,35 @@ describe("チームの画面: チームの詳細（行を押すと、全組分�
     expect(drawer.getByRole("link", { name: "10/05 21:00" }).getAttribute("href")).toBe("/?date=2026-10-05");
   });
 
-  it("URL に ?team= があれば、最初から開く。閉じると、URL から消える", async () => {
+  it("URL に ?team= があれば、最初から開く。同じ行をもう一度押すと、閉じる", async () => {
     installFakeBackend({ ...apis(), "GET /api/teams/1/history": { body: history() } });
     renderApp("/teams?team=1");
 
-    expect(await screen.findByRole("dialog", { name: "KMU" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "KMUの詳細" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    fireEvent.click(screen.getByRole("button", { name: "KMUの詳細を閉じる" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "KMU" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("region", { name: "KMUの詳細" })).toBeNull());
+  });
+
+  it("いくつのチームでも、同時に開ける。1 つ閉じても、ほかは開いたまま。URL にも、開いているチームが並ぶ", async () => {
+    installFakeBackend({
+      ...apis(),
+      "GET /api/teams/1/history": { body: history() },
+      "GET /api/teams/3/history": { body: history({ team: { id: 3, name: "NGT" }, matches: [] }) },
+    });
+    renderApp("/teams?team=[1,3]");
+    expect(await screen.findByRole("region", { name: "KMUの詳細" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "NGTの詳細" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "KMUの詳細を閉じる" }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "KMUの詳細" })).toBeNull());
+    expect(screen.getByRole("region", { name: "NGTの詳細" })).toBeTruthy();
+    // 閉じたあとに、もう 1 つ開く（先に開いていた NGT は、そのまま）
+    fireEvent.click(screen.getByRole("button", { name: "KMUの詳細を開く" }));
+    expect(await screen.findByRole("region", { name: "KMUの詳細" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "NGTの詳細" })).toBeTruthy();
   });
 
   it("組分けがなければ、その旨を出す", async () => {
