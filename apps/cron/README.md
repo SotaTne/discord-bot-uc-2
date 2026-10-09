@@ -16,6 +16,7 @@
 | `start` | 毎分のトリガーを作る（cron を動かす）。すでにあれば、作り直す（間隔を変えたときも、これ） |
 | `stop` | トリガーを消す（cron を止める）。使わない期間の節約になる |
 | `health` | Apps Script が動いているか（ウェブアプリが応答して、毎分のトリガーがあるか）を見る |
+| `deployment-id` | Apps Script に、すでにあるウェブアプリのデプロイの ID を、`.env.local` の `GAS_DEPLOYMENT_ID` に書く。別のパソコンで、`.env.local` がないときに使う（`clasp login` が要る） |
 | `create` | ビルドして（`dist/` が、置く先として、要る）、Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
 | `push` | ビルドして、Apps Script に置いて、ウェブアプリ（`start` / `stop` / `health` の入口）を、置いたコードに更新する。`src/config.ts` などを変えたときに実行する。**初回**（`.env.local` に `GAS_DEPLOYMENT_ID` がない）は、ウェブアプリのデプロイを作って、出た ID を、`.env.local` に書く |
 | `logs` | 実行のログを見る（失敗した回だけ、出る） |
