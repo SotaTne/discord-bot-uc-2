@@ -40,13 +40,7 @@ function Screen() {
   return (
     <main className="page">
       <ClockBar state={state} />
-      <div className="quad">
-        <div className="cell">
-          <StatePanel state={state} part="overview" />
-        </div>
-        <div className="cell">
-          <Feed state={state} />
-        </div>
+      <div className="cols">
         <div className="cell">
           <div className="controls surface">
             <section aria-label="実行者">
@@ -75,8 +69,12 @@ function Screen() {
             </Group>
           </div>
         </div>
-        <div className="cell">
+        <div className="cell state-cell">
+          <StatePanel state={state} part="overview" />
           <StatePanel state={state} part="history" />
+        </div>
+        <div className="cell">
+          <Feed state={state} />
         </div>
       </div>
     </main>
