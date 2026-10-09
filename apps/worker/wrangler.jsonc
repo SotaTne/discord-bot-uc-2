@@ -42,8 +42,8 @@
         {
           "binding": "DB",
           "database_name": "uc-bot-staging",
-          // `wrangler d1 create uc-bot-staging` で出た ID に、置き換える（ID は、秘密ではない）
-          "database_id": "00000000-0000-0000-0000-000000000001",
+          // `wrangler d1 create uc-bot-staging` で出た ID（秘密ではない）
+          "database_id": "cefbac3d-b216-43ca-8b14-13181f7b0564",
           "migrations_dir": "node_modules/@uc/db/migrations"
         }
       ],
@@ -56,8 +56,8 @@
         {
           "binding": "DB",
           "database_name": "uc-bot",
-          // `wrangler d1 create uc-bot` で出た ID に、置き換える（ID は、秘密ではない）
-          "database_id": "00000000-0000-0000-0000-000000000002",
+          // `wrangler d1 create uc-bot` で出た ID（秘密ではない）
+          "database_id": "54907620-232e-4648-90c3-9184a53721f1",
           "migrations_dir": "node_modules/@uc/db/migrations"
         }
       ],
