@@ -86,3 +86,6 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 /* 文字のリンク（青）。触れると、下線 */
 .text-link { color: var(--mantine-color-anchor); text-decoration: none; }
 .text-link:hover { text-decoration: underline; }
+
+.mermaid-diagram { overflow-x: auto; margin: var(--mantine-spacing-md) 0; }
+.mermaid-diagram svg { max-width: 100%; height: auto; }

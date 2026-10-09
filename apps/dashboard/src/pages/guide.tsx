@@ -4,6 +4,7 @@ import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import guideSource from "../guide/guide.md?raw";
 import { CommandsTable } from "../guide/commands-table";
+import { MermaidDiagram } from "../guide/mermaid-diagram";
 import { PageTitle } from "../components/ui";
 
 /** guide.md の中で、コマンド一覧を差し込む場所 */
@@ -23,6 +24,12 @@ export function headingId(text: string): string {
 const components: Components = {
   h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
   h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
+  // ```mermaid の囲みは、図にする。ほかのコードは、そのまま
+  pre: ({ children }) => {
+    const code = Children.toArray(children).find(isValidElement<{ className?: string; children?: ReactNode }>);
+    if (code?.props.className?.includes("language-mermaid")) return <MermaidDiagram chart={textOf(code.props.children).trim()} />;
+    return <pre>{children}</pre>;
+  },
 };
 
 /** 見出し（## と ###）の一覧。目次に使う */

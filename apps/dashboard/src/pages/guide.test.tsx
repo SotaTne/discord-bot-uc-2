@@ -1,9 +1,14 @@
-import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { commands } from "@uc/discord/commands";
 import guideSource from "../guide/guide.md?raw";
 import { installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 import { COMMANDS_MARKER, headingsOf } from "./guide";
+
+// 図の描画は、ブラウザの中で行うので、テストでは、描画する関数を差し替える
+vi.mock("mermaid", () => ({
+  default: { initialize: () => undefined, render: async (_id: string, chart: string) => ({ svg: `<svg data-chart="${chart.split("\n")[0]}"></svg>` }) },
+}));
 
 describe("ガイド", () => {
   it("目次と、コマンド一覧（コマンド定義から作る）が出る", async () => {
@@ -19,6 +24,15 @@ describe("ガイド", () => {
     expect(table.getAllByRole("row")).toHaveLength(commands.length + 1);
     expect(table.getByText("/uc-admin-win time team-role point image [date]")).toBeTruthy();
     expect(screen.queryByText(COMMANDS_MARKER)).toBeNull();
+  });
+
+  it("```mermaid の囲みは、図になる（元の文字は出ない）", async () => {
+    installFakeBackend({ ...loggedIn });
+    renderApp("/guide");
+    const diagrams = await screen.findAllByRole("img", { name: "図" });
+    expect(diagrams.length).toBeGreaterThan(0);
+    await waitFor(() => expect(diagrams[0]!.querySelector("svg")).not.toBeNull());
+    expect(screen.queryByText(/flowchart/)).toBeNull();
   });
 
   it("Markdown の表も表示される", async () => {

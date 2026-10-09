@@ -17,6 +17,7 @@
     "@uc/core": "workspace:*",
     "@uc/discord": "workspace:*",
     "hono": "catalog:",
+    "mermaid": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-markdown": "catalog:",
