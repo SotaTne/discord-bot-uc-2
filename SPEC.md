@@ -173,6 +173,11 @@
 ## 8. Cloudflare 構成
 
 - Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets）。
+- 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
+  - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
+  - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）
+  - `/dev`: 認証はなく、`DEV_CLOCK=true` のときだけ有効（`devOnly`。それ以外は 404）
+  - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
 - Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
 - 3 秒制限のある処理は、deferred response と `waitUntil` で行う。

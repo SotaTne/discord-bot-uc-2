@@ -3,15 +3,13 @@ import {
   InteractionType,
   ephemeralMessage,
   pong,
-  verifyDiscordSignature,
-  type Interaction,
 } from "@uc/discord";
 import { Hono } from "hono";
 import { componentHandlers, commandHandlers, type CommandHandler } from "../commands/registry";
 import { resolveClock } from "../clock";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import type { AppEnv } from "../env";
+import { verifyDiscordRequest, type InteractionEnv } from "../middleware/discord-signature";
 
 export type InteractionsDeps = {
   clock: Clock;
@@ -20,33 +18,10 @@ export type InteractionsDeps = {
   fetch?: typeof fetch | undefined;
 };
 
-/** Discord からの Interactions を受ける。署名を検証できないリクエストは処理しない */
+/** Discord からの Interactions を受ける。署名の検証は、middleware（verifyDiscordRequest）で済んでいる */
 export function createInteractionsRoute(deps: InteractionsDeps) {
-  return new Hono<{ Bindings: AppEnv }>().post("/", async (c) => {
-    const signature = c.req.header("X-Signature-Ed25519");
-    const timestamp = c.req.header("X-Signature-Timestamp");
-    // 署名の対象は、JSON に変換する前の生のボディ
-    const body = await c.req.text();
-
-    if (!signature || !timestamp) {
-      return c.json({ error: "invalid request signature" }, 401);
-    }
-    const valid = await verifyDiscordSignature({
-      publicKey: c.env.DISCORD_PUBLIC_KEY,
-      signature,
-      timestamp,
-      body,
-    });
-    if (!valid) {
-      return c.json({ error: "invalid request signature" }, 401);
-    }
-
-    let interaction: Interaction;
-    try {
-      interaction = JSON.parse(body) as Interaction;
-    } catch {
-      return c.json({ error: "invalid json" }, 400);
-    }
+  return new Hono<InteractionEnv>().use(verifyDiscordRequest).post("/", async (c) => {
+    const interaction = c.get("interaction");
 
     if (interaction.type === InteractionType.Ping) {
       return c.json(pong());

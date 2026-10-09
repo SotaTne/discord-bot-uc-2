@@ -1,7 +1,7 @@
 import type { Clock } from "@uc/core";
 import { deleteGuildActivity, findWin, listConfiguredGuilds, type Db } from "@uc/db";
 import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
+import { devOnly } from "../middleware/dev-only";
 import { resolveClock } from "../clock";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
@@ -23,13 +23,8 @@ async function targetGuildId(db: Db, query: string | undefined): Promise<string 
  * - POST /reset: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残す
  */
 export function createDevRoutes(deps: { clock: Clock }) {
-  const onlyInDev = createMiddleware<{ Bindings: AppEnv }>(async (c, next) => {
-    if (c.env.DEV_CLOCK !== "true") return c.json({ error: "not found" }, 404);
-    await next();
-  });
-
   return new Hono<{ Bindings: AppEnv }>()
-    .use(onlyInDev)
+    .use(devOnly)
 
     .post("/tick", async (c) => {
       const body = (await c.req.json().catch(() => ({}))) as { now?: string };

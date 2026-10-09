@@ -2,12 +2,11 @@ import { loginInputSchema } from "@uc/api";
 import { consumeDashboardLink, createSession, findActiveSession, revokeSession } from "@uc/db";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
 import { createDb } from "../db";
 import type { AppEnv } from "../env";
 import { generateToken, sha256Hex } from "../security/tokens";
 import { SESSION_TTL_MS, clearSessionCookie, readSessionToken, writeSessionCookie } from "./session";
-import type { ApiDeps, ApiEnv } from "./types";
+import type { ApiDeps } from "./types";
 
 /** ログインとログアウト（ログイン前でも使える） */
 export function createAuthRoutes(deps: ApiDeps) {
@@ -48,17 +47,3 @@ export function createAuthRoutes(deps: ApiDeps) {
       return c.json({ ok: true as const });
     });
 }
-
-/** セッションがなければ 401。あれば、サーバーとユーザーを c.var.auth に入れる */
-export const requireSession = (deps: ApiDeps) =>
-  createMiddleware<ApiEnv>(async (c, next) => {
-    const token = readSessionToken(c);
-    const session = token
-      ? await findActiveSession(createDb(c.env.DB), await sha256Hex(token), deps.clock.now().getTime())
-      : undefined;
-    if (!session) {
-      return c.json({ error: "unauthorized" as const }, 401);
-    }
-    c.set("auth", { guildId: session.guildId, userId: session.userId, sessionId: session.id });
-    await next();
-  });
