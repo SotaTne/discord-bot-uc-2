@@ -1,12 +1,14 @@
 # CI（型の確認・テスト・マイグレーションの整合性）。
 # - develop・main への PR で動く。この「ci」のチェックを、ブランチ保護で、マージの必須条件にする
 # - cd.yml からも呼ばれる（develop・main への push）。通ったときだけ、デプロイに進む
+# - Actions の画面の「Run workflow」からも、手動で実行できる（選んだブランチで動く）
 name: ci
 
 on:
   pull_request:
     branches: [develop, main]
   workflow_call:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

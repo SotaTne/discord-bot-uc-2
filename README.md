@@ -120,6 +120,7 @@ pnpm register-commands                                    # 全サーバー（�
   2. **`deploy`**: ビルド → マイグレーションの適用 → `wrangler deploy --env …`。
   3. **`register-commands`**: スラッシュコマンドを、Discord に登録する（`pnpm register-commands`。毎回、全部を、上書きする）。
   同じブランチのデプロイは、順番に処理する。
+- どちらも、GitHub の Actions のタブの「Run workflow」から、**手動でも実行できる**（選んだブランチで動く）。`cd.yml` を、手動で実行すると、そのブランチを、そのまま、再デプロイできる（失敗したデプロイの、やり直しなど）。`develop` と `main` 以外のブランチを選ぶと、CI だけ動いて、デプロイは、飛ばされる。
   **登録を、デプロイの後にする理由**: 先に登録すると、「新しいコマンドが画面に出るのに、古い Worker が処理できない」期間ができる。後なら、登録が失敗しても、古いコマンドが、動き続けるだけ。登録は、独立したジョブなので、失敗したときは、GitHub の「Re-run failed jobs」で、そこだけを、やり直せる。
 
 **ブランチ保護**（GitHub の Settings → Branches。`develop` と `main` の両方）:

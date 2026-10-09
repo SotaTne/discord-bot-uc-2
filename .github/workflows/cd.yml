@@ -7,9 +7,11 @@
 # 後なら、失敗しても、古いコマンドが動き続けるだけ（登録は、独立したジョブなので、そこだけ再実行できる）。
 name: cd
 
+# 手動実行（Actions の画面の「Run workflow」）: 選んだブランチで動く。デプロイできるのは、develop と main だけ（それ以外では、CI だけ動いて、デプロイは、飛ばされる）
 on:
   push:
     branches: [develop, main]
+  workflow_dispatch:
 
 # 同じブランチのデプロイは、順番に処理する（途中のデプロイを、止めない）
 concurrency:
@@ -25,6 +27,8 @@ jobs:
 
   deploy:
     needs: ci
+    # develop と main 以外（手動実行で、別のブランチを選んだとき）は、デプロイしない（そのブランチのコードが、ステージングに出てしまうため）
+    if: github.ref_name == 'develop' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     # ブランチから、環境を決める（develop → staging、main → production）
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
@@ -59,6 +63,7 @@ jobs:
   # スラッシュコマンドを、Discord に登録する（毎回、全部を、上書きする。何度実行しても、同じ結果）
   register-commands:
     needs: deploy
+    if: github.ref_name == 'develop' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     env:
