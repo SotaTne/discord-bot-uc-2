@@ -9,8 +9,8 @@
     }
   },
   "scripts": {
-    "dev": "mkdir -p node_modules/@uc/dashboard/dist && wrangler dev --port 8787 --no-minify --define import.meta.env.DEV:true",
-    "preview": "wrangler dev --port 8787",
+    "dev": "mkdir -p node_modules/@uc/dashboard/dist && wrangler dev --define import.meta.env.DEV:true",
+    "preview": "wrangler dev",
     "deploy": "wrangler deploy",
     "tunnel": "ngrok http 8787 ${NGROK_URL:+--url=$NGROK_URL}",
     "db:migrate": "wrangler d1 migrations apply uc-bot --local",
