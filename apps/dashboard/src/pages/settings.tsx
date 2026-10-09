@@ -1,12 +1,13 @@
 import { handupDeadline, formatJstTime } from "@uc/core";
-import { Anchor, Badge, Button, Checkbox, Group, Stack, Text, TextInput } from "@mantine/core";
+import { HERE_TARGET, type SettingsInput } from "@uc/api";
+import { Anchor, Badge, Button, Checkbox, Group, MultiSelect, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
 import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
-import { useBoard, useInvalidatingMutation, useSettings, useSlotHours } from "../lib/queries";
+import { useBoard, useInvalidatingMutation, useRoles, useSettings, useSlotHours } from "../lib/queries";
 import { Sessions } from "./sessions";
 
 /** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 得点の集計 / 試合時刻 / ログイン） */
@@ -30,14 +31,7 @@ export function SettingsPage() {
   );
 }
 
-type SettingsValues = {
-  channelId: string | null;
-  recruitHour: number;
-  cutoffMinutes: number;
-  fixedAfterMatches: number;
-  fixedPoints: number;
-  revokeSessionsOnReissue: boolean;
-};
+type SettingsValues = SettingsInput;
 
 /** 設定の保存。API は全項目をまとめて受け取るので、いまの設定に、そのセクションの項目だけを重ねて送る */
 function useSaveSettings(initial: SettingsValues) {
@@ -99,12 +93,36 @@ function SaveRow({ pending, saved, dirty, valid, error, onCancel }: { pending: b
 
 const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
+/** 通知するロール（複数）と、@here を選ぶ。ロール一覧は、Discord から取る（取れなくても、選んだものは、そのまま見える） */
+function MentionTargets({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  const roles = useRoles();
+  const known = new Map((roles.data?.roles ?? []).map((role) => [role.id, role.name]));
+  const data = [
+    { value: HERE_TARGET, label: "@here（オンラインの人）" },
+    ...(roles.data?.roles ?? []).map((role) => ({ value: role.id, label: role.name })),
+    // 一覧にない（消されたロール・一覧を取れなかった）選択済みのものは、ID で見せる
+    ...value.filter((id) => id !== HERE_TARGET && !known.has(id)).map((id) => ({ value: id, label: `ロール ${id}` })),
+  ];
+  return (
+    <>
+      <MultiSelect aria-label="通知するロール" placeholder="ロールを選ぶ" w={320} searchable clearable data={data} value={value} onChange={onChange} />
+      {roles.isError && (
+        <Text size="xs" c="dimmed">
+          Discord からロール一覧を取得できませんでした（@here は、選べます）
+        </Text>
+      )}
+    </>
+  );
+}
+
 /** Discord への投稿（募集開始・マッチング結果）の設定 */
 function PostSettings({ initial }: { initial: SettingsValues }) {
   const slotHours = useSlotHours();
   const [channelId, setChannelId] = useState(initial.channelId ?? "");
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
+  const [mentionMode, setMentionMode] = useState(initial.recruitMentionMode);
+  const [mentionTargets, setMentionTargets] = useState(initial.recruitMentionTargets);
   const save = useSaveSettings(initial);
 
   const errors = {
@@ -114,12 +132,23 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
   };
   const valid = !errors.channelId && !errors.recruitHour && !errors.cutoffMinutes;
   const dirty =
-    channelId.trim() !== (initial.channelId ?? "") || recruitHour.trim() !== String(initial.recruitHour) || cutoffMinutes.trim() !== String(initial.cutoffMinutes);
+    channelId.trim() !== (initial.channelId ?? "") ||
+    recruitHour.trim() !== String(initial.recruitHour) ||
+    cutoffMinutes.trim() !== String(initial.cutoffMinutes) ||
+    mentionMode !== initial.recruitMentionMode ||
+    mentionTargets.join(",") !== initial.recruitMentionTargets.join(",");
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!valid) return;
-    save.mutate({ channelId: channelId.trim() === "" ? null : channelId.trim(), recruitHour: Number(recruitHour), cutoffMinutes: Number(cutoffMinutes) });
+    save.mutate({
+      channelId: channelId.trim() === "" ? null : channelId.trim(),
+      recruitHour: Number(recruitHour),
+      cutoffMinutes: Number(cutoffMinutes),
+      recruitMentionMode: mentionMode,
+      // 「ロールを選ぶ」以外のときは、選んだ通知先は、使われない（残しておくと、あとで戻したときに、選び直さなくてよい）
+      recruitMentionTargets: mentionTargets,
+    });
   }
 
   // 今の入力で、今日の予定がどうなるか（保存する前に、確かめられる）
@@ -138,6 +167,27 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
           </SettingRow>
           <SettingRow title="募集開始時刻" description="この時（0〜23, JST）に、その日の募集を始めます">
             <TextInput aria-label="募集開始時刻（JST）" name="recruitHour" type="number" min={0} max={23} w={120} value={recruitHour} error={errors.recruitHour ?? false} onChange={(event) => setRecruitHour(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="募集開始の通知先" description="募集開始の投稿で、誰に通知するか。「なし」が、既定です">
+            <Stack gap="xs">
+              <SegmentedControl
+                aria-label="募集開始の通知先"
+                w={320}
+                value={mentionMode}
+                onChange={(value) => setMentionMode(value as typeof mentionMode)}
+                data={[
+                  { value: "none", label: "なし" },
+                  { value: "teams", label: "チーム全て" },
+                  { value: "roles", label: "ロールを選ぶ" },
+                ]}
+              />
+              {mentionMode === "teams" && (
+                <Text size="xs" c="dimmed">
+                  登録済みのチームのロールに、通知します
+                </Text>
+              )}
+              {mentionMode === "roles" && <MentionTargets value={mentionTargets} onChange={setMentionTargets} />}
+            </Stack>
           </SettingRow>
           <SettingRow title="締切" description="試合の何分前に、挙手を締め切って、マッチング処理を行うか">
             <TextInput aria-label="締切（試合の何分前）" name="cutoffMinutes" type="number" min={1} max={180} w={120} value={cutoffMinutes} error={errors.cutoffMinutes ?? false} onChange={(event) => setCutoffMinutes(event.target.value)} />
@@ -175,6 +225,8 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
               setChannelId(initial.channelId ?? "");
               setRecruitHour(String(initial.recruitHour));
               setCutoffMinutes(String(initial.cutoffMinutes));
+              setMentionMode(initial.recruitMentionMode);
+              setMentionTargets(initial.recruitMentionTargets);
             }}
           />
         </Stack>

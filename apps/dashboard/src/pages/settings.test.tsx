@@ -8,6 +8,8 @@ const SETTINGS = {
   cutoffMinutes: 7,
   fixedAfterMatches: 5,
   fixedPoints: 100,
+  recruitMentionMode: "none" as const,
+  recruitMentionTargets: [] as string[],
   revokeSessionsOnReissue: false,
 };
 const ROLES = { roles: [{ id: "400000000000000001", name: "KMU" }, { id: "400000000000000002", name: "UT" }, { id: "400000000000000003", name: "NGT" }] };
@@ -61,7 +63,64 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       cutoffMinutes: 15,
       fixedAfterMatches: 5,
       fixedPoints: 100,
+      recruitMentionMode: "none",
+      recruitMentionTargets: [],
       revokeSessionsOnReissue: false,
+    });
+  });
+
+  describe("募集開始の通知先", () => {
+    const save = (backend: ReturnType<typeof installFakeBackend>) => backend.last("PUT", "/api/settings")?.json;
+
+    it("既定は「なし」。「チーム全て」にして保存できる", async () => {
+      const backend = installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true } }) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+
+      expect((screen.getByRole("radio", { name: "なし" }) as HTMLInputElement).checked).toBe(true);
+      expect(screen.queryByLabelText("通知するロール")).toBeNull();
+
+      fireEvent.click(screen.getByRole("radio", { name: "チーム全て" }));
+      expect(screen.getByText("登録済みのチームのロールに、通知します")).toBeTruthy();
+      expect(screen.queryByLabelText("通知するロール")).toBeNull();
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+      await waitFor(() => expect(save(backend)).toMatchObject({ recruitMentionMode: "teams", recruitMentionTargets: [] }));
+    });
+
+    it("「ロールを選ぶ」: ロール（複数）と @here を選んで、保存できる。選んだものは、あとで「なし」に戻しても、残る", async () => {
+      const backend = installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true } }) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+      fireEvent.click(screen.getByRole("radio", { name: "ロールを選ぶ" }));
+
+      const [picker] = await screen.findAllByLabelText("通知するロール");
+      fireEvent.focus(picker!);
+      fireEvent.click(picker!);
+      // 候補の一覧は、画面の外に描かれる（jsdom では、見えない扱いになるので、hidden を付ける）
+      fireEvent.click(await screen.findByRole("option", { name: "@here（オンラインの人）", hidden: true }));
+      fireEvent.click(await screen.findByRole("option", { name: "NGT", hidden: true }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+      await waitFor(() => expect(save(backend)).toMatchObject({ recruitMentionMode: "roles", recruitMentionTargets: ["here", "400000000000000003"] }));
+    });
+
+    it("保存してある通知先を、画面に出す（一覧にないロールも、ID で見える）。キャンセルで、元に戻る", async () => {
+      installFakeBackend({
+        ...apis(),
+        "GET /api/settings": { body: { ...SETTINGS, recruitMentionMode: "roles", recruitMentionTargets: ["here", "400000000000000001", "999999999999999999"] } },
+      });
+      renderApp("/settings");
+
+      expect((await screen.findByRole("radio", { name: "ロールを選ぶ" }) as HTMLInputElement).checked).toBe(true);
+      // 選んである通知先が、画面に出ている（選択済みの表示と、候補の一覧の、両方にあるので、1 つ以上）
+      for (const label of ["@here（オンラインの人）", "KMU", "ロール 999999999999999999"]) {
+        expect((await screen.findAllByText(label)).length, label).toBeGreaterThan(0);
+      }
+
+      fireEvent.click(screen.getByRole("radio", { name: "なし" }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "キャンセル" }));
+      expect((screen.getByRole("radio", { name: "ロールを選ぶ" }) as HTMLInputElement).checked).toBe(true);
     });
   });
 
