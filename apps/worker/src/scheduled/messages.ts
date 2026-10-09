@@ -10,13 +10,13 @@ export const recruitMessage = (hour: number) => `# ${hour}:00になりました�
  */
 export function matchingCancelledMessage(input: {
   hour: number;
-  pairs: [teamAId: string, teamBId: string][];
-  excluded: string | null;
-  teamById: Map<string, Team>;
+  pairs: [teamAId: number, teamBId: number][];
+  excluded: number | null;
+  teamById: Map<number, Team>;
 }): string {
-  const mention = (id: string) => {
+  const mention = (id: number) => {
     const team = input.teamById.get(id);
-    return team ? `<@&${team.roleId}>` : id;
+    return team ? `<@&${team.roleId}>` : String(id);
   };
   const lines = [`## ${input.hour}時のマッチングはキャンセルされました`];
   for (const [a, b] of input.pairs) lines.push(`- ${mention(a)} vs ${mention(b)}`);
@@ -31,16 +31,16 @@ export function matchingCancelledMessage(input: {
 export function matchingMessage(input: {
   hour: number;
   result: MatchingResult;
-  teamById: Map<string, Team>;
+  teamById: Map<number, Team>;
 }): string {
   const { hour, result, teamById } = input;
   if (result.kind === "insufficient") {
     return `## 試合 (時間:${hour}時)\n試合に参加するチームが十分ではありません`;
   }
 
-  const mention = (id: string) => {
+  const mention = (id: number) => {
     const team = teamById.get(id);
-    return team ? `<@&${team.roleId}>` : id;
+    return team ? `<@&${team.roleId}>` : String(id);
   };
   const lines = [`## 試合 (時間:${hour}時) の組分け:`];
   for (const [a, b] of result.pairs) {

@@ -4,9 +4,9 @@ import { matchingMessage, recruitMessage } from "./messages";
 
 const team = (id: number): Team => ({ id, guildId: "g", roleId: `role${id}`, createdAt: 1, deletedAt: null });
 const teamById = new Map([
-  ["1", team(1)],
-  ["2", team(2)],
-  ["3", team(3)],
+  [1, team(1)],
+  [2, team(2)],
+  [3, team(3)],
 ]);
 
 describe("recruitMessage", () => {
@@ -17,12 +17,12 @@ describe("recruitMessage", () => {
 
 describe("matchingMessage", () => {
   it("組分けを、チームのロールのメンションで出す（ロールの名前で見え、通知もされる）", () => {
-    const text = matchingMessage({ hour: 21, teamById, result: { kind: "matched", pairs: [["1", "2"]], excluded: null } });
+    const text = matchingMessage({ hour: 21, teamById, result: { kind: "matched", pairs: [[1, 2]], excluded: null } });
     expect(text).toBe(["## 試合 (時間:21時) の組分け:", "- <@&role1> vs <@&role2>"].join("\n"));
   });
 
   it("奇数で除外されたチームも、理由つきで出す", () => {
-    const text = matchingMessage({ hour: 22, teamById, result: { kind: "matched", pairs: [["1", "2"]], excluded: "3" } });
+    const text = matchingMessage({ hour: 22, teamById, result: { kind: "matched", pairs: [[1, 2]], excluded: 3 } });
     expect(text.split("\n").slice(1)).toEqual([
       "- <@&role1> vs <@&role2>",
       "- <@&role3> は参加チーム数が奇数だったためマッチングしませんでした",
@@ -36,7 +36,7 @@ describe("matchingMessage", () => {
   });
 
   it("登録のない ID でも、壊れずに ID のまま出す", () => {
-    const text = matchingMessage({ hour: 21, teamById: new Map(), result: { kind: "matched", pairs: [["9", "8"]], excluded: null } });
+    const text = matchingMessage({ hour: 21, teamById: new Map(), result: { kind: "matched", pairs: [[9, 8]], excluded: null } });
     expect(text).toContain("- 9 vs 8");
   });
 });
