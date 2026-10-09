@@ -2,8 +2,9 @@
 //   pnpm start   毎分のトリガーを作る（cron を動かす）
 //   pnpm stop    トリガーを消す（cron を止める。使わない期間の節約）
 //   pnpm health  動いているか（トリガーの有無と、呼ぶ先の応答）を見る
-// 必要な設定は、apps/cron/.env.local（git には入れない）に書く: GAS_DEPLOYMENT_ID・CRON_SECRET
+// 必要な設定: 合言葉 CRON_SECRET は apps/cron/.env.local（git には入れない。`pnpm update-cron-secret` が書く）、デプロイの ID は src/config.ts
 import { CONTROL_ACTIONS, formatControlResult, isControlAction, type ControlAction, type ControlResult } from "@uc/cron";
+import { WEB_APP_DEPLOYMENT_ID } from "../src/config";
 
 export const webAppUrl = (deploymentId: string) => `https://script.google.com/macros/s/${deploymentId}/exec`;
 
@@ -27,15 +28,18 @@ export async function callControl(input: { deploymentId: string; secret: string;
 
 if (import.meta.main) {
   const action = process.argv[2];
-  const { GAS_DEPLOYMENT_ID, CRON_SECRET } = process.env;
+  const { CRON_SECRET } = process.env;
   if (!isControlAction(action)) {
     console.error(`使い方: control.ts <${CONTROL_ACTIONS.join(" | ")}>`);
     process.exitCode = 2;
-  } else if (!GAS_DEPLOYMENT_ID || !CRON_SECRET) {
-    console.error("apps/cron/.env.local に、GAS_DEPLOYMENT_ID と CRON_SECRET を書いてください（.env.example を、コピーする）");
+  } else if (!WEB_APP_DEPLOYMENT_ID) {
+    console.error("src/config.ts の WEB_APP_DEPLOYMENT_ID が、空です。`pnpm deployment` の出力の、AKfycb… の部分を、書いてください");
+    process.exitCode = 2;
+  } else if (!CRON_SECRET) {
+    console.error("apps/cron/.env.local に、CRON_SECRET がありません。ルートで `pnpm update-cron-secret` を実行してください");
     process.exitCode = 2;
   } else {
-    const result = await callControl({ deploymentId: GAS_DEPLOYMENT_ID, secret: CRON_SECRET, action });
+    const result = await callControl({ deploymentId: WEB_APP_DEPLOYMENT_ID, secret: CRON_SECRET, action });
     console.log(formatControlResult(result).join("\n"));
     if (!result.ok) process.exitCode = 1;
   }

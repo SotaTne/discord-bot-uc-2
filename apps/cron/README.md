@@ -45,7 +45,7 @@ cron: 動いています（1 分おき）
    pnpm --filter @uc/cron-app deployment
    ```
    2 つ目の出力に、デプロイの ID が出る（`- AKfycb... @1 - UC cron` の、`AKfycb...`）。
-6. **手元の設定**: `apps/cron/.env.example` を、`.env.local` にコピーして、`GAS_DEPLOYMENT_ID`（5 の ID）と `CRON_SECRET`（1 と同じ値）を書く（`.env.local` は、git に入れない）。
+6. **デプロイの ID を、`src/config.ts` の `WEB_APP_DEPLOYMENT_ID` に書く**（5 の `AKfycb…`。秘密ではないので、コミットする）。手元の合言葉（`.env.local` の `CRON_SECRET`）は、1 の `pnpm update-cron-secret` が、すでに書いている。
 7. **権限を許可して、cron を動かし始める**: Apps Script の画面で、関数 `installTrigger` を、**1 回だけ、手で**実行する。Google の権限の確認（外部への通信・トリガーの管理）が出るので、許可する。
    - 許可は、人が画面で押す必要がある（`start` は、ウェブアプリを呼ぶだけなので、許可の前は、動かない）。許可は、どの関数を実行しても済むが、`installTrigger` は、そのまま、毎分のトリガーを作る（cron が動き始める）。
    - 許可のあとは、`start` / `stop` / `health` で、手元から操作できる。
