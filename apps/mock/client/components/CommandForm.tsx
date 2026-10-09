@@ -1,4 +1,4 @@
-import { Button, Group, NativeSelect, Stack, TextInput, UnstyledButton } from "@mantine/core";
+import { Button, NativeSelect, Stack, TextInput } from "@mantine/core";
 import { ApplicationCommandOptionType, commands, type CommandDefinition } from "@uc/discord";
 import { useState, type FormEvent } from "react";
 import { formOf, useAction } from "../actions";
@@ -57,28 +57,16 @@ export function CommandForm({ state, selectedUsers }: { state: MockStateData; se
   }
 
   return (
-    <Stack gap="sm">
-      <Group gap={4} role="tablist" aria-label="コマンド">
+    <Stack gap="md">
+      <div className="command-list" role="tablist" aria-orientation="vertical" aria-label="コマンド">
         {commands.map((command) => (
-          <UnstyledButton
-            key={command.name}
-            role="tab"
-            aria-selected={command.name === current}
-            onClick={() => setCurrent(command.name)}
-            style={{
-              padding: "2px 9px",
-              borderRadius: 6,
-              fontSize: 12,
-              fontFamily: "ui-monospace, 'SF Mono', monospace",
-              background: command.name === current ? "var(--mantine-color-text)" : "transparent",
-              color: command.name === current ? "var(--paper)" : "var(--ink-muted)",
-            }}
-          >
-            /{command.name}
-            {command.default_member_permissions ? <small style={{ marginLeft: 4, opacity: 0.8 }}>管理者</small> : null}
-          </UnstyledButton>
+          <button key={command.name} type="button" className="command" role="tab" aria-selected={command.name === current} title={command.description} onClick={() => setCurrent(command.name)}>
+            <span className="name">/{command.name}</span>
+            <span className="desc">{command.description.replace(/^\(管理者のみ\)\s*/, "")}</span>
+            {command.default_member_permissions ? <span className="admin">管理者</span> : null}
+          </button>
         ))}
-      </Group>
+      </div>
       {definition && (
         // コマンドを切り替えたら、入力を、いったん、空にする（key で、作り直す）
         <form key={definition.name} aria-label={`/${definition.name}`} onSubmit={submit}>

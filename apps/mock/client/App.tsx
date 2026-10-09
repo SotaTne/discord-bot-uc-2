@@ -1,4 +1,4 @@
-import { Box, Button, Group, Loader, Stack, Text, Title } from "@mantine/core";
+import { Button, Group, Loader, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import { formOf, useAction } from "./actions";
 import { mockApi } from "./api";
@@ -38,33 +38,25 @@ function Screen() {
   const selected = chosen ?? (state.users[0] ? [state.users[0].id] : []);
 
   return (
-    <Box maw={1180} mx="auto" px="md" py="lg">
+    <main className="page">
       <ClockBar state={state} />
-      <Box mt="xl" style={{ display: "grid", gridTemplateColumns: "minmax(0, 340px) minmax(0, 1fr)", gap: 40, alignItems: "start" }}>
-        <Stack gap="xl">
-          <section aria-label="実行者">
-            <Title order={2} size="sm" c="dimmed" mb={10}>
-              実行者
-            </Title>
-            <UserPicker users={state.users} selected={selected} onChange={setChosen} />
-          </section>
-          <section aria-label="コマンド">
-            <Title order={2} size="sm" c="dimmed" mb={10}>
-              コマンド
-            </Title>
-            <CommandForm state={state} selectedUsers={selected} />
-          </section>
-        </Stack>
-
-        <Stack gap="xl">
-          <section aria-label="Discord">
-            <Title order={2} size="sm" c="dimmed" mb={10}>
-              Discord
-            </Title>
-            <Feed state={state} />
-          </section>
-          <StatePanel state={state} />
-          <Group justify="flex-end">
+      <div className="workbench">
+        <div className="rail">
+          <div className="surface controls">
+            <section aria-label="実行者">
+              <Title order={2} className="section-title">
+                実行者
+              </Title>
+              <UserPicker users={state.users} selected={selected} onChange={setChosen} />
+            </section>
+            <section aria-label="コマンド">
+              <Title order={2} className="section-title">
+                コマンド
+              </Title>
+              <CommandForm state={state} selectedUsers={selected} />
+            </section>
+          </div>
+          <Group justify="flex-start">
             <Button
               variant="subtle"
               color="gray"
@@ -76,8 +68,13 @@ function Screen() {
               データを初期化
             </Button>
           </Group>
-        </Stack>
-      </Box>
-    </Box>
+        </div>
+
+        <div className="stage">
+          <Feed state={state} />
+          <StatePanel state={state} />
+        </div>
+      </div>
+    </main>
   );
 }

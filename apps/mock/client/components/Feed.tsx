@@ -1,52 +1,72 @@
-import { Button, Group, Text } from "@mantine/core";
+import { useEffect, useRef } from "react";
 import { formOf, useAction } from "../actions";
 import { mockApi } from "../api";
 import { userName, type MockMessage, type MockStateData } from "../mockState";
 import { jstHm } from "../time";
 import { DiscordText } from "./DiscordText";
 
-/** Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す */
+/** Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る */
 export function Feed({ state }: { state: MockStateData }) {
   const click = useAction((form) => mockApi.click.$post({}, { init: { body: form } }));
+  const scroller = useRef<HTMLDivElement>(null);
+  const count = state.messages.length;
 
-  if (state.messages.length === 0) {
-    return (
-      <Text c="dimmed" size="sm">
-        まだ何もありません
-      </Text>
-    );
-  }
+  useEffect(() => {
+    const element = scroller.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [count]);
 
   const press = (message: MockMessage, customId: string) => click.mutate(formOf({ custom_id: customId, message_id: message.id }));
 
   return (
-    <div className="msgs surface" role="log" aria-label="Discord のメッセージ">
-      {state.messages.map((message) => (
-        <div key={message.id} className={`msg ${message.visibleTo ? "private" : ""}`}>
-          <div className="sub">
-            {jstHm(message.createdAt)} · {message.visibleTo ? `${userName(state, message.visibleTo)} だけ` : "全員"}
-          </div>
-          <div className="body">
-            <DiscordText text={message.content} state={state} />
-          </div>
-          {message.components?.map((row, rowIndex) => (
-            <Group key={rowIndex} gap={6} mt={8}>
-              {row.components.map((button) => (
-                <Button
-                  key={button.custom_id}
-                  size="compact-sm"
-                  variant={button.style === 4 ? "filled" : "default"}
-                  color={button.style === 4 ? "red" : "gray"}
-                  disabled={click.isPending}
-                  onClick={() => press(message, button.custom_id)}
-                >
-                  {button.label}
-                </Button>
-              ))}
-            </Group>
+    <div className="discord">
+      <div className="discord-head">
+        <span className="hash" aria-hidden="true">
+          #
+        </span>
+        マッチング
+      </div>
+      {count === 0 ? (
+        <div className="msgs-empty">
+          <span>まだ何もありません</span>
+        </div>
+      ) : (
+        <div ref={scroller} className="msgs" role="log" aria-label="Discord のメッセージ">
+          {state.messages.map((message) => (
+            <div key={message.id} className={`msg ${message.visibleTo ? "private" : ""}`}>
+              <div className="avatar" aria-hidden="true">
+                UC
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div className="msg-head">
+                  <span className="author">UC Bot</span>
+                  <span className="bot">BOT</span>
+                  <time>{jstHm(message.createdAt)}</time>
+                  <span className="to">{message.visibleTo ? `${userName(state, message.visibleTo)} だけ` : "全員"}</span>
+                </div>
+                <div className="body">
+                  <DiscordText text={message.content} state={state} />
+                </div>
+                {message.components?.map((row, rowIndex) => (
+                  <div key={rowIndex} className="msg-buttons">
+                    {row.components.map((button) => (
+                      <button
+                        key={button.custom_id}
+                        type="button"
+                        className={`dc-btn ${button.style === 4 ? "danger" : ""}`}
+                        disabled={click.isPending}
+                        onClick={() => press(message, button.custom_id)}
+                      >
+                        {button.label}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group, Text } from "@mantine/core";
+import { ActionIcon, Button } from "@mantine/core";
 import { useState } from "react";
 import { formOf, useAction } from "../actions";
 import { mockApi } from "../api";
@@ -6,7 +6,7 @@ import type { MockStateData } from "../mockState";
 import { jstDate, jstHm, jstMdWeekday } from "../time";
 
 /**
- * 時計。疑似時計の時刻を、大きく出す。日付（1 日ずつ前後）・時刻（直せる）・イベントの時刻へ移るボタン・現在時刻。
+ * 時計。疑似時計の時刻を、大きく出す。日付（1 日ずつ前後）・時刻（直せる）・出来事の時刻へ移るボタン・現在時刻。
  * 時計を動かすと、worker の cron が、自動で動く。
  */
 export function ClockBar({ state }: { state: MockStateData }) {
@@ -18,50 +18,49 @@ export function ClockBar({ state }: { state: MockStateData }) {
   const [draft, setDraft] = useState<string | null>(null);
 
   return (
-    <Group component="header" gap="md" align="center" wrap="wrap">
-      <Group gap="xs">
-        <ActionIcon variant="default" size="lg" aria-label="前の日" onClick={() => move({ action: "day", value: "-1" })}>
-          ◀
-        </ActionIcon>
-        <Text fw={600} ta="center" miw="5.5em">
-          {jstMdWeekday(now)}
-        </Text>
-        <ActionIcon variant="default" size="lg" aria-label="次の日" onClick={() => move({ action: "day", value: "1" })}>
-          ▶
-        </ActionIcon>
-      </Group>
+    <header className="surface clock">
+      <div className="clock-main">
+        <div className="clock-date">
+          <ActionIcon variant="default" size="lg" aria-label="前の日" onClick={() => move({ action: "day", value: "-1" })}>
+            ◀
+          </ActionIcon>
+          <strong>{jstMdWeekday(now)}</strong>
+          <ActionIcon variant="default" size="lg" aria-label="次の日" onClick={() => move({ action: "day", value: "1" })}>
+            ▶
+          </ActionIcon>
+        </div>
 
-      <input
-        className="clock-time"
-        type="time"
-        aria-label="いまの時刻"
-        value={draft ?? jstHm(now)}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={(event) => {
-          if (event.target.value && event.target.value !== jstHm(now)) move({ action: "set", value: `${date}T${event.target.value}` });
-          setDraft(null);
-        }}
-        onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
-        style={{ border: "1px solid transparent", background: "transparent", color: "inherit", font: "inherit", padding: "2px 8px", borderRadius: 6 }}
-      />
+        <input
+          className="clock-time"
+          type="time"
+          aria-label="いまの時刻"
+          value={draft ?? jstHm(now)}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={(event) => {
+            if (event.target.value && event.target.value !== jstHm(now)) move({ action: "set", value: `${date}T${event.target.value}` });
+            setDraft(null);
+          }}
+          onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+        />
 
-      <Group gap={6} style={{ flex: 1 }}>
-        {state.clockSteps.map((step) => (
-          <Button
-            key={step.label}
-            size="compact-sm"
-            variant={jstHm(step.at) === jstHm(now) ? "light" : "default"}
-            aria-pressed={jstHm(step.at) === jstHm(now)}
-            onClick={() => move({ action: "set", value: `${date}T${jstHm(step.at)}` })}
-          >
-            {step.label}
-          </Button>
-        ))}
-      </Group>
+        <span className="clock-grow" />
+        <Button variant={real ? "light" : "default"} aria-pressed={real} onClick={() => move({ action: "real" })}>
+          現在時刻
+        </Button>
+      </div>
 
-      <Button size="compact-sm" variant={real ? "light" : "default"} aria-pressed={real} onClick={() => move({ action: "real" })}>
-        現在時刻
-      </Button>
-    </Group>
+      <div className="clock-steps">
+        {state.clockSteps.map((step) => {
+          const active = jstHm(step.at) === jstHm(now);
+          // ラベルは「20:53 21時の締切」の形。時刻は太く、説明は、その下に出す
+          const description = step.label.replace(/^\d\d:\d\d\s*/, "");
+          return (
+            <button key={step.label} type="button" className="step" aria-pressed={active} onClick={() => move({ action: "set", value: `${date}T${jstHm(step.at)}` })}>
+              <b>{jstHm(step.at)}</b> <span>{description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </header>
   );
 }

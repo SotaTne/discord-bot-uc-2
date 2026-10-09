@@ -1,4 +1,4 @@
-import { Badge, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Badge, Stack, Table, Text, Title } from "@mantine/core";
 import { userName, type MockStateData, type Snapshot } from "../mockState";
 import { hourLabel } from "../time";
 import { ImageLink } from "./ImageLink";
@@ -8,7 +8,7 @@ const slotText = (date: string | null, hour: number | null) => (date ? `${date.s
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section aria-label={title}>
-      <Title order={2} size="sm" c="dimmed" mb={10}>
+      <Title order={2} className="section-title">
         {title}
       </Title>
       {children}
@@ -41,12 +41,10 @@ function Fixtures({ snapshot }: { snapshot: Snapshot }) {
   const matched = new Set(snapshot.matchSlots.filter((slot) => slot.status === "matched").map((slot) => slot.slotHour));
   return (
     <Panel title="対戦枠（今日）">
-      <div className="surface">
+      <div className="fixtures">
         {snapshot.slots.map((hour) => (
-          <div key={hour} className="fixture">
-            <Text fw={600} size="lg">
-              {hourLabel(hour)}
-            </Text>
+          <div key={hour} className="fixture surface">
+            <span className="fixture-time">{hourLabel(hour)}</span>
             <Badge color={matched.has(hour) ? "green" : "gray"} variant="light" tt="none">
               {matched.has(hour) ? "マッチング済み" : "未マッチング"}
             </Badge>
@@ -61,7 +59,7 @@ function Teams({ state, snapshot }: { state: MockStateData; snapshot: Snapshot }
   const handupsOf = (teamId: number) => snapshot.handups.filter((handup) => handup.teamId === teamId).sort((a, b) => a.slotHour - b.slotHour);
   return (
     <Panel title="チーム">
-      <Table.ScrollContainer minWidth={420}>
+      <Table.ScrollContainer minWidth={420} className="surface">
         <Table>
           <Table.Thead>
             <Table.Tr>
@@ -99,11 +97,11 @@ function Rounds({ snapshot }: { snapshot: Snapshot }) {
   return (
     <Panel title="マッチングログ">
       {snapshot.rounds.length === 0 ? (
-        <Text c="dimmed" size="sm">まだありません</Text>
+        <div className="empty surface">まだありません</div>
       ) : (
-        <Stack gap={0} className="log">
+        <Stack gap={0} className="surface">
           {snapshot.rounds.map((round, index) => (
-            <Group key={index} gap="lg" align="flex-start" wrap="nowrap" py={8} style={{ borderBottom: "1px solid var(--rule)" }}>
+            <div key={index} className="row">
               <span className="log-when">{slotText(round.slotDate, round.slotHour)}</span>
               <div>
                 {round.pairs.length > 0 ? (
@@ -117,7 +115,7 @@ function Rounds({ snapshot }: { snapshot: Snapshot }) {
                 )}
                 {round.excluded && <Text c="dimmed" size="sm">除外 {round.excluded}</Text>}
               </div>
-            </Group>
+            </div>
           ))}
         </Stack>
       )}
@@ -129,11 +127,11 @@ function Wins({ snapshot }: { snapshot: Snapshot }) {
   return (
     <Panel title="勝利記録">
       {snapshot.wins.length === 0 ? (
-        <Text c="dimmed" size="sm">まだありません</Text>
+        <div className="empty surface">まだありません</div>
       ) : (
-        <Stack gap={0}>
+        <Stack gap={0} className="surface">
           {snapshot.wins.map((win) => (
-            <Group key={win.id} gap="lg" align="flex-start" wrap="nowrap" py={8} style={{ borderBottom: "1px solid var(--rule)" }} data-active={win.active}>
+            <div key={win.id} className="row" data-active={win.active}>
               <span className="log-when">{slotText(win.slotDate, win.slotHour)}</span>
               <div className={win.active ? "" : "struck-text"}>
                 <div>
@@ -147,7 +145,7 @@ function Wins({ snapshot }: { snapshot: Snapshot }) {
                   {win.hasScreenshot && <ImageLink seq={win.id} />}
                 </div>
               </div>
-            </Group>
+            </div>
           ))}
         </Stack>
       )}
