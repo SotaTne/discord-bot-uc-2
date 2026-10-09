@@ -55,7 +55,8 @@ function Scoreboard({ openIds, onToggle }: { openIds: number[]; onToggle: (teamI
               {data.rule.fixedAfterMatches}試合目までは、勝つと、記録した点数で集計します。{data.rule.fixedAfterMatches + 1}試合目からは、勝つと{data.rule.fixedPoints}pt固定です（設定で変えられます）。
             </Text>
             <Table.ScrollContainer minWidth={420}>
-              <Table>
+              {/* 行を押すと詳細が開く表なので、指した行だけ色を変える（押せない表は、変えない） */}
+              <Table highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
                     {header("rank", "順位", "left")}
@@ -132,7 +133,7 @@ function Scoreboard({ openIds, onToggle }: { openIds: number[]; onToggle: (teamI
                         </Table.Td>
                         <Table.Td ta="right">{team.wins.length}</Table.Td>
                       </Table.Tr>
-                      {/* 詳細の行は、指しても、色が変わらない（行の強調を、打ち消す）。背景は、行を指したときの色の、半分の濃さ。同じ色だと、指しているのと見分けがつかない */}
+                      {/* 詳細の行は、押せないので、指しても色を変えない。背景は、行を指したときの色の、半分の濃さ（同じ色だと、指しているのと見分けがつかない） */}
                       {opened && (
                         <Table.Tr style={{ "--table-highlight-on-hover-color": "transparent" }}>
                           <Table.Td colSpan={6} bg="color-mix(in srgb, var(--mantine-color-default-hover) 50%, transparent)">
@@ -167,7 +168,7 @@ function TeamHistory({ teamId, name }: { teamId: number; name: string }) {
             <Text c="dimmed">まだ組分けがありません</Text>
           ) : (
             <Table.ScrollContainer minWidth={520}>
-              <Table aria-label="対戦の記録" highlightOnHover={false}>
+              <Table aria-label="対戦の記録">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>試合</Table.Th>

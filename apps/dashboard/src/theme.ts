@@ -28,7 +28,7 @@ export const theme = createTheme({
     Button: { defaultProps: { size: "sm" } },
     NativeSelect: { defaultProps: { size: "sm" } },
     // 表の中では、文字を折り返さない（幅が足りないときは、表のスクロールで見る）
-    Table: { defaultProps: { verticalSpacing: "xs", highlightOnHover: true, style: { whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" } } },
+    Table: { defaultProps: { verticalSpacing: "xs", style: { whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" } } },
     // 説明は、入力欄の下に出す（説明が折り返しても、横に並べた入力欄の高さがずれない）
     TextInput: { defaultProps: { size: "sm", autoComplete: "off", styles: { error: { whiteSpace: "nowrap" } }, inputWrapperOrder: ["label", "input", "description", "error"] } },
     Menu: { defaultProps: { transitionProps: { duration: 0 } } },
