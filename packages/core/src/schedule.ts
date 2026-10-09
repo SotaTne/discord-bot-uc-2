@@ -1,7 +1,10 @@
 import { handupDeadline, slotStart } from "./slot-time";
 
-/** cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない */
-export const RECRUIT_GRACE_MS = 60 * 60 * 1000;
+/**
+ * cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない。
+ * どちらも 30 分。数えはじめが違う: 募集開始は、募集開始の時刻から。締切のマッチングは、試合開始から（締切の時刻からではない）
+ */
+export const RECRUIT_GRACE_MS = 30 * 60 * 1000;
 export const CUTOFF_GRACE_MS = 30 * 60 * 1000;
 
 /** 対戦枠の締切ジョブのキー。cron と、管理者の手動の確定が、同じキーで「実行する権利」を取り合う */
