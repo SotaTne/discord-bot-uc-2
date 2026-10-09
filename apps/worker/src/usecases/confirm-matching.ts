@@ -32,7 +32,7 @@ export async function confirmMatching(
   // すでに組分けに入っているチーム（管理者が追加した組分け）は、自動のマッチングに使わない
   const taken = new Set((await inThisSlot()).flatMap((m) => [m.teamAId, m.teamBId]));
   const remaining = (await listHandupsForSlot(db, input)).filter((h) => !taken.has(h.teamId));
-  const result = pairTeams(remaining.map((h) => ({ id: h.id, teamId: String(h.teamId), createdAt: h.createdAt })));
+  const result = pairTeams(remaining);
 
   const pairs: [number, number][] = result.kind === "matched" ? result.pairs.map(([a, b]) => [Number(a), Number(b)]) : [];
   const onlyRemaining = remaining.length === 1 ? remaining[0] : undefined;
@@ -56,8 +56,8 @@ export async function confirmMatching(
       ? { kind: "insufficient" }
       : {
           kind: "matched",
-          pairs: all.map((m): [string, string] => [String(m.teamAId), String(m.teamBId)]),
-          excluded: excludedTeamId === null ? null : String(excludedTeamId),
+          pairs: all.map((m): [number, number] => [m.teamAId, m.teamBId]),
+          excluded: excludedTeamId,
         };
 
   // 投稿先のチャンネルが設定されていなければ、結果の保存だけを行う
@@ -67,7 +67,7 @@ export async function confirmMatching(
     content: matchingMessage({
       hour: input.slotHour,
       result: announced,
-      teamById: new Map(teams.map((team) => [String(team.id), team])),
+      teamById: new Map(teams.map((team) => [team.id, team])),
     }),
     // マッチング結果は、チームに通知する
     allowed_mentions: { parse: ["roles"] },

@@ -65,7 +65,7 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
   ]);
 
   // 順位は、/uc-teams と同じ（得点が同じなら、同じ順位）
-  const totalOf = (teamId: number) => scores.get(String(teamId))?.total ?? 0;
+  const totalOf = (teamId: number) => scores.get(teamId)?.total ?? 0;
   const total = totalOf(team.id);
 
   return ephemeralMessage(
@@ -76,7 +76,7 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
         total,
         rank: 1 + teamList.filter((other) => totalOf(other.id) > total).length,
         matches: matchCounts.get(team.id) ?? 0,
-        wins: scores.get(String(team.id))?.wins.length ?? 0,
+        wins: scores.get(team.id)?.wins.length ?? 0,
         fixedAfterMatches: settings.fixedAfterMatches,
         fixedPoints: settings.fixedPoints,
       },

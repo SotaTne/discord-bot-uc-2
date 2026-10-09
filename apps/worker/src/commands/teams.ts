@@ -19,7 +19,7 @@ function scoreDetail(input: { matches: number; wins: number }, rule: { fixedAfte
  */
 export function formatScoreboard(
   teams: Team[],
-  scores: Map<string, TeamScore>,
+  scores: Map<number, TeamScore>,
   rule: { fixedAfterMatches: number; fixedPoints: number } = { fixedAfterMatches: 5, fixedPoints: 100 },
   /** チームごとの試合数（対戦した組分けの数）。省略すると、0 試合 */
   matchCounts: Map<number, number> = new Map(),
@@ -30,8 +30,8 @@ export function formatScoreboard(
     .map((team) => ({
       id: team.id,
       roleId: team.roleId,
-      total: scores.get(String(team.id))?.total ?? 0,
-      wins: scores.get(String(team.id))?.wins.length ?? 0,
+      total: scores.get(team.id)?.total ?? 0,
+      wins: scores.get(team.id)?.wins.length ?? 0,
       matches: matchCounts.get(team.id) ?? 0,
     }))
     .sort((a, b) => b.total - a.total || a.id - b.id);

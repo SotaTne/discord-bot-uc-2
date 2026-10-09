@@ -7,13 +7,15 @@ const resetIds = () => {
 };
 
 /** A が出る、n 日目の 21 時の組分け（相手は、毎回、別のチーム） */
-const matchOn = (day: number, teamIds: [string, string] = ["A", `X${day}`], slotHour = 21): PlayedMatch => ({
+/** このテストでは、チームの ID を、文字（A, B…）にする（本番は、DB と同じ数値） */
+const matchOn = (day: number, [teamAId, teamBId]: [string, string] = ["A", `X${day}`], slotHour = 21): PlayedMatch<string> => ({
   id: day * 10 + slotHour,
-  teamIds,
+  teamAId,
+  teamBId,
   slotDate: `2026-10-${String(day).padStart(2, "0")}`,
   slotHour,
 });
-const winIn = (match: PlayedMatch, teamId: string, points: number, active = true): Win => ({
+const winIn = (match: PlayedMatch<string>, teamId: string, points: number, active = true): Win<string> => ({
   id: ++nextId,
   matchId: match.id,
   teamId,
@@ -150,7 +152,7 @@ describe("calculateScores", () => {
 
   it("組分けが見つからない勝利は、固定点の判定ができないので、生点で数える", () => {
     resetIds();
-    const orphan: Win = { id: 1, matchId: 999, teamId: "A", points: 33, active: true };
+    const orphan: Win<string> = { id: 1, matchId: 999, teamId: "A", points: 33, active: true };
 
     expect(calculateScores([orphan], []).get("A")?.total).toBe(33);
   });

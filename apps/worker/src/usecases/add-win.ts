@@ -88,7 +88,7 @@ export async function describeWin(
   input: { guildId: string; teamId: number; id: number },
 ): Promise<WinReport> {
   const { settings, scores } = await loadScores(db, input.guildId);
-  const win = scores.get(String(input.teamId))?.wins.find((w) => w.id === input.id);
+  const win = scores.get(input.teamId)?.wins.find((w) => w.id === input.id);
 
   return {
     matchNumber: win?.matchNumber ?? null,

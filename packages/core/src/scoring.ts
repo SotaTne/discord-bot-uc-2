@@ -7,14 +7,18 @@
  * - 負けた試合は、点が入らない（試合数には、数える）。
  *
  * 間違えた記録は、削除せずに「無効」（active = false）にする。無効な記録は、得点に数えない（試合数には、数える。組分けは、残るので）。
+ *
+ * チームの ID の型は、呼ぶ側が決める（既定は、DB と同じ数値）。DB の行は、変換せずに、そのまま渡せる。
  */
-export type Win = {
+export type TeamId = string | number;
+
+export type Win<T extends TeamId = number> = {
   /** 記録した順に増える番号 */
   id: number;
   /** 勝った試合（組分け） */
   matchId: number;
   /** 勝ったチーム */
-  teamId: string;
+  teamId: T;
   /** 入力された生の点数 */
   points: number;
   /** 有効か。false の記録は、数えない */
@@ -22,9 +26,11 @@ export type Win = {
 };
 
 /** 組分け（試合）。2チームが、ある日の、ある対戦枠で、対戦する */
-export type PlayedMatch = {
+export type PlayedMatch<T extends TeamId = number> = {
   id: number;
-  teamIds: [teamId: string, teamId: string];
+  /** 組分けの 2 チーム（DB の team_a_id・team_b_id と同じ名前） */
+  teamAId: T;
+  teamBId: T;
   /** 対戦枠の日付（JST, YYYY-MM-DD） */
   slotDate: string;
   slotHour: number;
@@ -50,22 +56,22 @@ export type ScoredWin = {
   matchNumber: number;
 };
 
-export type TeamScore = {
-  teamId: string;
+export type TeamScore<T extends TeamId = number> = {
+  teamId: T;
   total: number;
   wins: ScoredWin[];
 };
 
 /** そのチームの試合を、対戦枠の日付・時刻の順（同じ対戦枠なら ID の順）に並べる */
-const byTime = (a: PlayedMatch, b: PlayedMatch) =>
+const byTime = (a: PlayedMatch<TeamId>, b: PlayedMatch<TeamId>) =>
   a.slotDate.localeCompare(b.slotDate) || a.slotHour - b.slotHour || a.id - b.id;
 
 /** チームごとの、「その組分けは、何試合目か」。キーは `${チーム}#${組分け}` */
-export function matchNumbers(matches: readonly PlayedMatch[]): Map<string, number> {
+export function matchNumbers<T extends TeamId>(matches: readonly PlayedMatch<T>[]): Map<string, number> {
   const numbers = new Map<string, number>();
-  const byTeam = new Map<string, PlayedMatch[]>();
+  const byTeam = new Map<T, PlayedMatch<T>[]>();
   for (const match of matches) {
-    for (const teamId of match.teamIds) byTeam.set(teamId, [...(byTeam.get(teamId) ?? []), match]);
+    for (const teamId of [match.teamAId, match.teamBId]) byTeam.set(teamId, [...(byTeam.get(teamId) ?? []), match]);
   }
   for (const [teamId, teamMatches] of byTeam) {
     [...teamMatches].sort(byTime).forEach((match, index) => numbers.set(`${teamId}#${match.id}`, index + 1));
@@ -82,15 +88,15 @@ export function pointsToRegister(input: { points: number; matchNumber: number | 
 }
 
 /** チームごとの得点を返す。有効な勝利を持たないチームは結果に含まれない（呼び出し側は、0 点として扱う）。 */
-export function calculateScores(
-  wins: readonly Win[],
-  matches: readonly PlayedMatch[],
+export function calculateScores<T extends TeamId = number>(
+  wins: readonly Win<T>[],
+  matches: readonly PlayedMatch<T>[],
   rule: ScoreRule = defaultScoreRule,
-): Map<string, TeamScore> {
+): Map<T, TeamScore<T>> {
   const numbers = matchNumbers(matches);
   const matchById = new Map(matches.map((match) => [match.id, match]));
 
-  const result = new Map<string, TeamScore>();
+  const result = new Map<T, TeamScore<T>>();
   for (const win of [...wins].sort((a, b) => a.id - b.id)) {
     if (!win.active) continue;
     const match = matchById.get(win.matchId);
@@ -106,7 +112,7 @@ export function calculateScores(
       matchNumber,
     };
 
-    const score = result.get(win.teamId) ?? { teamId: win.teamId, total: 0, wins: [] };
+    const score: TeamScore<T> = result.get(win.teamId) ?? { teamId: win.teamId, total: 0, wins: [] };
     score.wins.push(scored);
     score.total += scored.points;
     result.set(win.teamId, score);

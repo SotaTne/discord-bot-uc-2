@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pairTeams, type HandupEntry } from "./matching";
 
-const handup = (id: number, teamId: string, createdAt: number): HandupEntry => ({
+const handup = (id: number, teamId: string, createdAt: number): HandupEntry<string> => ({
   id,
   teamId,
   createdAt,

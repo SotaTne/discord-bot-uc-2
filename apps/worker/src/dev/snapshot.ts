@@ -108,7 +108,7 @@ export async function buildDevSnapshot(input: {
       createdAt: handup.createdAt,
     })),
     teamStats: teams.map((team) => {
-      const score = scores.get(String(team.id));
+      const score = scores.get(team.id);
       return {
         teamId: team.id,
         name: name(team.id),

@@ -25,7 +25,6 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { toCoreMatches } from "../scoring/events";
 import { deleteScreenshots } from "../usecases/clear-scores";
 import { matchingCancelledMessage } from "../scheduled/messages";
 import { confirmMatching } from "../usecases/confirm-matching";
@@ -58,7 +57,7 @@ export function createBoardRoutes(deps: ApiDeps) {
         listGuildMatches(db, guildId),
       ]);
       // チームごとの「その組分けは、何試合目か」。N 試合を超える試合は、勝つと、固定点で登録される（画面の入力の案内に使う）
-      const numbers = matchNumbers(toCoreMatches(guildMatches));
+      const numbers = matchNumbers(guildMatches);
       const wins = allWins.filter((win) => win.slotDate === date);
 
       const rest = createRestFromEnv(c.env);
@@ -217,9 +216,9 @@ export function createBoardRoutes(deps: ApiDeps) {
           await createRestFromEnv(c.env).createMessage(settings.channelId, {
             content: matchingCancelledMessage({
               hour: input.slotHour,
-              pairs: before.matches.map((match): [string, string] => [String(match.teamAId), String(match.teamBId)]),
-              excluded: excludedTeamId === null ? null : String(excludedTeamId),
-              teamById: new Map(teams.map((team) => [String(team.id), team])),
+              pairs: before.matches.map((match): [number, number] => [match.teamAId, match.teamBId]),
+              excluded: excludedTeamId,
+              teamById: new Map(teams.map((team) => [team.id, team])),
             }),
             allowed_mentions: { parse: ["roles"] },
           });

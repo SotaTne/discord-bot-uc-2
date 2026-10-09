@@ -18,7 +18,6 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { toCoreMatches, toCoreWins } from "../scoring/events";
 import { clearScores } from "../usecases/clear-scores";
 import { loadScores, pointsForWin } from "../usecases/scores";
 import { teamNames } from "../usecases/team-names";
@@ -40,7 +39,7 @@ export function createScoreRoutes(deps: ApiDeps) {
         rule: { fixedAfterMatches: settings.fixedAfterMatches, fixedPoints: settings.fixedPoints },
         teams: teams
           .map((team) => {
-            const score = scores.get(String(team.id));
+            const score = scores.get(team.id);
             return {
               teamId: team.id,
               name: names.get(team.id) ?? team.roleId,
@@ -71,7 +70,7 @@ export function createScoreRoutes(deps: ApiDeps) {
         listTeams(db, guildId, { includeDeleted: true }),
       ]);
       const nameOf = await teamNames(createRestFromEnv(c.env), guildId, teams);
-      const numbers = matchNumbers(toCoreMatches(matches));
+      const numbers = matchNumbers(matches);
       const name = (teamId: number) => nameOf.get(teamId) ?? String(teamId);
 
       return c.json({
@@ -97,7 +96,7 @@ export function createScoreRoutes(deps: ApiDeps) {
                     id: active.id,
                     winner: { id: active.teamId, name: name(active.teamId) },
                     points: active.points,
-                    countedPoints: scores.get(String(active.teamId))?.wins.find((win) => win.id === active.id)?.points ?? active.points,
+                    countedPoints: scores.get(active.teamId)?.wins.find((win) => win.id === active.id)?.points ?? active.points,
                     hasScreenshot: active.screenshotKey !== null,
                   }
                 : null,
