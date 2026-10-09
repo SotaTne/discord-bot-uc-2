@@ -264,7 +264,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               組まれなかったチーム: {slot.excluded.name}
             </Text>
           )}
-          {!slot.deleted && <AddMatch date={date} hour={slot.hour} candidates={free} />}
+          <AddMatch date={date} hour={slot.hour} candidates={free} />
         </Stack>
       </Stack>
     </section>

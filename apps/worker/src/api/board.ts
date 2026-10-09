@@ -37,6 +37,22 @@ import { parseId, type ApiDeps, type ApiEnv } from "./types";
  * 対戦枠の画面（日付ごとの、対戦枠 → 挙手・組分け・勝利）のための API。
  * 挙手・マッチング・勝利が、対戦枠を中心に、1つの画面で扱えるようにする。
  */
+/**
+ * その日に、記録（マッチング済み・挙手・組分け）が残っている試合時刻。
+ * 削除した試合時刻の対戦枠を、画面に出すか（と、そこに組分けを追加できるか）は、これで決める。画面と追加の判定は、ここで同じにする
+ */
+function recordedHoursOf(input: {
+  matchSlots: { status: string; slotHour: number }[];
+  handups: { slotHour: number }[];
+  matches: { slotHour: number }[];
+}): Set<number> {
+  return new Set([
+    ...input.matchSlots.filter((m) => m.status === "matched").map((m) => m.slotHour),
+    ...input.handups.map((handup) => handup.slotHour),
+    ...input.matches.map((match) => match.slotHour),
+  ]);
+}
+
 export function createBoardRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
     // その日の、対戦枠ごとの状態: 受付の段階・挙手したチーム・組分け・組分けごとの勝利（有効な記録）・組まれなかったチーム
@@ -62,11 +78,7 @@ export function createBoardRoutes(deps: ApiDeps) {
 
       // 試合時刻を削除しても、その日に記録（マッチング済み・挙手・組分け）が残っている対戦枠は、出す（deleted: true）。記録が何もなければ、出さない
       const registeredHours = new Set(slots.map((slot) => slot.hour));
-      const recordedHours = new Set([
-        ...matchSlots.filter((m) => m.status === "matched").map((m) => m.slotHour),
-        ...handups.map((handup) => handup.slotHour),
-        ...matches.map((match) => match.slotHour),
-      ]);
+      const recordedHours = recordedHoursOf({ matchSlots, handups, matches });
       const boardHours = [
         ...slots.map((slot) => ({ hour: slot.hour, deleted: false })),
         ...[...recordedHours].filter((hour) => !registeredHours.has(hour)).map((hour) => ({ hour, deleted: true })),
@@ -138,9 +150,16 @@ export function createBoardRoutes(deps: ApiDeps) {
       for (const teamId of [input.teamAId, input.teamBId]) {
         if (!(await findTeamById(db, guildId, teamId))) return c.json({ error: "team_not_found" as const }, 404);
       }
-      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
-
       const slotDate = input.slotDate ?? jstDateOf(now);
+      // 登録した試合時刻のほか、削除した試合時刻でも、その日に記録が残っていて、画面に出ている対戦枠には、追加できる（画面に出る条件と、同じ）
+      if (!(await findSlot(db, guildId, input.slotHour))) {
+        const recorded = recordedHoursOf({
+          matchSlots: await listMatchSlots(db, { guildId, slotDate }),
+          handups: await listHandupsOnDate(db, { guildId, slotDate }),
+          matches: await listMatchesOnDate(db, { guildId, slotDate }),
+        });
+        if (!recorded.has(input.slotHour)) return c.json({ error: "slot_not_found" as const }, 404);
+      }
       try {
         const id = await addMatch(db, { guildId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId, createdAt: now.getTime() });
         for (const teamId of [input.teamAId, input.teamBId]) {

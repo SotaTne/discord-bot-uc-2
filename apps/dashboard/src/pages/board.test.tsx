@@ -48,15 +48,16 @@ const openAddWin = async (label: string) => {
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
 describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
-  it("設定で削除した試合時刻でも、マッチング済みの対戦枠は出す。「削除済み」の印と、色（deleted の class）が付く。組分けの追加はできない", async () => {
-    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] }), slot({ hour: 22 })]));
+  it("設定で削除した試合時刻でも、マッチング済みの対戦枠は出す。「削除済み」の印と、色（deleted の class）が付く。組分けは、追加できる", async () => {
+    // 組分けのない（3 チームとも空いている）対戦枠。組分けの追加欄は、空いているチームが 2 つ以上あるときだけ出る
+    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: true }), slot({ hour: 22 })]));
     renderApp("/");
 
     const deleted = await card("21:00の対戦枠");
     expect(deleted.getByText("削除済み")).toBeTruthy();
     expect(deleted.getByText("マッチング済み")).toBeTruthy();
     expect(screen.getByRole("region", { name: "21:00の対戦枠" }).className).toContain("slot-deleted");
-    expect(deleted.queryByRole("button", { name: "組分けを追加" })).toBeNull();
+    expect(await deleted.findByRole("button", { name: "組分けを追加" })).toBeTruthy();
     // ふつうの対戦枠には、印も、色もない
     const normal = await card("22:00の対戦枠");
     expect(normal.queryByText("削除済み")).toBeNull();
@@ -64,7 +65,7 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
     expect(normal.getByRole("button", { name: "組分けを追加" })).toBeTruthy();
   });
 
-  it("削除した試合時刻でも、挙手が残っていれば、未マッチングの対戦枠として出る（やり直したあとも、消えない）。挙手の取り消しはできるが、マッチング処理と、挙手の追加はできない", async () => {
+  it("削除した試合時刻でも、挙手が残っていれば、未マッチングの対戦枠として出る（やり直したあとも、消えない）。挙手の取り消しと、組分けの追加はできるが、マッチング処理と、挙手の追加はできない", async () => {
     installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: false, handups: [handup()] }), slot({ hour: 22 })]));
     renderApp("/");
 
@@ -76,6 +77,7 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
     expect(deleted.getByRole("button", { name: "KMUの21:00の挙手を取り消す" })).toBeTruthy();
     expect(deleted.queryByRole("button", { name: "マッチング処理を実行する" })).toBeNull();
     expect(deleted.queryByRole("button", { name: "挙手を追加" })).toBeNull();
+    expect(deleted.getByRole("button", { name: "組分けを追加" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "21:00の対戦枠" }).className).toContain("slot-deleted");
   });
 

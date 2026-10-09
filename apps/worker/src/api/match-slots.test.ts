@@ -230,6 +230,21 @@ describe("試合時刻を削除したあとの対戦枠", () => {
     expect((await slotOf(21)).matched).toBe(false);
   });
 
+  it("削除した試合時刻でも、画面に出ている（記録が残っている）対戦枠には、組分けを追加できる。記録のない時刻には、追加できない（404）", async () => {
+    await raise(h.seeded.kmuId);
+    await deleteHour(21);
+    await deleteHour(22);
+    const add = (slotHour: number) =>
+      h.json<{ id?: number; error?: string }>("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour } });
+
+    const onShown = await add(21);
+    const onHidden = await add(22);
+
+    expect(onShown.status).toBe(201);
+    expect(onHidden).toMatchObject({ status: 404, body: { error: "slot_not_found" } });
+    expect((await slotOf(21)).matches).toHaveLength(1);
+  });
+
   it("未マッチングでも、その日に、挙手が残っていれば、削除した試合時刻の対戦枠を出す。記録が何もなければ、出さない", async () => {
     await raise(h.seeded.kmuId);
 
