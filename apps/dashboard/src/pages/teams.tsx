@@ -132,9 +132,10 @@ function Scoreboard({ openIds, onToggle }: { openIds: number[]; onToggle: (teamI
                         </Table.Td>
                         <Table.Td ta="right">{team.wins.length}</Table.Td>
                       </Table.Tr>
+                      {/* 詳細の行は、指しても、色が変わらない（行の強調を、打ち消す）。背景は、行を指したときの色の、半分の濃さ。同じ色だと、指しているのと見分けがつかない */}
                       {opened && (
-                        <Table.Tr>
-                          <Table.Td colSpan={6} bg="var(--mantine-color-gray-light)">
+                        <Table.Tr style={{ "--table-highlight-on-hover-color": "transparent" }}>
+                          <Table.Td colSpan={6} bg="color-mix(in srgb, var(--mantine-color-default-hover) 50%, transparent)">
                             <TeamHistory teamId={team.teamId} name={team.name} />
                           </Table.Td>
                         </Table.Tr>
@@ -166,7 +167,7 @@ function TeamHistory({ teamId, name }: { teamId: number; name: string }) {
             <Text c="dimmed">まだ組分けがありません</Text>
           ) : (
             <Table.ScrollContainer minWidth={520}>
-              <Table aria-label="対戦の記録">
+              <Table aria-label="対戦の記録" highlightOnHover={false}>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>試合</Table.Th>
