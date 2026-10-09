@@ -54,6 +54,9 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 
 /* 対戦枠: 進行表。時刻を目印にして、左に置く */
 .slot { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 24px; padding: 20px 20px; }
+/* 削除した試合時刻の、マッチング済みの対戦枠。少しだけ、背景の色を変える（角が、面の丸みからはみ出さないように） */
+.slot-deleted { background: var(--mantine-color-gray-light); }
+.surface:has(> .slot) { overflow: hidden; }
 .slot + .slot { border-top: 1px solid var(--rule); }
 .slot-time { font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) {

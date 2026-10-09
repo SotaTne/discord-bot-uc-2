@@ -182,3 +182,40 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
     expect(await claimJob(h.seeded.db, GUILD_ID, "cutoff:2026-10-07:21", 1)).toBe(false);
   });
 });
+
+describe("試合時刻を削除したあとの対戦枠", () => {
+  const deleteHour = async (hour: number) => {
+    const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
+    return h.json(`/api/slots/${body.slots.find((slot) => slot.hour === hour)!.id}`, { method: "DELETE", cookie });
+  };
+  const hours = async () => (await h.json<{ slots: (Slot & { deleted: boolean })[] }>("/api/board", { cookie })).body.slots.map((slot) => [slot.hour, slot.deleted]);
+
+  it("マッチング済みの対戦枠は、削除した試合時刻でも、記録として出す（deleted: true）。時刻の順に並ぶ", async () => {
+    await withChannel();
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+
+    expect((await deleteHour(21)).status).toBe(200);
+
+    expect(await hours()).toEqual([
+      [21, true],
+      [22, false],
+      [23, false],
+    ]);
+    const slot = await slotOf(21);
+    expect(slot.matched).toBe(true);
+    expect(slot.matches).toHaveLength(1);
+  });
+
+  it("未マッチングの対戦枠は、削除した試合時刻なら、出さない", async () => {
+    await raise(h.seeded.kmuId);
+
+    await deleteHour(21);
+
+    expect(await hours()).toEqual([
+      [22, false],
+      [23, false],
+    ]);
+  });
+});

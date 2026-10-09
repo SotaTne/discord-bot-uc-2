@@ -1,12 +1,12 @@
 import { handupDeadline, formatJstTime } from "@uc/core";
-import { Anchor, Badge, Button, Checkbox, CloseButton, Group, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Badge, Button, Checkbox, Group, Stack, Text, TextInput } from "@mantine/core";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Async, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
+import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
 import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
-import { useInvalidatingMutation, useSettings, useSlots } from "../lib/queries";
+import { useBoard, useInvalidatingMutation, useSettings, useSlots } from "../lib/queries";
 import { Sessions } from "./sessions";
 
 /** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 得点の集計 / 試合時刻 / ログイン） */
@@ -269,13 +269,30 @@ function RevokeOnReissue({ initial }: { initial: SettingsValues }) {
   );
 }
 
+/** 試合時刻を削除する前の、確認に出す説明。残るもの・止まるもの・今日の挙手の件数を、書く */
+function removeSlotDescription(hour: number, today: { matched: boolean; handups: number } | undefined): string {
+  const lines = [
+    `${formatHour(hour)}の試合時刻を削除します。今後、この時刻の募集・挙手・マッチングは行われません。`,
+    "マッチング済みの対戦枠の記録（組分け・勝利）は残り、対戦枠の画面に「削除済み」として出ます。まだ組まれていない挙手は、組まれません。",
+  ];
+  if (today && !today.matched && today.handups > 0) lines.push(`今日は、この時刻に、${today.handups}件の挙手が入っています（組まれません）。`);
+  lines.push("同じ時刻を追加し直すと、元に戻ります。");
+  return lines.join("");
+}
+
 function Slots() {
   const slots = useSlots();
+  // 今日の挙手の件数を、削除の確認に出す
+  const board = useBoard(undefined);
   const [hour, setHour] = useState<number | "">("");
-  const refresh = [["slots"]];
+  const refresh = [["slots"], ["board"]];
   const add = useInvalidatingMutation((value: number) => unwrap(api.slots.$post({ json: { hour: value } })), refresh);
   const remove = useInvalidatingMutation((id: number) => unwrap(api.slots[":id"].$delete({ param: { id: String(id) } })), refresh);
 
+  const today = (hour: number) => {
+    const slot = board.data?.slots.find((candidate) => candidate.hour === hour);
+    return slot ? { matched: slot.matched, handups: slot.handups.length } : undefined;
+  };
   const registered = new Set(slots.data?.slots.map((slot) => slot.hour));
   const candidates = Array.from({ length: 24 }, (_, hourOfDay) => hourOfDay).filter((value) => !registered.has(value));
 
@@ -288,7 +305,24 @@ function Slots() {
           ) : (
             <Group gap="xs">
               {data.slots.map((slot) => (
-                <Badge key={slot.id} size="lg" variant="default" tt="none" rightSection={<CloseButton size="xs" aria-label={`${formatHour(slot.hour)}の試合時刻を削除`} disabled={remove.isPending} onClick={() => remove.mutate(slot.id)} />}>
+                <Badge
+                  key={slot.id}
+                  size="lg"
+                  variant="default"
+                  tt="none"
+                  rightSection={
+                    <ConfirmButton
+                      icon
+                      heavy
+                      danger
+                      label={`${formatHour(slot.hour)}の試合時刻を削除`}
+                      confirmLabel="削除する"
+                      description={removeSlotDescription(slot.hour, today(slot.hour))}
+                      disabled={remove.isPending}
+                      onConfirm={() => remove.mutate(slot.id)}
+                    />
+                  }
+                >
                   {formatHour(slot.hour)}
                 </Badge>
               ))}

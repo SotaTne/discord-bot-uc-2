@@ -47,6 +47,33 @@ const openAddWin = async (label: string) => {
 };
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
+describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
+  it("設定で削除した試合時刻でも、マッチング済みの対戦枠は出す。「削除済み」の印と、色（deleted の class）が付く。組分けの追加はできない", async () => {
+    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] }), slot({ hour: 22 })]));
+    renderApp("/");
+
+    const deleted = await card("21:00の対戦枠");
+    expect(deleted.getByText("削除済み")).toBeTruthy();
+    expect(deleted.getByText("マッチング済み")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "21:00の対戦枠" }).className).toContain("slot-deleted");
+    expect(deleted.queryByRole("button", { name: "組分けを追加" })).toBeNull();
+    // ふつうの対戦枠には、印も、色もない
+    const normal = await card("22:00の対戦枠");
+    expect(normal.queryByText("削除済み")).toBeNull();
+    expect(screen.getByRole("region", { name: "22:00の対戦枠" }).className).not.toContain("slot-deleted");
+    expect(normal.getByRole("button", { name: "組分けを追加" })).toBeTruthy();
+  });
+
+  it("削除済みの対戦枠のやり直しには、「やり直すと、この対戦枠は画面から消える」と書く", async () => {
+    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] })]));
+    renderApp("/");
+
+    fireEvent.click(await (await card("21:00の対戦枠")).findByRole("button", { name: "やり直す" }));
+
+    expect(within(screen.getByRole("dialog", { name: "やり直す" })).getByText(/この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます/)).toBeTruthy();
+  });
+});
+
 describe("対戦枠の画面: 日付", () => {
   it("今日の対戦枠が、対戦枠ごとのカードで並ぶ。日付と曜日が出る", async () => {
     installFakeBackend(apis([slot({ hour: 21 }), slot({ hour: 22 })]));

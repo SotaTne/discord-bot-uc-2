@@ -127,7 +127,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description="この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
+          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます。" : ""}`}
           danger
           extra={
             (slot.matches.length > 0 || slot.excluded !== null) && (
@@ -156,13 +156,19 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
   );
 
   return (
-    <section className="slot" aria-label={`${formatHour(slot.hour)}の対戦枠`}>
+    <section className={slot.deleted ? "slot slot-deleted" : "slot"} aria-label={`${formatHour(slot.hour)}の対戦枠`}>
       {/* 左: 時刻（目印）・状態・この対戦枠への操作 */}
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
         <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
           {slot.matched ? "マッチング済み" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
         </Badge>
+        {/* 削除した試合時刻の、マッチング済みの対戦枠。記録として残っている（背景の色も、変える） */}
+        {slot.deleted && (
+          <Badge color="gray" variant="outline" tt="none" title="設定で削除した試合時刻です。マッチング済みの記録だけが残っています">
+            削除済み
+          </Badge>
+        )}
       </Stack>
 
       {/* 右: 挙手と組分け */}
@@ -255,7 +261,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               組まれなかったチーム: {slot.excluded.name}
             </Text>
           )}
-          <AddMatch date={date} hour={slot.hour} candidates={free} />
+          {!slot.deleted && <AddMatch date={date} hour={slot.hour} candidates={free} />}
         </Stack>
       </Stack>
     </section>

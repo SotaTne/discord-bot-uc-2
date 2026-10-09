@@ -19,6 +19,7 @@ const apis = () => ({
   "GET /api/teams": { body: TEAMS },
   "GET /api/roles": { body: ROLES },
   "GET /api/sessions": { body: { sessions: [] } },
+  "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", rule: { fixedAfterMatches: 5, fixedPoints: 100 }, slots: [] } },
 });
 
 const region = (name: string) => within(screen.getByRole("region", { name }));
@@ -191,13 +192,38 @@ describe("設定の画面: 試合時刻", () => {
     await waitFor(() => expect(backend.last("POST", "/api/slots")?.json).toEqual({ hour: 20 }));
   });
 
-  it("試合時刻を削除できる", async () => {
+  it("試合時刻の削除は、確認のダイアログを出してから実行する。残るもの・止まるものを、書く", async () => {
     const backend = installFakeBackend({ ...apis(), "DELETE /api/slots/11": { body: { ok: true } } });
     renderApp("/settings");
 
     fireEvent.click(await screen.findByRole("button", { name: "21:00の試合時刻を削除" }));
 
+    const dialog = within(screen.getByRole("dialog", { name: "21:00の試合時刻を削除" }));
+    expect(dialog.getByText(/今後、この時刻の募集・挙手・マッチングは行われません/)).toBeTruthy();
+    expect(dialog.getByText(/マッチング済みの対戦枠の記録（組分け・勝利）は残り、対戦枠の画面に「削除済み」として出ます/)).toBeTruthy();
+    expect(dialog.getByText(/同じ時刻を追加し直すと、元に戻ります/)).toBeTruthy();
+    // ダイアログを開いただけでは、削除しない
+    expect(backend.count("DELETE", "/api/slots/11")).toBe(0);
+
+    fireEvent.click(dialog.getByRole("button", { name: "削除する" }));
+
     await waitFor(() => expect(backend.count("DELETE", "/api/slots/11")).toBe(1));
+  });
+
+  it("今日、その時刻に、まだ組まれていない挙手があれば、件数を、確認に出す", async () => {
+    const handup = (id: number) => ({ id, team: { id: 1, name: "KMU" }, raisedByName: "alice", createdAt: 0 });
+    const board = () => ({
+      body: {
+        date: "2026-10-07",
+        today: "2026-10-07",
+        rule: { fixedAfterMatches: 5, fixedPoints: 100 },
+        slots: [{ hour: 21, deleted: false, phase: "open", matched: false, excluded: null, handups: [handup(1), handup(2)], matches: [] }],
+      },
+    });
+    installFakeBackend({ ...apis(), "GET /api/board": board() });
+    renderApp("/settings");
+    fireEvent.click(await screen.findByRole("button", { name: "21:00の試合時刻を削除" }));
+    expect(await screen.findByText(/今日は、この時刻に、2件の挙手が入っています（組まれません）/)).toBeTruthy();
   });
 });
 
