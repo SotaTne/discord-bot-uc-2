@@ -221,21 +221,25 @@ describe("試合時刻を削除したあとの対戦枠", () => {
     expect(status).toBe(200);
     expect(body.notified).toBe(false);
     expect(posted).toEqual([]);
-    // やり直したので、削除済みの対戦枠は、画面から消える
+    // やり直したあとも、挙手が残っているので、削除済みの対戦枠は、未マッチングとして、画面に残る
     expect(await hours()).toEqual([
+      [21, true],
       [22, false],
       [23, false],
     ]);
+    expect((await slotOf(21)).matched).toBe(false);
   });
 
-  it("未マッチングの対戦枠は、削除した試合時刻なら、出さない", async () => {
+  it("未マッチングでも、その日に、挙手が残っていれば、削除した試合時刻の対戦枠を出す。記録が何もなければ、出さない", async () => {
     await raise(h.seeded.kmuId);
 
     await deleteHour(21);
+    await deleteHour(22);
 
     expect(await hours()).toEqual([
-      [22, false],
+      [21, true],
       [23, false],
     ]);
   });
+
 });

@@ -64,7 +64,22 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
     expect(normal.getByRole("button", { name: "組分けを追加" })).toBeTruthy();
   });
 
-  it("削除済みの対戦枠のやり直しには、「画面から消える」と書く。Discord への投稿のチェックは出さず、投稿しないことを送る", async () => {
+  it("削除した試合時刻でも、挙手が残っていれば、未マッチングの対戦枠として出る（やり直したあとも、消えない）。挙手の取り消しはできるが、マッチング処理と、挙手の追加はできない", async () => {
+    installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: false, handups: [handup()] }), slot({ hour: 22 })]));
+    renderApp("/");
+
+    // ふつうの対戦枠（22 時）には、挙手の追加が出る。出たあとで、削除済みの対戦枠に無いことを確かめる
+    expect(await (await card("22:00の対戦枠")).findByRole("button", { name: "挙手を追加" })).toBeTruthy();
+    const deleted = await card("21:00の対戦枠");
+    expect(deleted.getByText("削除済み")).toBeTruthy();
+    expect(deleted.getByText("未マッチング")).toBeTruthy();
+    expect(deleted.getByRole("button", { name: "KMUの21:00の挙手を取り消す" })).toBeTruthy();
+    expect(deleted.queryByRole("button", { name: "マッチング処理を実行する" })).toBeNull();
+    expect(deleted.queryByRole("button", { name: "挙手を追加" })).toBeNull();
+    expect(screen.getByRole("region", { name: "21:00の対戦枠" }).className).toContain("slot-deleted");
+  });
+
+  it("削除済みの対戦枠のやり直しには、「マッチング処理は実行できない」と書く。Discord への投稿のチェックは出さず、投稿しないことを送る", async () => {
     const backend = installFakeBackend({
       ...apis([slot({ hour: 21, deleted: true, matched: true, matches: [match()] })]),
       "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: false } },
@@ -74,7 +89,7 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠", () => {
     fireEvent.click(await (await card("21:00の対戦枠")).findByRole("button", { name: "やり直す" }));
 
     const dialog = within(screen.getByRole("dialog", { name: "やり直す" }));
-    expect(dialog.getByText(/この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます（Discord には、投稿しません）/)).toBeTruthy();
+    expect(dialog.getByText(/この試合時刻は削除済みなので、やり直したあとも、マッチング処理は実行できません（Discord には、投稿しません）/)).toBeTruthy();
     expect(dialog.queryByRole("checkbox")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "組分け1件を削除して、やり直す" }));

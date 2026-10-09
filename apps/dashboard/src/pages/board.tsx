@@ -127,7 +127,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直すと、この対戦枠は画面から消えます（Discord には、投稿しません）。" : ""}`}
+          description={`この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。${slot.deleted ? "この試合時刻は削除済みなので、やり直したあとも、マッチング処理は実行できません（Discord には、投稿しません）。" : ""}`}
           danger
           extra={
             // 削除済みの試合時刻の対戦枠は、通知しない（チェックも、出さない）
@@ -163,11 +163,11 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
         <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
-          {slot.matched ? "マッチング済み" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
+          {slot.matched ? "マッチング済み" : slot.deleted ? "未マッチング" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
         </Badge>
-        {/* 削除した試合時刻の、マッチング済みの対戦枠。記録として残っている（背景の色も、変える） */}
+        {/* 削除した試合時刻の対戦枠。記録（挙手・組分け）が残っているので、出している（背景の色も、変える） */}
         {slot.deleted && (
-          <Badge color="gray" variant="outline" tt="none" title="設定で削除した試合時刻です。マッチング済みの記録だけが残っています">
+          <Badge color="gray" variant="outline" tt="none" title="設定で削除した試合時刻です。記録だけが残っています">
             削除済み
           </Badge>
         )}
@@ -180,7 +180,8 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             <Title order={3} c="dimmed">
               挙手 {slot.handups.length > 0 && `（${slot.handups.length}）`}
             </Title>
-            {slotAction}
+            {/* 削除済みの試合時刻は、マッチング処理を実行できない（マッチング済みの記録の、やり直しだけできる） */}
+            {(!slot.deleted || slot.matched) && slotAction}
           </Group>
           <ErrorNote error={confirm.error ?? reopen.error} />
           {reopen.data?.notifyFailed && (
@@ -221,7 +222,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             </SimpleGrid>
           )}
           {/* 挙手の追加は、カードの下に、間をあけて置く。幅は、カード 1 枚分にそろえる（カードの格子と同じ列の幅） */}
-          {!slot.matched && (
+          {!slot.matched && !slot.deleted && (
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs" mt="sm">
               <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />
             </SimpleGrid>

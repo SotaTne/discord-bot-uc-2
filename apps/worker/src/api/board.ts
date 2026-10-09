@@ -60,10 +60,16 @@ export function createBoardRoutes(deps: ApiDeps) {
       const numbers = matchNumbers(guildMatches);
       const wins = allWins.filter((win) => win.slotDate === date);
 
+      // 試合時刻を削除しても、その日に記録（マッチング済み・挙手・組分け）が残っている対戦枠は、出す（deleted: true）。記録が何もなければ、出さない
       const registeredHours = new Set(slots.map((slot) => slot.hour));
+      const recordedHours = new Set([
+        ...matchSlots.filter((m) => m.status === "matched").map((m) => m.slotHour),
+        ...handups.map((handup) => handup.slotHour),
+        ...matches.map((match) => match.slotHour),
+      ]);
       const boardHours = [
         ...slots.map((slot) => ({ hour: slot.hour, deleted: false })),
-        ...matchSlots.filter((m) => m.status === "matched" && !registeredHours.has(m.slotHour)).map((m) => ({ hour: m.slotHour, deleted: true })),
+        ...[...recordedHours].filter((hour) => !registeredHours.has(hour)).map((hour) => ({ hour, deleted: true })),
       ].sort((a, b) => a.hour - b.hour);
 
       const rest = createRestFromEnv(c.env);
@@ -75,7 +81,6 @@ export function createBoardRoutes(deps: ApiDeps) {
         date,
         today: jstDateOf(now),
         rule: { fixedAfterMatches: settings.fixedAfterMatches, fixedPoints: settings.fixedPoints },
-        // 試合時刻を削除しても、その日にマッチング済みの対戦枠は、記録として残す（deleted: true）。未マッチングの削除済みは、出さない
         slots: boardHours.map((slot) => {
           const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
           return {
