@@ -15,7 +15,6 @@
     "@mantine/hooks": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@uc/api": "workspace:*",
-    "@uc/cron": "workspace:*",
     "@uc/discord": "workspace:*",
     "hono": "catalog:",
     "react": "catalog:",

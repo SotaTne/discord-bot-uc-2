@@ -18,7 +18,7 @@
     "directory": "node_modules/@uc/dashboard/dist",
     "not_found_handling": "single-page-application",
     // これらのパスは、静的ファイルより先に、worker が処理する（/dev/* は、開発の入口にだけ、ルートがある）
-    "run_worker_first": ["/api/*", "/interactions", "/cron", "/dev/*"]
+    "run_worker_first": ["/api/*", "/interactions", "/dev/*"]
   },
 
   "d1_databases": [
@@ -32,13 +32,12 @@
   ],
   "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-dev-screenshots" }],
 
-  // Cloudflare の Cron Trigger は、使わない（cron は、apps/cron の Apps Script が、POST /cron で起こす）。
-  // 空の配列は、「登録済みの Cron Trigger を、デプロイで消す」という意味（省略すると、登録済みのものが、残る）
-  "triggers": { "crons": [] },
+  // 毎分起動する。募集開始の投稿と、試合の K 分前の締切（マッチングの確定）を、時刻が来ていれば行う
+  "triggers": { "crons": ["* * * * *"] },
 
   "env": {
     "staging": {
-      "name": "uc-bot-stg",
+      "name": "uc-bot-staging",
       "d1_databases": [
         {
           "binding": "DB",
@@ -49,7 +48,7 @@
         }
       ],
       "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-staging-screenshots" }],
-      "triggers": { "crons": [] }
+      "triggers": { "crons": ["* * * * *"] }
     },
     "production": {
       "name": "uc-bot",
@@ -63,7 +62,7 @@
         }
       ],
       "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "uc-bot-screenshots" }],
-      "triggers": { "crons": [] }
+      "triggers": { "crons": ["* * * * *"] }
     }
   }
 }

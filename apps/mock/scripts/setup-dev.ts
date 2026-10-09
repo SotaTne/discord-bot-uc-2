@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPublicKey, ensureEnvVar } from "./dev-vars";
-import { DEV_CRON_SECRET } from "../server/dev-cron";
 import { loadOrCreateDevKeys } from "../server/keys";
 import { defaultSeed } from "../server/seed";
 import { buildSeedSql } from "./seed-sql";
@@ -28,11 +27,9 @@ if (result.status === "kept-existing") {
 
 // 開発用の既定値を、なければ追加する（あれば、利用者が変えた値を尊重して残す）
 //  - PUBLIC_URL: ログインリンクの先。開発中は Vite のダッシュボードに向ける
-//  - CRON_SECRET: POST /cron の合言葉。mock が、これで cron を起こす（Apps Script と同じ入口）
 let text = result.text;
 for (const [key, value] of [
   ["PUBLIC_URL", "http://localhost:5173"],
-  ["CRON_SECRET", DEV_CRON_SECRET],
 ] as const) {
   text = ensureEnvVar(text, key, value).text;
 }

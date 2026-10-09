@@ -34,8 +34,8 @@ const callAt = (at: string, path: string, init: RequestInit = {}, extra: Partial
   createDevApp({ clock: fixedClock(jst(at)) }).request(path, { headers: { Origin: "http://localhost" }, ...init }, env(extra));
 
 describe("本番の入口（createApp）には、/dev/* が、ない（開発の入口 createDevApp だけが、足す）", () => {
-  it("どの /dev/* も、404（ルートが、組み込まれていない）", async () => {
-    for (const [method, path] of [["GET", "/dev/state"], ["GET", "/dev/clock"], ["PUT", "/dev/clock"], ["GET", "/dev/screenshots/1"], ["POST", "/dev/reset"]] as const) {
+  it("どの /dev/* も、404（ルートが、組み込まれていない）。cron の処理も、動かない", async () => {
+    for (const [method, path] of [["GET", "/dev/state"], ["GET", "/dev/clock"], ["PUT", "/dev/clock"], ["GET", "/dev/screenshots/1"], ["POST", "/dev/reset"], ["POST", "/dev/tick"]] as const) {
       const response = await createApp({ clock: fixedClock(jst("2026-10-07T12:00:00")) }).request(path, { method, headers: { Origin: "http://localhost" } }, env());
       expect(response.status, `${method} ${path}`).toBe(404);
     }
@@ -44,6 +44,28 @@ describe("本番の入口（createApp）には、/dev/* が、ない（開発の
 
   it("開発の入口には、ある（同じルートが、200 になる）", async () => {
     expect((await callAt("2026-10-07T12:00:00", "/dev/clock")).status).toBe(200);
+  });
+});
+
+describe("POST /dev/tick（開発専用）", () => {
+  it("いまの時計（疑似時計）の日時で、cron の処理を1回実行する", async () => {
+    const response = await callAt("2026-10-07T12:00:00", "/dev/tick", { method: "POST" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ran: ["recruit:2026-10-07"], errors: [] });
+    expect(requests).toMatchObject([
+      {
+        url: "http://mock.local/api/v10/channels/300000000000000001/messages",
+        body: { content: "# 12:00になりましたので、本日の募集を開始します" },
+      },
+    ]);
+  });
+
+  it("時刻が来ていなければ、何も実行しない", async () => {
+    const response = await callAt("2026-10-07T11:00:00", "/dev/tick", { method: "POST" });
+
+    expect(await response.json()).toEqual({ ran: [], errors: [] });
+    expect(requests).toEqual([]);
   });
 });
 

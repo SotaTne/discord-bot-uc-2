@@ -18,8 +18,7 @@ pnpm check   # 型チェックとテスト
 
 | 場所 | 役割 |
 |---|---|
-| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（呼ぶ先と間隔だけ。処理の本体は `packages/cron`）。手元から、`start` / `stop` / `health` で操作する（`apps/cron/README.md`） |
-| `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、`/cron`（cron の入口）、ダッシュボードの配信 |
+| `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る。`src/` は、本番に載る画面のコードだけ。開発専用の設定（`/api` の proxy）は `dev/` に置き、`vite.config.ts` が、開発サーバー（`command === "serve"`）のときだけ使う |
 | `apps/mock` | 開発専用の疑似 Discord。`server/`（Discord のサーバー役 `discord/` と、画面用の API `api/`）・`client/`（画面。Vite + React + Mantine + TanStack Query。サーバーには HTTP で話すだけ）・`scripts/`（開発の準備）。1 つの Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |
 | `packages/core` | 純粋なドメイン規則（マッチング、得点、勝利の記録の確認、時刻）。依存なし |
@@ -106,7 +105,7 @@ pnpm register-commands                                    # 全サーバー（�
 
 | ブランチ | 役割 | デプロイ先（GitHub Actions が、自動で行う） |
 |---|---|---|
-| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-stg`） |
+| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-staging`） |
 | `main` | リリース済み | **本番**（`uc-bot`） |
 
 1. 機能の PR を、`develop` に、マージする（スカッシュ）。ステージングに出る。
@@ -168,8 +167,7 @@ pnpm register-commands                                    # 全サーバー（�
    | 名前 | 種類 | 内容 |
    |---|---|---|
    | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
-   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン。Worker の実行時と、コマンドの登録に、使う |
-   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**ステージングと本番で、同じ値**を登録する（Apps Script が、1 つの合言葉で、両方を呼ぶため）。同じ値を、`apps/cron` の Apps Script のプロパティと、手元の `.env.local` にも、書く。秘密なので、リポジトリではなく、環境に置く |
+   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、この2つだけ**）。Worker の実行時と、コマンドの登録に、使う |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
    | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |
@@ -182,29 +180,7 @@ pnpm register-commands                                    # 全サーバー（�
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
-**cron の合言葉（`CRON_SECRET`）の作成と取り替え**: `pnpm update-cron-secret`（ルートで実行）。新しい合言葉を作って、次を、まとめて行う。
-
-1. GitHub の Environments（`staging`・`production`）の Secrets の `CRON_SECRET` を、取り替える（`gh` コマンド。`gh auth login` 済みで、2 つの Environment が、先に、あること）。
-2. Apps Script のスクリプトプロパティの `CRON_SECRET` を、取り替える。ウェブアプリに、**古い合言葉で認証して**、新しい合言葉を送る（古い合言葉は、`.env.local` にある）。
-3. `apps/cron/.env.local` の `CRON_SECRET` を、書き換える（手元の `start` / `stop` / `health` が使う）。
-4. 新しい値を、1 回だけ、画面に出す。
-
-実行の前に、やることを表示して、確認する（`--yes` で省略）。**デプロイは、しない**。終わりに表示される「次にやること」を、実行する。
-
-- Worker に届けるため、Actions の画面から `cd` を、`develop` と `main` の両方で、手動で実行する。
-- `pnpm --filter @uc/cron-app health` で、動いているか確かめる。
-
-**最初の 1 回だけ**は、Apps Script の側が、まだ合言葉を持たないので、自動で取り替えられない（`.env.local` に古い合言葉がない、または、`GAS_DEPLOYMENT_ID` が、まだない）。そのときは、画面に出た値を、Apps Script の「スクリプト プロパティ」に、手で貼る（手順は、画面に出る）。2 回目からは、自動。
-
-2 が失敗したとき（古い合言葉が合わない など）は、そこで止まる。GitHub の値は、新しくなっていて、`.env.local` は、古いまま残るので、原因を直して、もう一度実行すればよい。
-
-取り替えから、Worker のデプロイまでの間は、`/cron` が 401 になる。Worker には猶予（募集開始は 1 時間、締切のマッチングは試合開始の 30 分後まで）があるので、その間に済ませれば、取りこぼさない。漏れたと思ったときも、同じコマンドで、取り替える。
-
-cron（毎分）は、`apps/cron` の Google Apps Script が、`POST /cron`（合言葉つき）を呼んで起こす。Cloudflare の Cron Trigger は、使わない（ステージングで動かなかったため。`wrangler.jsonc` で、空にしてあり、デプロイで、登録済みのものも消える）。設定は、`apps/cron/README.md`。
-
-**注意**: 最初に、本番（`main`）をデプロイすると、それまで動いていた Cloudflare の cron が、止まる。先に、Apps Script を動かしておく（`pnpm --filter @uc/cron-app health` で確かめる）。
-
-ジョブは「実行する権利」を取ってから動くので、二重に呼ばれても、二重には実行されない。
+cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
 
 **後ろ向きの互換を保つ**: マイグレーションは、コードより先に適用され、コマンドの登録は、コードより後になる。そのため、新しい DB で、古いコードが、動くようにする（列や表の、削除と名前の変更は、2回に分けて出す）。コマンドも、同じ考え方で、コードが、古い定義と新しい定義の、両方を処理できる状態を、保つ（コマンドや必須のオプションの削除は、2回に分けて出す）。
 

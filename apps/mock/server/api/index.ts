@@ -63,8 +63,10 @@ export function createMockApi(deps: MockApiDeps) {
   async function tickAfterClockChange(): Promise<ActionResult> {
     await deps.workerDev.pushClock();
     lastTickMinute = Math.floor(state.now() / 60_000);
-    await deps.workerDev.tick();
-    return { ok: true, notice: "" };
+    const summary = await deps.workerDev.tick();
+    return summary.errors.length === 0
+      ? { ok: true, notice: "" }
+      : { ok: false, notice: `cron のエラー: ${summary.errors.join(" / ")}` };
   }
 
   return new Hono()

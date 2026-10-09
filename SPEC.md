@@ -69,7 +69,7 @@
    - 組分けと除外チームを、**ロールのメンションで**投稿する（Discord が、ロールの名前で見せ、通知もする）。
    - 管理者が、ダッシュボードで対戦枠を「やり直す」と、「21時のマッチングはキャンセルされました」と、取り消された組分けと除外チームを、同じ並びで、ロールのメンションつきで投稿する（チェックで、投稿しないこともできる）。
    - 結果を対戦枠（除外チーム）と `matches`（組分け）に保存する（挙手が足りないときも、処理済みにして、組分けは 0 件で保存する）。組分けは 1 度だけ作る（勝利が紐づくので、作り直さない）。
-5. **cron は毎分**起動する。外のタイマー（`apps/cron` の Google Apps Script）が、合言葉つきで `POST /cron` を呼ぶ（Cloudflare の Cron Trigger は、使わない）。時刻が来ていれば、募集開始の投稿と、各対戦枠の締切のマッチングを行う。
+5. **cron は毎分**起動する。時刻が来ていれば、募集開始の投稿と、各対戦枠の締切のマッチングを行う。
    - ジョブは `job_runs` で「実行する権利」を取ってから実行する（UNIQUE 制約）。cron が二重に動いても、1回しか実行されない。
    - ジョブが失敗したら、権利を返す。次の cron でやり直す。
    - cron が遅れても取りこぼさないよう、猶予がある。募集開始は N 時から 1 時間、締切のマッチングは K 分前から試合開始の 30 分後まで。猶予を過ぎたら、もう実行しない。
@@ -182,7 +182,7 @@
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - 環境は 3 つ（`apps/worker/wrangler.jsonc`）: 最上位（ローカルの開発用。デプロイは、失敗する）・`staging`（`develop` ブランチ）・`production`（`main` ブランチ）。デプロイは、GitHub Actions（`.github/workflows/cd.yml`）が、ブランチに入ったときに、そのコミットの CI（`ci.yml`）が通ったときだけ、自動で行う（マイグレーションの適用 → `wrangler deploy --env …` → スラッシュコマンドの登録。登録を、デプロイの後にして、「新しいコマンドを、古い Worker が処理できない」期間を、なくす）。マージできるのは、CI が通った PR だけ（ブランチ保護）。秘密（Cloudflare の API トークン、Discord の Bot のトークン）は、GitHub の Environments だけに置き、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す（手動で、Cloudflare に置かない）。公開してよい値（公開鍵、アプリの ID）は、Variables にして、`--var` で渡す。手順は、`README.md`。
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
-- cron: `POST /cron`（`Authorization: Bearer <CRON_SECRET>`）。毎分、外のタイマー（`apps/cron`）が呼ぶ。すぐ 202 を返して、処理は `waitUntil` で行う。合言葉が未設定なら、すべて 401。Cloudflare の Cron Trigger は、使わない（`triggers.crons` は、空）。
+- Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
 - 3 秒制限のある処理は、deferred response と `waitUntil` で行う。
 - Gateway は使わない。Discord へは REST のみ（チャンネル投稿、返信の編集、ロール一覧の取得、コマンド登録）。
 - Bot の権限は最小にする（チャンネルへの投稿。ロール管理は不要）。
@@ -195,14 +195,12 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ```
 .
 ├─ apps/
-│  ├─ worker/      Hono。/interactions、/cron、/api/*、/dev/*（開発専用）、ダッシュボードの静的配信
+│  ├─ worker/      Hono。/interactions、cron、/api/*、/dev/*（開発専用）、ダッシュボードの静的配信
 │  ├─ dashboard/   Vite + React の管理画面
-│  ├─ cron/        Google Apps Script。毎分、POST /cron を呼ぶ（呼ぶ先と間隔だけ。処理は packages/cron）
 │  └─ mock/        開発専用。疑似 Discord と動作確認ページ
 ├─ packages/
 │  ├─ api/         zod スキーマのみ（worker の検証と dashboard のフォーム検証で共有）
 │  ├─ core/        純粋なドメイン規則（マッチング、得点、勝利の記録の確認、時刻）
-│  ├─ cron/        cron を起こす処理の本体（リクエストの作り方と応答の判定）。Apps Script と mock が使う
 │  ├─ db/          D1 スキーマ、マイグレーション、リポジトリ
 │  └─ discord/     REST クライアント、署名検証、コマンド定義と登録
 └─ SPEC.md
@@ -223,9 +221,10 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - 開発の準備のスクリプトは、`apps/mock/scripts/`（`setup-dev.ts`: 鍵・`.dev.vars`・シード）。
 - **擬似 Interactions**: 本物と同じ形式の JSON を、開発用の Ed25519 鍵で署名して worker に送る。worker は本番と同じ署名検証を通る。鍵は `apps/mock/.dev-keys.json` に保存して使い回す（git には入れない）。
 - **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は、環境変数 `DISCORD_API_BASE` で、モックに向ける（開発の `.dev.vars` だけに書く。本番では、設定しない）。
-- **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、本番の Apps Script と同じ入口（`POST /cron`。合言葉つき。作り方と判定は `packages/cron`）を呼んで、cron を起こす。
+- **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、cron の処理を実行する（本物の cron と同じ）。
 - **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発専用の入口にだけ**ある。`apps/worker/src/dev/` に、疑似時計・`/dev/*` のルート・状態の取得・入口（`entry.ts`）を集め、本番の入口（`src/index.ts`）は、そこを読み込まない。本番のコードが、`src/dev/` を import していないこと（`tests/worker-imports.test.ts`）と、本番のビルドに、開発専用の文字列がないこと（`tests/worker-build.test.ts`）を、テストで確かめる:
   - `GET /dev/clock` / `PUT /dev/clock`: 疑似時計の状態（`{ offsetMs }`）と、いまの時刻
+  - `POST /dev/tick`: いまの疑似時計で、cron の処理（募集開始・締切）を1回実行する
   - `GET /dev/state`: いまの状態を、まとめて返す（`@uc/api` の `DevSnapshot`）。挙手・チームごとの対戦数と勝利数と得点・マッチング結果・勝利の記録（集計された点数と、そのチームの何試合目か）・cron の予定と履歴・試合ごとの勝利の記録・ログインの状況を含む
   - `GET /dev/screenshots/:seq`: 保存した画像（ログインなし）
   - `POST /dev/reset`: 活動の記録（挙手・マッチング・得点・cron の履歴・ログイン）を消す。設定・対戦枠・チームは残す

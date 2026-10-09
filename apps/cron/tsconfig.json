@@ -1,8 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "types": ["google-apps-script", "node"],
-    "allowImportingTsExtensions": true
-  },
-  "include": ["src", "scripts", "vitest.config.ts"]
-}

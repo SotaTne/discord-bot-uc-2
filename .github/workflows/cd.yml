@@ -36,9 +36,8 @@ jobs:
       DEPLOY_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      # Worker に渡す値。秘密は、Bot のトークンと、cron の合言葉（公開鍵とアプリの ID は、公開してよい値）
+      # Worker に渡す値。秘密は、Bot のトークンだけ（公開鍵とアプリの ID は、公開してよい値）
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
       DISCORD_PUBLIC_KEY: ${{ vars.DISCORD_PUBLIC_KEY }}
       DISCORD_APPLICATION_ID: ${{ vars.DISCORD_APPLICATION_ID }}
     steps:
@@ -50,9 +49,8 @@ jobs:
       - run: pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
       # シークレットは、デプロイと一緒に、Cloudflare に渡す（GitHub が、唯一の置き場。Cloudflare に、手動で置かない）。
       # --secrets-file は、足すだけ（消えない）。消すときは、wrangler secret delete
-      # 渡す秘密の一覧は、.github/scripts/write-secrets.ts の SECRETS（必須が登録されていなければ、ここで止まる）
       - name: シークレットのファイルを、一時的に作る
-        run: node .github/scripts/write-secrets.ts "$RUNNER_TEMP/secrets.env"
+        run: printf 'DISCORD_BOT_TOKEN=%s\n' "$DISCORD_BOT_TOKEN" > "$RUNNER_TEMP/secrets.env"
       - run: >
           pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
           --secrets-file "$RUNNER_TEMP/secrets.env"

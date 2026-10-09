@@ -15,14 +15,10 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run && turbo run test",
     "check": "pnpm typecheck && pnpm test",
-    "register-commands": "pnpm --filter @uc/discord run register-commands",
-    "update-cron-secret": "tsx scripts/update-cron-secret.ts"
+    "register-commands": "pnpm --filter @uc/discord run register-commands"
   },
   "devDependencies": {
-    "@actions/core": "catalog:",
     "@types/node": "catalog:",
-    "@uc/cron": "workspace:*",
-    "tsx": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

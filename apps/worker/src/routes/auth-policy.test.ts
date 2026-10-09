@@ -49,24 +49,12 @@ describe("認証の方針: すべてのルートが、認証つきか、公開�
     }
   });
 
-  it("/cron は、合言葉（CRON_SECRET）がなければ 401。合言葉が未設定なら、何を送っても 401", async () => {
-    const cron = routes.filter((route) => route.path.startsWith("/cron"));
-    expect(cron.length).toBeGreaterThan(0);
-    for (const route of cron) {
-      expect((await callWithoutCredentials(route)).status, `${route.method} ${route.path}`).toBe(401);
-      const wrong = await app.request(route.path, { method: route.method, headers: { Authorization: "Bearer x" } }, { CRON_SECRET: "secret" } as AppEnv);
-      expect(wrong.status, `${route.method} ${route.path}`).toBe(401);
-      const unset = await app.request(route.path, { method: route.method, headers: { Authorization: "Bearer " } }, { CRON_SECRET: "" } as AppEnv);
-      expect(unset.status, `${route.method} ${route.path}`).toBe(401);
-    }
-  });
-
   it("本番の入口（createApp）には、/dev/*（認証がない、開発専用のルート）が、1 つもない。開発の入口（createDevApp）だけが、足す", () => {
     expect(routes.filter((route) => route.path.startsWith("/dev"))).toEqual([]);
   });
 
   it("どの方針にも入らないルートは、ない（新しい入口を足したら、ここに、認証の方針を書く）", () => {
-    const known = [`${API_PREFIX}/`, "/interactions", "/cron"];
+    const known = [`${API_PREFIX}/`, "/interactions"];
     const unknown = routes.filter((route) => !known.some((prefix) => route.path.startsWith(prefix)));
 
     expect(unknown).toEqual([]);
