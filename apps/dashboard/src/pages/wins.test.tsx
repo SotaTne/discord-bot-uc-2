@@ -285,15 +285,15 @@ describe("勝利記録の画面: 勝利が未記録の組分け", () => {
     ...over,
   });
 
-  it("日時・組分け・削除済みの勝利の件数を出す。「対戦枠で記録する」は、その日の対戦枠の画面へのリンク", async () => {
+  it("日時と組分けを出す。いったん記録して削除した勝利があれば、組分けの横に、件数を添える。「対戦枠で記録する」は、その日の対戦枠の画面へのリンク", async () => {
     installFakeBackend({ ...apis(), ...unrecorded([pending(), pending({ id: 8, slotDate: "2026-10-07", slotHour: 21, teamA: { id: 2, name: "UT" }, teamB: { id: 3, name: "NGT" }, deletedWins: 2 })]) });
     renderApp("/wins");
 
     const section = within(await screen.findByRole("region", { name: "勝利が未記録の組分け" }));
     const rows = (await section.findAllByRole("row")).slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
     expect(rows).toEqual([
-      ["10/06 23:00", "KMU vs UT", "—", "対戦枠で記録する"],
-      ["10/07 21:00", "UT vs NGT", "2件", "対戦枠で記録する"],
+      ["10/06 23:00", "KMU vs UT", "対戦枠で記録する"],
+      ["10/07 21:00", "UT vs NGT（削除した勝利 2件）", "対戦枠で記録する"],
     ]);
     const links = section.getAllByRole("link", { name: /対戦枠で記録する/ });
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/?date=2026-10-06", "/?date=2026-10-07"]);

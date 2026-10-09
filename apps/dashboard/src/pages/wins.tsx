@@ -45,7 +45,6 @@ function Unrecorded() {
               <Table.Tr>
                 <Table.Th>日時</Table.Th>
                 <Table.Th>組分け</Table.Th>
-                <Table.Th>削除済みの勝利</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -57,8 +56,13 @@ function Unrecorded() {
                   </Table.Td>
                   <Table.Td>
                     {match.teamA.name} vs {match.teamB.name}
+                    {/* いったん記録して、削除した勝利があるときだけ、添える（点数の間違いなどで、記録し直しになっている） */}
+                    {match.deletedWins > 0 && (
+                      <Text span size="sm" c="dimmed" ml="xs">
+                        （削除した勝利 {match.deletedWins}件）
+                      </Text>
+                    )}
                   </Table.Td>
-                  <Table.Td c="dimmed">{match.deletedWins > 0 ? `${match.deletedWins}件` : "—"}</Table.Td>
                   <Table.Td ta="right">
                     {/* その日の対戦枠の画面を開く */}
                     <Link to="/" search={{ date: match.slotDate }} className="text-link" aria-label={`${match.teamA.name} vs ${match.teamB.name}（${match.slotDate} ${formatHour(match.slotHour)}）を、対戦枠で記録する`}>
