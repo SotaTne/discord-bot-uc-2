@@ -15,9 +15,9 @@ describe("ログインが必要", () => {
     ["GET", "/api/settings"],
     ["PUT", "/api/settings"],
     ["GET", "/api/roles"],
-    ["GET", "/api/slots"],
-    ["POST", "/api/slots"],
-    ["DELETE", "/api/slots/1"],
+    ["GET", "/api/slot-hours"],
+    ["POST", "/api/slot-hours"],
+    ["DELETE", "/api/slot-hours/1"],
     ["GET", "/api/teams"],
     ["POST", "/api/teams"],
     ["DELETE", "/api/teams/1"],
@@ -78,26 +78,26 @@ describe("サーバーの設定", () => {
 
 describe("試合時刻", () => {
   it("一覧できる（シード: 21・22・23 時）", async () => {
-    const { body } = await h.json<{ slots: { hour: number }[] }>("/api/slots", { cookie });
-    expect(body.slots.map((s) => s.hour)).toEqual([21, 22, 23]);
+    const { body } = await h.json<{ slotHours: { hour: number }[] }>("/api/slot-hours", { cookie });
+    expect(body.slotHours.map((s) => s.hour)).toEqual([21, 22, 23]);
   });
 
   it("追加できる。同じ時刻は 409。範囲外は 400", async () => {
-    expect((await h.json("/api/slots", { method: "POST", cookie, body: { hour: 20 } })).status).toBe(201);
-    expect((await h.json("/api/slots", { method: "POST", cookie, body: { hour: 20 } })).status).toBe(409);
-    expect((await h.json("/api/slots", { method: "POST", cookie, body: { hour: 24 } })).status).toBe(400);
+    expect((await h.json("/api/slot-hours", { method: "POST", cookie, body: { hour: 20 } })).status).toBe(201);
+    expect((await h.json("/api/slot-hours", { method: "POST", cookie, body: { hour: 20 } })).status).toBe(409);
+    expect((await h.json("/api/slot-hours", { method: "POST", cookie, body: { hour: 24 } })).status).toBe(400);
 
-    const { body } = await h.json<{ slots: { hour: number }[] }>("/api/slots", { cookie });
-    expect(body.slots.map((s) => s.hour)).toEqual([20, 21, 22, 23]);
+    const { body } = await h.json<{ slotHours: { hour: number }[] }>("/api/slot-hours", { cookie });
+    expect(body.slotHours.map((s) => s.hour)).toEqual([20, 21, 22, 23]);
   });
 
   it("削除できる。存在しなければ 404。ID が不正なら 400", async () => {
-    const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
-    const slot = body.slots[0]!;
+    const { body } = await h.json<{ slotHours: { id: number; hour: number }[] }>("/api/slot-hours", { cookie });
+    const slot = body.slotHours[0]!;
 
-    expect((await h.json(`/api/slots/${slot.id}`, { method: "DELETE", cookie })).status).toBe(200);
-    expect((await h.json(`/api/slots/${slot.id}`, { method: "DELETE", cookie })).status).toBe(404);
-    expect((await h.json("/api/slots/abc", { method: "DELETE", cookie })).status).toBe(400);
+    expect((await h.json(`/api/slot-hours/${slot.id}`, { method: "DELETE", cookie })).status).toBe(200);
+    expect((await h.json(`/api/slot-hours/${slot.id}`, { method: "DELETE", cookie })).status).toBe(404);
+    expect((await h.json("/api/slot-hours/abc", { method: "DELETE", cookie })).status).toBe(400);
   });
 });
 

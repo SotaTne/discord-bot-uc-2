@@ -3,7 +3,7 @@ import {
   claimJob,
   deleteExpiredCredentials,
   listConfiguredGuilds,
-  listSlots,
+  listSlotHours,
   releaseJob,
   type Db,
   type GuildSettingsValues,
@@ -63,7 +63,7 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
   const today = jstDateOf(now);
 
   // 予定（いつ、どのジョブを実行するか）は、画面に出すものと同じ規則（@uc/core）で決める
-  const slots = await listSlots(db, guild.guildId);
+  const slots = await listSlotHours(db, guild.guildId);
   const specs = scheduledJobsForDate({
     date: today,
     recruitHour: guild.recruitHour,

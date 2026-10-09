@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SLOTS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
+import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
 const homeApis = {
   "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", slots: [] } },
-  "GET /api/slots": { body: SLOTS },
+  "GET /api/slot-hours": { body: SLOT_HOURS },
   "GET /api/teams": { body: TEAMS },
 };
 

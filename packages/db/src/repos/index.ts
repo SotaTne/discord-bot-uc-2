@@ -5,6 +5,6 @@ export * from "./jobs";
 export * from "./match-slots";
 export * from "./matches";
 export * from "./settings";
-export * from "./slots";
+export * from "./slot-hours";
 export * from "./teams";
 export * from "./wins";

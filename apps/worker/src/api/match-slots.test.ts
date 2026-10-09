@@ -185,8 +185,8 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
 
 describe("試合時刻を削除したあとの対戦枠（論理削除。削除した日までの対戦枠が、残る）", () => {
   const deleteHour = async (hour: number) => {
-    const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
-    return h.json(`/api/slots/${body.slots.find((slot) => slot.hour === hour)!.id}`, { method: "DELETE", cookie });
+    const { body } = await h.json<{ slotHours: { id: number; hour: number }[] }>("/api/slot-hours", { cookie });
+    return h.json(`/api/slot-hours/${body.slotHours.find((slot) => slot.hour === hour)!.id}`, { method: "DELETE", cookie });
   };
   /** その日の対戦枠（時刻・削除済みか・マッチング済みか） */
   const hours = async (date: string) =>
@@ -242,18 +242,18 @@ describe("試合時刻を削除したあとの対戦枠（論理削除。削除�
     await deleteHour(21);
     expect(await hours("2026-10-08")).toEqual([[22, false, false], [23, false, false]]);
 
-    const { status } = await h.json<{ id: number }>("/api/slots", { method: "POST", cookie, body: { hour: 21 } });
+    const { status } = await h.json<{ id: number }>("/api/slot-hours", { method: "POST", cookie, body: { hour: 21 } });
 
     expect(status).toBe(201);
     expect(await hours("2026-10-08")).toEqual([[21, false, false], [22, false, false], [23, false, false]]);
     expect((await slotOf(21)).matches).toHaveLength(1);
   });
 
-  it("削除した時刻は、設定の一覧（GET /api/slots）には出ない。挙手もできない", async () => {
+  it("削除した時刻は、設定の一覧（GET /api/slot-hours）には出ない。挙手もできない", async () => {
     await deleteHour(21);
 
-    const { body } = await h.json<{ slots: { hour: number }[] }>("/api/slots", { cookie });
-    expect(body.slots.map((slot) => slot.hour)).toEqual([22, 23]);
+    const { body } = await h.json<{ slotHours: { hour: number }[] }>("/api/slot-hours", { cookie });
+    expect(body.slotHours.map((slot) => slot.hour)).toEqual([22, 23]);
     const handup = await h.json("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour: 21 } });
     expect(handup.status).toBe(404);
   });

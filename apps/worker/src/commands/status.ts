@@ -1,5 +1,5 @@
 import { formatJstTime, handupPhase, jstDateOf, type HandupPhase } from "@uc/core";
-import { getGuildSettings, listMatchSlots, listSlots, listTeamHandupsOnDate, listTeams, type Handup, type Team } from "@uc/db";
+import { getGuildSettings, listMatchSlots, listSlotHours, listTeamHandupsOnDate, listTeams, type Handup, type Team } from "@uc/db";
 import { ephemeralMessage } from "@uc/discord";
 import { loadScores } from "../usecases/scores";
 import { resolveCaller, teamMention } from "./caller";
@@ -57,7 +57,7 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
   const slotDate = jstDateOf(now);
   const settings = await getGuildSettings(db, guildId);
   const [slots, matchSlots, handups, { scores, matchCounts }, teamList] = await Promise.all([
-    listSlots(db, guildId),
+    listSlotHours(db, guildId),
     listMatchSlots(db, { guildId, slotDate }),
     listTeamHandupsOnDate(db, { guildId, slotDate, teamId: team.id }),
     loadScores(db, guildId),

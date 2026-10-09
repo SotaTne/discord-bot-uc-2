@@ -59,6 +59,13 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示・勝利の未記録の印）が、同じ時計に従う。
 `/dev/*`（時計・状態・cron・初期化）と、疑似時計と、モックの Discord への差し替え（`DISCORD_API_BASE`）は、開発のビルドにだけ入る。本番のビルド（`vite build`）では、ビルド時の定数（`import.meta.env.DEV`）が false になり、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）。
 
+### DB を変えるとき（マイグレーション）
+
+- `packages/db/src/schema.ts` を変えたら、`pnpm --filter @uc/db exec drizzle-kit generate --name <変更の内容>` で、**差分**（0001、0002…）を作る。既存のファイルは、書き換えない。表や列の名前を変えるときは、「名前の変更」か「作成」かを聞かれるので、名前の変更を選ぶ（データが残る）。
+- 本番の DB に適用したら、そのファイルを `packages/db/src/migrations.test.ts` の `RELEASED` に足す（書き換えを、テストで止める）。
+- `schema.ts` を変えて、差分を作り忘れたり、すでに適用したマイグレーションを書き換えたりすると、`pnpm test` が落ちる。
+- ローカルの D1 を作り直すときは、`apps/worker/.wrangler/state` を消してから、`pnpm dev` を実行する。
+
 ### 動作確認の例
 
 1. 「12:00 募集開始」を押す。実行者 alice と carol を選んで、`/uc-handup`（21:00）を実行する → 「チーム」の挙手中に出る。

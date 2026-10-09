@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
 import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
-import { useBoard, useInvalidatingMutation, useSettings, useSlots } from "../lib/queries";
+import { useBoard, useInvalidatingMutation, useSettings, useSlotHours } from "../lib/queries";
 import { Sessions } from "./sessions";
 
 /** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 得点の集計 / 試合時刻 / ログイン） */
@@ -23,7 +23,7 @@ export function SettingsPage() {
           </>
         )}
       </Async>
-      <Slots />
+      <SlotHours />
       <LoginSettings />
       <Sessions />
     </>
@@ -101,7 +101,7 @@ const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
 /** Discord への投稿（募集開始・マッチング結果）の設定 */
 function PostSettings({ initial }: { initial: SettingsValues }) {
-  const slots = useSlots();
+  const slotHours = useSlotHours();
   const [channelId, setChannelId] = useState(initial.channelId ?? "");
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
@@ -126,7 +126,7 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
   const today = todayJst();
   const schedule =
     !errors.recruitHour && !errors.cutoffMinutes
-      ? (slots.data?.slots ?? []).map((slot) => ({ hour: slot.hour, cutoff: formatJstTime(handupDeadline(today, slot.hour, Number(cutoffMinutes))) }))
+      ? (slotHours.data?.slotHours ?? []).map((slotHour) => ({ hour: slotHour.hour, cutoff: formatJstTime(handupDeadline(today, slotHour.hour, Number(cutoffMinutes))) }))
       : null;
 
   return (
@@ -280,33 +280,33 @@ function removeSlotDescription(hour: number, today: { matched: boolean; handups:
   return lines.join("");
 }
 
-function Slots() {
-  const slots = useSlots();
+function SlotHours() {
+  const slotHours = useSlotHours();
   // 今日の挙手の件数を、削除の確認に出す
   const board = useBoard(undefined);
   const [hour, setHour] = useState<number | "">("");
-  const refresh = [["slots"], ["board"], ["wins"]];
-  const add = useInvalidatingMutation((value: number) => unwrap(api.slots.$post({ json: { hour: value } })), refresh);
-  const remove = useInvalidatingMutation((id: number) => unwrap(api.slots[":id"].$delete({ param: { id: String(id) } })), refresh);
+  const refresh = [["slot-hours"], ["board"], ["wins"]];
+  const add = useInvalidatingMutation((value: number) => unwrap(api["slot-hours"].$post({ json: { hour: value } })), refresh);
+  const remove = useInvalidatingMutation((id: number) => unwrap(api["slot-hours"][":id"].$delete({ param: { id: String(id) } })), refresh);
 
   const today = (hour: number) => {
     const slot = board.data?.slots.find((candidate) => candidate.hour === hour);
     return slot ? { matched: slot.matched, handups: slot.handups.length } : undefined;
   };
-  const registered = new Set(slots.data?.slots.map((slot) => slot.hour));
+  const registered = new Set(slotHours.data?.slotHours.map((slotHour) => slotHour.hour));
   const candidates = Array.from({ length: 24 }, (_, hourOfDay) => hourOfDay).filter((value) => !registered.has(value));
 
   return (
     <Section title="試合時刻">
-      <Async query={slots}>
+      <Async query={slotHours}>
         {(data) =>
-          data.slots.length === 0 ? (
+          data.slotHours.length === 0 ? (
             <Text c="dimmed">試合時刻が登録されていません</Text>
           ) : (
             <Group gap="xs">
-              {data.slots.map((slot) => (
+              {data.slotHours.map((slotHour) => (
                 <Badge
-                  key={slot.id}
+                  key={slotHour.id}
                   size="lg"
                   variant="default"
                   tt="none"
@@ -315,15 +315,15 @@ function Slots() {
                       icon
                       heavy
                       danger
-                      label={`${formatHour(slot.hour)}の試合時刻を削除`}
+                      label={`${formatHour(slotHour.hour)}の試合時刻を削除`}
                       confirmLabel="削除する"
-                      description={removeSlotDescription(slot.hour, today(slot.hour))}
+                      description={removeSlotDescription(slotHour.hour, today(slotHour.hour))}
                       disabled={remove.isPending}
-                      onConfirm={() => remove.mutate(slot.id)}
+                      onConfirm={() => remove.mutate(slotHour.id)}
                     />
                   }
                 >
-                  {formatHour(slot.hour)}
+                  {formatHour(slotHour.hour)}
                 </Badge>
               ))}
             </Group>

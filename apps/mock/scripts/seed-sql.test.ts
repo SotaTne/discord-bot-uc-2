@@ -14,7 +14,7 @@ describe("buildSeedSql", () => {
 
     const teams = db.prepare("SELECT role_id FROM teams ORDER BY id").all();
     expect(teams).toEqual(seed.roles.map((role) => ({ role_id: role.id })));
-    expect(db.prepare("SELECT hour FROM slots ORDER BY hour").all()).toEqual([
+    expect(db.prepare("SELECT hour FROM slot_hours ORDER BY hour").all()).toEqual([
       { hour: 21 },
       { hour: 22 },
       { hour: 23 },
@@ -32,7 +32,7 @@ describe("buildSeedSql", () => {
     db.exec(sql);
 
     expect(db.prepare("SELECT COUNT(*) AS n FROM teams").get()).toEqual({ n: 4 });
-    expect(db.prepare("SELECT COUNT(*) AS n FROM slots").get()).toEqual({ n: 3 });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM slot_hours").get()).toEqual({ n: 3 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM guild_settings").get()).toEqual({ n: 1 });
   });
 

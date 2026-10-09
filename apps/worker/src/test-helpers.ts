@@ -1,5 +1,5 @@
 import {
-  createSlot,
+  createSlotHour,
   createTeam,
   ensureMatchSlot,
   findMatchForTeam,
@@ -57,7 +57,7 @@ export async function createSeededDb() {
   const kmuId = await createTeam(db, { guildId: GUILD_ID, roleId: KMU_ROLE, createdAt: 1 });
   const utId = await createTeam(db, { guildId: GUILD_ID, roleId: UT_ROLE, createdAt: 1 });
   for (const hour of [21, 22, 23]) {
-    await createSlot(db, { guildId: GUILD_ID, hour, createdAt: 1 });
+    await createSlotHour(db, { guildId: GUILD_ID, hour, createdAt: 1 });
   }
   return { db, kmuId, utId };
 }

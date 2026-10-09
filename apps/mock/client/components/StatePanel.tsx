@@ -50,7 +50,7 @@ function Fixtures({ snapshot }: { snapshot: Snapshot }) {
   return (
     <Panel title="対戦枠（今日）">
       <div className="fixtures">
-        {snapshot.slots.map((hour) => (
+        {snapshot.slotHours.map((hour) => (
           <div key={hour} className="fixture surface">
             <span className="fixture-time">{hourLabel(hour)}</span>
             <Badge color={matched.has(hour) ? "green" : "gray"} variant="light" tt="none">

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SLOTS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
+import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
 const at = (text: string) => Date.parse(`${text}+09:00`);
 const KMU = { id: 1, name: "KMU" };
@@ -33,7 +33,7 @@ const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
   "GET /api/board": board(slots),
   "GET /api/teams": { body: TEAMS },
-  "GET /api/slots": { body: SLOTS },
+  "GET /api/slot-hours": { body: SLOT_HOURS },
 });
 /** 行の「操作」メニューを開いて、項目を選ぶ */
 const choose = async (menuName: string, item: string) => {

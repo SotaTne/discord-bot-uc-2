@@ -103,14 +103,14 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
     const response = await callAt("2026-10-07T20:53:00", "/dev/state");
 
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { now: string; today: string; slots: number[]; schedule: { key: string; state: string }[] };
+    const body = (await response.json()) as { now: string; today: string; slotHours: number[]; schedule: { key: string; state: string }[] };
     expect(body.today).toBe("2026-10-07");
     expect(body.now).toBe(new Date("2026-10-07T20:53:00+09:00").toISOString());
-    expect(body.slots).toEqual([21, 22, 23]);
+    expect(body.slotHours).toEqual([21, 22, 23]);
     expect(body.schedule.find((s) => s.key === "cutoff:2026-10-07:21")?.state).toBe("ready");
 
     const unknown = await call("/dev/state?guildId=999");
-    expect(((await unknown.json()) as { slots: number[] }).slots).toEqual([]);
+    expect(((await unknown.json()) as { slotHours: number[] }).slotHours).toEqual([]);
   });
 
   it("/dev/state は、サーバーがまだなければ 404", async () => {
@@ -147,11 +147,11 @@ describe("開発専用: /dev/state・/dev/screenshots・/dev/reset", () => {
     expect((await call("/dev/reset", {}, { method: "POST" })).status).toBe(200);
 
     const state = (await (await call("/dev/state")).json()) as {
-      handups: unknown[]; wins: unknown[]; slots: number[]; teams: unknown[];
+      handups: unknown[]; wins: unknown[]; slotHours: number[]; teams: unknown[];
     };
     expect(state.handups).toEqual([]);
     expect(state.wins).toEqual([]);
-    expect(state.slots).toEqual([21, 22, 23]);
+    expect(state.slotHours).toEqual([21, 22, 23]);
     expect(state.teams).toHaveLength(2);
   });
 });

@@ -41,7 +41,7 @@ describe("buildDevSnapshot", () => {
       now: NOW.toISOString(),
       today: "2026-10-07",
       settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
-      slots: [21, 22, 23],
+      slotHours: [21, 22, 23],
       handups: [],
       rounds: [],
       wins: [],
@@ -223,6 +223,6 @@ describe("buildDevSnapshot", () => {
   it("サーバーが違えば、別のデータになる", async () => {
     const other = createTestDb();
     const result = await buildDevSnapshot({ db: other, guildId: "999", clock: fixedClock(NOW), rest: fakeRoleRest });
-    expect(result).toMatchObject({ slots: [], teams: [], handups: [], settings: { channelId: null } });
+    expect(result).toMatchObject({ slotHours: [], teams: [], handups: [], settings: { channelId: null } });
   });
 });

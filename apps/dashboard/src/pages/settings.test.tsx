@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SLOTS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
+import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
 const SETTINGS = {
   channelId: "300000000000000001",
@@ -15,7 +15,7 @@ const ROLES = { roles: [{ id: "400000000000000001", name: "KMU" }, { id: "400000
 const apis = () => ({
   ...loggedIn,
   "GET /api/settings": { body: SETTINGS },
-  "GET /api/slots": { body: SLOTS },
+  "GET /api/slot-hours": { body: SLOT_HOURS },
   "GET /api/teams": { body: TEAMS },
   "GET /api/roles": { body: ROLES },
   "GET /api/sessions": { body: { sessions: [] } },
@@ -182,18 +182,18 @@ describe("設定の画面: 試合時刻", () => {
   });
 
   it("試合時刻を追加できる", async () => {
-    const backend = installFakeBackend({ ...apis(), "POST /api/slots": { status: 201, body: { id: 14 } } });
+    const backend = installFakeBackend({ ...apis(), "POST /api/slot-hours": { status: 201, body: { id: 14 } } });
     renderApp("/settings");
     await screen.findByRole("option", { name: "20:00" });
 
     fireEvent.change(screen.getByLabelText("追加する試合時刻"), { target: { value: "20" } });
     fireEvent.click(screen.getAllByRole("button", { name: "追加する" })[0]!);
 
-    await waitFor(() => expect(backend.last("POST", "/api/slots")?.json).toEqual({ hour: 20 }));
+    await waitFor(() => expect(backend.last("POST", "/api/slot-hours")?.json).toEqual({ hour: 20 }));
   });
 
   it("試合時刻の削除は、確認のダイアログを出してから実行する。残るもの・止まるものを、書く", async () => {
-    const backend = installFakeBackend({ ...apis(), "DELETE /api/slots/11": { body: { ok: true } } });
+    const backend = installFakeBackend({ ...apis(), "DELETE /api/slot-hours/11": { body: { ok: true } } });
     renderApp("/settings");
 
     fireEvent.click(await screen.findByRole("button", { name: "21:00の試合時刻を削除" }));
@@ -203,11 +203,11 @@ describe("設定の画面: 試合時刻", () => {
     expect(dialog.getByText(/削除した日（今日）までの対戦枠は、「削除済み」として、対戦枠の画面に残ります/)).toBeTruthy();
     expect(dialog.getByText(/同じ時刻を追加し直すと、元に戻ります/)).toBeTruthy();
     // ダイアログを開いただけでは、削除しない
-    expect(backend.count("DELETE", "/api/slots/11")).toBe(0);
+    expect(backend.count("DELETE", "/api/slot-hours/11")).toBe(0);
 
     fireEvent.click(dialog.getByRole("button", { name: "削除する" }));
 
-    await waitFor(() => expect(backend.count("DELETE", "/api/slots/11")).toBe(1));
+    await waitFor(() => expect(backend.count("DELETE", "/api/slot-hours/11")).toBe(1));
   });
 
   it("今日、その時刻に、まだ組まれていない挙手があれば、件数を、確認に出す", async () => {

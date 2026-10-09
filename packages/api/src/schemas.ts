@@ -18,7 +18,7 @@ export const dateSchema = z
 /** Discord の ID（snowflake） */
 export const snowflakeSchema = z.string().regex(/^\d{15,25}$/, "Discord の ID の形式ではありません");
 
-export const slotInputSchema = z.object({ hour: hourSchema });
+export const slotHourInputSchema = z.object({ hour: hourSchema });
 
 /** チームは、Discord のロールだけで決まる（表示名は、ロールの名前を使う） */
 export const teamInputSchema = z.object({
@@ -90,7 +90,7 @@ export const loginInputSchema = z.object({
   token: z.string().min(16).max(256),
 });
 
-export type SlotInput = z.infer<typeof slotInputSchema>;
+export type SlotHourInput = z.infer<typeof slotHourInputSchema>;
 export type TeamInput = z.infer<typeof teamInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 export type MatchSlotInput = z.infer<typeof matchSlotInputSchema>;

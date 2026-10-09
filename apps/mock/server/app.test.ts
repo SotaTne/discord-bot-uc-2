@@ -27,7 +27,7 @@ type StateBody = {
   messages: { content: string; visibleTo: string | null; components?: unknown[] }[];
   clock: { now: number; real: boolean; offsetMs: number };
   clockSteps: { at: number; label: string }[];
-  snapshot: { slots: number[] } | null;
+  snapshot: { slotHours: number[] } | null;
   snapshotError: string | null;
 };
 const stateOf = async (mock: Mock) => (await (await mock.app.request("/mock-api/state")).json()) as StateBody;
@@ -59,7 +59,7 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     expect(body.messages.map((message) => [message.content, message.visibleTo])).toEqual([["こんにちは", null], ["内緒", ADMIN]]);
     expect(body.clock.real).toBe(true);
     expect(body.clockSteps.length).toBeGreaterThan(0);
-    expect(body.snapshot?.slots).toEqual([21, 22, 23]);
+    expect(body.snapshot?.slotHours).toEqual([21, 22, 23]);
     expect(body.snapshotError).toBeNull();
   });
 

@@ -1,11 +1,11 @@
-import { slotInputSchema, teamInputSchema } from "@uc/api";
+import { slotHourInputSchema, teamInputSchema } from "@uc/api";
 import {
-  createSlot,
+  createSlotHour,
   createTeam,
-  deleteSlot,
+  deleteSlotHour,
   deleteTeam,
   isUniqueViolation,
-  listSlots,
+  listSlotHours,
   listTeams,
 } from "@uc/db";
 import { zValidator } from "@hono/zod-validator";
@@ -18,16 +18,16 @@ import { parseId, type ApiDeps, type ApiEnv } from "./types";
 /** 試合時刻とチームの登録 */
 export function createCatalogRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
-    .get("/slots", async (c) => {
+    .get("/slot-hours", async (c) => {
       const { guildId } = c.get("auth");
-      const slots = await listSlots(createDb(c.env.DB), guildId);
-      return c.json({ slots: slots.map((slot) => ({ id: slot.id, hour: slot.hour })) });
+      const slotHours = await listSlotHours(createDb(c.env.DB), guildId);
+      return c.json({ slotHours: slotHours.map((slotHour) => ({ id: slotHour.id, hour: slotHour.hour })) });
     })
 
-    .post("/slots", zValidator("json", slotInputSchema), async (c) => {
+    .post("/slot-hours", zValidator("json", slotHourInputSchema), async (c) => {
       const { guildId } = c.get("auth");
       try {
-        const id = await createSlot(createDb(c.env.DB), {
+        const id = await createSlotHour(createDb(c.env.DB), {
           guildId,
           hour: c.req.valid("json").hour,
           createdAt: deps.clock.now().getTime(),
@@ -39,10 +39,10 @@ export function createCatalogRoutes(deps: ApiDeps) {
       }
     })
 
-    .delete("/slots/:id", async (c) => {
+    .delete("/slot-hours/:id", async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
-      const deleted = await deleteSlot(createDb(c.env.DB), c.get("auth").guildId, id, deps.clock.now().getTime());
+      const deleted = await deleteSlotHour(createDb(c.env.DB), c.get("auth").guildId, id, deps.clock.now().getTime());
       return deleted ? c.json({ ok: true as const }) : c.json({ error: "not_found" as const }, 404);
     })
 

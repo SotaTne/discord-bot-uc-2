@@ -152,7 +152,7 @@
 
 ### API（`/api`、Hono RPC で型を共有）
 
-`/health` · `/health/db` · `POST /login` · `POST /logout` · `/me` · `GET/PUT /settings` · `/roles`（Discord のロール一覧）· `GET/POST/DELETE /slots` · `GET/POST/DELETE /teams` · `/board?date=`（対戦枠の画面）· `POST/DELETE /handups`（代理の挙手と取り消し）· `POST /matches`（組分けの追加）· `DELETE /matches/:id` · `POST /matches/:id/wins`（multipart。勝利の記録）· `/scores` · `GET /teams/:id/history`（チームごとの全組分けと結果）· `/wins`（履歴）· `PUT /wins/:id/active`（有効 / 無効）· `PUT /wins/:id/points`（点数の修正）· `POST /match-slots/confirm`（マッチングの確定）· `POST /match-slots/reopen`（やり直し）· `DELETE /wins`（得点のクリア）· `/screenshots/:id` · `/sessions` · `DELETE /sessions/:id` · `POST /sessions/revoke-all`
+`/health` · `/health/db` · `POST /login` · `POST /logout` · `/me` · `GET/PUT /settings` · `/roles`（Discord のロール一覧）· `GET/POST/DELETE /slot-hours` · `GET/POST/DELETE /teams` · `/board?date=`（対戦枠の画面）· `POST/DELETE /handups`（代理の挙手と取り消し）· `POST /matches`（組分けの追加）· `DELETE /matches/:id` · `POST /matches/:id/wins`（multipart。勝利の記録）· `/scores` · `GET /teams/:id/history`（チームごとの全組分けと結果）· `/wins`（履歴）· `PUT /wins/:id/active`（有効 / 無効）· `PUT /wins/:id/points`（点数の修正）· `POST /match-slots/confirm`（マッチングの確定）· `POST /match-slots/reopen`（やり直し）· `DELETE /wins`（得点のクリア）· `/screenshots/:id` · `/sessions` · `DELETE /sessions/:id` · `POST /sessions/revoke-all`
 
 すべて、ログインしたセッションのサーバーの範囲に限られる（別のサーバーのデータは、見えないし、変えられない）。
 
@@ -161,7 +161,7 @@
 | テーブル | 要点 |
 |---|---|
 | `guild_settings` | チャンネル、N（何試合目まで生点か）、K、固定ポイントの規則、リンク再発行時の失効設定 |
-| `slots` | 試合開始時刻（0〜23）。サーバーごとに UNIQUE。`deleted_at`（削除した時刻。論理削除。追加し直すと null に戻る） |
+| `slot_hours` | 試合時刻の登録（試合開始時刻 0〜23）。サーバーごとに UNIQUE。`deleted_at`（削除した時刻。論理削除。追加し直すと null に戻る） |
 | `teams` | `role_id`（名前は持たない。表示名は、ロールの名前）と、`deleted_at`（論理削除。空なら使われている）。サーバーごとに、ロールが UNIQUE（削除したロールを登録し直すと、同じ行が元に戻る） |
 | `match_slots` | 対戦枠（日付 × 試合時刻）。`(guild_id, slot_date, slot_hour)` で UNIQUE。`status`（`open` / `matched`）、`matched_at`（`matched` のときだけ入る）、`excluded_team_id`（組まれなかったチーム。`matched` のときだけ。CHECK 制約） |
 | `handups` | `match_slot_id`、`team_id`、`raised_by`、`created_at`。`対戦枠・チーム` で UNIQUE（同じ対戦枠・チームの挙手は1件。取り消すと行を削除するので、取り消した後の再挙手もできる） |

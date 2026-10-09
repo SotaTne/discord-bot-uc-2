@@ -12,7 +12,7 @@ type Option = NonNullable<CommandDefinition["options"]>[number];
 function Field({ option, state }: { option: Option; state: MockStateData }) {
   const label = option.description;
   const required = option.required === true;
-  const slots = state.snapshot?.slots ?? [21, 22, 23];
+  const slotHours = state.snapshot?.slotHours ?? [21, 22, 23];
 
   if (option.type === ApplicationCommandOptionType.Role) {
     return (
@@ -25,7 +25,7 @@ function Field({ option, state }: { option: Option; state: MockStateData }) {
     );
   }
   if (option.type === ApplicationCommandOptionType.Integer && option.name === "time") {
-    return <NativeSelect label={label} name="time" required data={[{ value: "", label: "選択" }, ...slots.map((hour) => ({ value: String(hour), label: hourLabel(hour) }))]} />;
+    return <NativeSelect label={label} name="time" required data={[{ value: "", label: "選択" }, ...slotHours.map((hour) => ({ value: String(hour), label: hourLabel(hour) }))]} />;
   }
   if (option.type === ApplicationCommandOptionType.Integer) {
     return <TextInput label={label} name={option.name} type="number" step={1} required={required} {...(option.min_value !== undefined ? { min: option.min_value } : {})} {...(option.max_value !== undefined ? { max: option.max_value } : {})} />;

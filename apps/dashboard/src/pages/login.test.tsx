@@ -1,13 +1,13 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SLOTS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
+import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
 const TOKEN = "abcDEF0123456789_-abcDEF0123456789_-abcdefg";
 
 /** ログイン後に開かれるトップ（挙手）の画面が使う API */
 const homeApis = {
   "GET /api/handups": { body: { date: "2026-10-07", handups: [] } },
-  "GET /api/slots": { body: SLOTS },
+  "GET /api/slot-hours": { body: SLOT_HOURS },
   "GET /api/teams": { body: TEAMS },
 };
 

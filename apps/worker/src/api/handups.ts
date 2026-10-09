@@ -3,7 +3,7 @@ import { jstDateOf } from "@uc/core";
 import {
   createHandup,
   MatchSlotMatchedError,
-  findSlot,
+  findSlotHour,
   findTeamById,
   isUniqueViolation,
   withdrawHandupById,
@@ -24,7 +24,7 @@ export function createHandupRoutes(deps: ApiDeps) {
       const now = deps.clock.now();
 
       if (!(await findTeamById(db, guildId, input.teamId))) return c.json({ error: "team_not_found" as const }, 404);
-      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+      if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
 
       try {
         const id = await createHandup(db, {

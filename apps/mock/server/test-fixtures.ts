@@ -21,7 +21,7 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
     clock: { offsetMs: 0 },
     today: "2026-10-07",
     settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
-    slots: [21, 22, 23],
+    slotHours: [21, 22, 23],
     matchSlots: [
       { slotHour: 21, status: "open" },
       { slotHour: 22, status: "matched" },

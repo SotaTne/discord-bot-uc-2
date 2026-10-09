@@ -1,5 +1,5 @@
 import { resolveRecentSlotDate, winRecordability } from "@uc/core";
-import { findMatchForTeam, findMatchSlot, findSlot, hasActiveWin, findTeamById, findTeamsByRoleIds, type Team } from "@uc/db";
+import { findMatchForTeam, findMatchSlot, findSlotHour, hasActiveWin, findTeamById, findTeamsByRoleIds, type Team } from "@uc/db";
 import { MAX_POINTS, dateSchema } from "@uc/api";
 import { deferEphemeral, ephemeralMessage, getIntegerOption, getStringOption } from "@uc/discord";
 import { ADMIN_ONLY_MESSAGE, isAdmin } from "./admin";
@@ -52,7 +52,7 @@ export const adminWin: CommandHandler = async (context) => {
 
   const [team] = await findTeamsByRoleIds(db, guildId, [roleId]);
   if (!team) return ephemeralMessage("チームとして登録されていないロールです");
-  if (!(await findSlot(db, guildId, hour))) {
+  if (!(await findSlotHour(db, guildId, hour))) {
     return ephemeralMessage(`${hour}時の試合時刻は登録されていません`);
   }
 

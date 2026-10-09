@@ -90,9 +90,9 @@ describe("teams", () => {
   });
 });
 
-describe("slots", () => {
+describe("slot_hours", () => {
   const insertSlot = (hour: number) =>
-    db.prepare("INSERT INTO slots (guild_id, hour, created_at) VALUES (?, ?, ?)").run(GUILD, hour, NOW);
+    db.prepare("INSERT INTO slot_hours (guild_id, hour, created_at) VALUES (?, ?, ?)").run(GUILD, hour, NOW);
 
   it("0〜23 の時だけ登録できる", () => {
     expect(() => insertSlot(23)).not.toThrow();

@@ -9,14 +9,14 @@ import {
   ensureHandup,
   deleteMatch,
   findMatch,
-  findSlot,
+  findSlotHour,
   findTeamById,
   getGuildSettings,
   listHandupsOnDate,
   listMatchesOnDate,
   listGuildMatches,
   listMatchSlots,
-  listSlots,
+  listSlotHours,
   listTeams,
   listWins,
   MatchTeamTakenError,
@@ -48,7 +48,7 @@ export function createBoardRoutes(deps: ApiDeps) {
 
       const [settings, slots, teams, matchSlots, handups, matches, allWins, guildMatches] = await Promise.all([
         getGuildSettings(db, guildId),
-        listSlots(db, guildId, { includeDeleted: true }),
+        listSlotHours(db, guildId, { includeDeleted: true }),
         listTeams(db, guildId, { includeDeleted: true }),
         listMatchSlots(db, { guildId, slotDate: date }),
         listHandupsOnDate(db, { guildId, slotDate: date }),
@@ -131,7 +131,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       }
       const slotDate = input.slotDate ?? jstDateOf(now);
       // 登録した試合時刻のほか、削除した試合時刻でも、画面に出ている対戦枠（削除した日まで）には、追加できる
-      const onDate = slotHoursOnDate(await listSlots(db, guildId, { includeDeleted: true }), slotDate);
+      const onDate = slotHoursOnDate(await listSlotHours(db, guildId, { includeDeleted: true }), slotDate);
       if (!onDate.some((slot) => slot.hour === input.slotHour)) return c.json({ error: "slot_not_found" as const }, 404);
       try {
         const id = await addMatch(db, { guildId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId, createdAt: now.getTime() });
@@ -165,7 +165,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       const now = deps.clock.now();
       const slotDate = input.slotDate ?? jstDateOf(now);
 
-      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+      if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
       if ((await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched") {
         return c.json({ error: "slot_matched" as const }, 409);
       }
@@ -193,7 +193,7 @@ export function createBoardRoutes(deps: ApiDeps) {
       const now = deps.clock.now();
       const slotDate = input.slotDate ?? jstDateOf(now);
       // 削除した試合時刻の対戦枠は、やり直せない（組分けと勝利の削除も、Discord への投稿もしない）
-      if (!(await findSlot(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+      if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
 
       // キャンセルの投稿に使うので、消す前の、組分けと、組まれなかったチームを、控えておく
       const before = {

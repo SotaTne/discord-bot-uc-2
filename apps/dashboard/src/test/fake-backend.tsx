@@ -21,7 +21,7 @@ export type RecordedCall = Pick<FakeRequest, "method" | "path" | "json" | "form"
 
 /**
  * ダッシュボードの API（worker）の代わりになる、テスト用の通信。
- * "GET /api/slots" のように、メソッドとパスで、返す内容を決める。決めていない呼び出しがあれば、テストを失敗させる。
+ * "GET /api/slot-hours" のように、メソッドとパスで、返す内容を決める。決めていない呼び出しがあれば、テストを失敗させる。
  */
 export function installFakeBackend(routes: Record<string, Handler>) {
   const handlers = new Map(Object.entries(routes));
@@ -90,8 +90,8 @@ export const TEAMS = {
     { id: 2, name: "UT", roleId: "400000000000000002" },
   ],
 };
-export const SLOTS = {
-  slots: [
+export const SLOT_HOURS = {
+  slotHours: [
     { id: 11, hour: 21 },
     { id: 12, hour: 22 },
     { id: 13, hour: 23 },

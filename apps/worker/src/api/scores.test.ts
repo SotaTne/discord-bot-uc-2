@@ -380,8 +380,8 @@ describe("GET /api/unrecorded-matches（勝利が未記録の組分け）", () =
   });
 
   it("削除済みの試合時刻の組分けは、含めない", async () => {
-    const { body } = await h.json<{ slots: { id: number; hour: number }[] }>("/api/slots", { cookie });
-    await h.json(`/api/slots/${body.slots.find((slot) => slot.hour === 23)!.id}`, { method: "DELETE", cookie });
+    const { body } = await h.json<{ slotHours: { id: number; hour: number }[] }>("/api/slot-hours", { cookie });
+    await h.json(`/api/slot-hours/${body.slotHours.find((slot) => slot.hour === 23)!.id}`, { method: "DELETE", cookie });
 
     expect(await unrecorded()).toEqual([]);
   });

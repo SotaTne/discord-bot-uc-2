@@ -7,7 +7,7 @@ export const keys = {
   me: ["me"],
   settings: ["settings"],
   roles: ["roles"],
-  slots: ["slots"],
+  slotHours: ["slot-hours"],
   teams: ["teams"],
   board: (date: string | undefined) => ["board", date ?? "today"],
   scores: ["scores"],
@@ -29,8 +29,8 @@ export const useSettings = () =>
 export const useRoles = () =>
   useQuery({ queryKey: keys.roles, queryFn: () => unwrap(api.roles.$get()) });
 
-export const useSlots = () =>
-  useQuery({ queryKey: keys.slots, queryFn: () => unwrap(api.slots.$get()) });
+export const useSlotHours = () =>
+  useQuery({ queryKey: keys.slotHours, queryFn: () => unwrap(api["slot-hours"].$get()) });
 
 export const useTeams = () =>
   useQuery({ queryKey: keys.teams, queryFn: () => unwrap(api.teams.$get()) });

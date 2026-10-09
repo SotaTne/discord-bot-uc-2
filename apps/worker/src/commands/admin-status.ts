@@ -3,7 +3,7 @@ import {
   getGuildSettings,
   listHandupsOnDate,
   listMatchedSlots,
-  listSlots,
+  listSlotHours,
   listTeams,
   type Handup,
   type MatchedSlot,
@@ -68,7 +68,7 @@ export const adminStatus: CommandHandler = async ({ interaction, clock, db }) =>
   const slotDate = jstDateOf(now);
   const [settings, slots, teams, handups, matchedSlots] = await Promise.all([
     getGuildSettings(db, guildId),
-    listSlots(db, guildId),
+    listSlotHours(db, guildId),
     listTeams(db, guildId, { includeDeleted: true }),
     listHandupsOnDate(db, { guildId, slotDate }),
     listMatchedSlots(db, { guildId, slotDate }),

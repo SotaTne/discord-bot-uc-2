@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createHandup,
-  createSlot,
+  createSlotHour,
   createTeam,
   defaultGuildSettings,
   findHandup,
-  findSlot,
+  findSlotHour,
   findTeamsByRoleIds,
   getGuildSettings,
   guildSettings,
   isUniqueViolation,
-  listSlots,
+  listSlotHours,
   listTeamHandupsOnDate,
   listTeams,
   saveGuildSettings,
@@ -104,17 +104,17 @@ describe("チーム", () => {
 
 describe("試合時刻", () => {
   it("開始時刻の早い順に一覧できる", async () => {
-    for (const hour of [23, 21, 22]) await createSlot(db, { guildId: GUILD, hour, createdAt: 1 });
+    for (const hour of [23, 21, 22]) await createSlotHour(db, { guildId: GUILD, hour, createdAt: 1 });
 
-    expect((await listSlots(db, GUILD)).map((s) => s.hour)).toEqual([21, 22, 23]);
+    expect((await listSlotHours(db, GUILD)).map((s) => s.hour)).toEqual([21, 22, 23]);
   });
 
   it("時刻で探せる。登録されていなければ undefined", async () => {
-    await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 1 });
+    await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 1 });
 
-    expect(await findSlot(db, GUILD, 21)).toMatchObject({ hour: 21 });
-    expect(await findSlot(db, GUILD, 22)).toBeUndefined();
-    expect(await findSlot(db, OTHER_GUILD, 21)).toBeUndefined();
+    expect(await findSlotHour(db, GUILD, 21)).toMatchObject({ hour: 21 });
+    expect(await findSlotHour(db, GUILD, 22)).toBeUndefined();
+    expect(await findSlotHour(db, OTHER_GUILD, 21)).toBeUndefined();
   });
 });
 

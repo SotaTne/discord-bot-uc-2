@@ -5,11 +5,11 @@ import {
   createDashboardLink,
   createHandup,
   createSession,
-  createSlot,
+  createSlotHour,
   createTeam,
   deleteExpiredCredentials,
   deleteGuildActivity,
-  deleteSlot,
+  deleteSlotHour,
   deleteTeam,
   findActiveSession,
   findWin,
@@ -29,8 +29,8 @@ import {
   listTeams,
   listHandupsOnDate,
   listMatchedSlots,
-  findSlot,
-  listSlots,
+  findSlotHour,
+  listSlotHours,
   listWins,
   releaseJob,
   saveMatchResult,
@@ -346,25 +346,25 @@ describe("チーム・試合時刻の削除", () => {
   });
 
   it("試合時刻を削除できる（論理削除）。一覧と検索には出ないが、includeDeleted を付けると、削除した時刻つきで出る。二重の削除は、false", async () => {
-    const id = await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 1 });
+    const id = await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 1 });
 
-    expect(await deleteSlot(db, OTHER, id, 5)).toBe(false);
-    expect(await deleteSlot(db, GUILD, id, 5)).toBe(true);
-    expect(await deleteSlot(db, GUILD, id, 6)).toBe(false);
+    expect(await deleteSlotHour(db, OTHER, id, 5)).toBe(false);
+    expect(await deleteSlotHour(db, GUILD, id, 5)).toBe(true);
+    expect(await deleteSlotHour(db, GUILD, id, 6)).toBe(false);
 
-    expect(await listSlots(db, GUILD)).toEqual([]);
-    expect(await findSlot(db, GUILD, 21)).toBeUndefined();
-    expect(await listSlots(db, GUILD, { includeDeleted: true })).toMatchObject([{ id, hour: 21, deletedAt: 5 }]);
+    expect(await listSlotHours(db, GUILD)).toEqual([]);
+    expect(await findSlotHour(db, GUILD, 21)).toBeUndefined();
+    expect(await listSlotHours(db, GUILD, { includeDeleted: true })).toMatchObject([{ id, hour: 21, deletedAt: 5 }]);
   });
 
   it("同じ試合時刻を追加し直すと、削除した時刻が、元に戻る（ID が同じ）。使われている時刻の二重の追加は、一意制約の違反", async () => {
-    const id = await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 1 });
-    await deleteSlot(db, GUILD, id, 5);
+    const id = await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 1 });
+    await deleteSlotHour(db, GUILD, id, 5);
 
-    expect(await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 9 })).toBe(id);
-    expect(await findSlot(db, GUILD, 21)).toMatchObject({ id, deletedAt: null });
+    expect(await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 9 })).toBe(id);
+    expect(await findSlotHour(db, GUILD, 21)).toMatchObject({ id, deletedAt: null });
 
-    const error = await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 9 }).catch((e: unknown) => e);
+    const error = await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 9 }).catch((e: unknown) => e);
     expect(isUniqueViolation(error)).toBe(true);
   });
 });
@@ -442,7 +442,7 @@ describe("開発用: 活動の記録の初期化", () => {
     const b = await team("B", "r2");
     const other = await team("X", "r9", OTHER);
     await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, cutoffMinutes: 9 }, 1);
-    await createSlot(db, { guildId: GUILD, hour: 21, createdAt: 1 });
+    await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 1 });
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 21, teamId: a, raisedBy: "u", createdAt: 1 });
     await save({ pairs: [[a, b]] });
     const matchId = (await listMatchedSlots(db, { guildId: GUILD }))[0]!.pairs[0]!.matchId;
@@ -462,7 +462,7 @@ describe("開発用: 活動の記録の初期化", () => {
     expect(await listActiveSessions(db, GUILD, 0)).toEqual([]);
     // 残るもの
     expect((await getGuildSettings(db, GUILD)).cutoffMinutes).toBe(9);
-    expect(await listSlots(db, GUILD)).toHaveLength(1);
+    expect(await listSlotHours(db, GUILD)).toHaveLength(1);
     expect(await listTeams(db, GUILD)).toHaveLength(2);
     expect(await listHandupsOnDate(db, { guildId: OTHER, slotDate: DATE })).toHaveLength(1);
   });

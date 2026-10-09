@@ -27,7 +27,7 @@ export type DevSnapshot = {
     fixedPoints: number;
   };
   /** 登録されている試合時刻 */
-  slots: number[];
+  slotHours: number[];
   /** 今日の対戦枠の状態（まだ作られていない対戦枠は、ない）。matched は、マッチング済みで、挙手を受け付けない */
   matchSlots: { slotHour: number; status: "open" | "matched" }[];
   teams: { id: number; name: string; roleId: string }[];

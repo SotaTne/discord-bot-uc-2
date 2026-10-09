@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SLOTS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
+import { SLOT_HOURS, installFakeBackend, loggedIn, renderApp } from "../test/fake-backend";
 
 const at = (text: string) => Date.parse(`${text}+09:00`);
 
@@ -21,7 +21,7 @@ const apis = (sessions: unknown[] = [session()]) => ({
   ...loggedIn,
   "GET /api/sessions": { body: { sessions } },
   "GET /api/settings": { body: SETTINGS },
-  "GET /api/slots": { body: SLOTS },
+  "GET /api/slot-hours": { body: SLOT_HOURS },
 });
 
 describe("ログイン管理の画面", () => {

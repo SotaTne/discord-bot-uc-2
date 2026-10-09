@@ -2,7 +2,7 @@ import { winActiveInputSchema, winPointsInputSchema } from "@uc/api";
 import { calculateScores, matchNumbers, resolveRecentSlotDate, winRecordability } from "@uc/core";
 import {
   findMatchForTeam,
-  findSlot,
+  findSlotHour,
   findTeamById,
   findWin,
   countMatchesByTeam,
@@ -10,7 +10,7 @@ import {
   hasActiveWin,
   listGuildMatches,
   listMatchedSlots,
-  listSlots,
+  listSlotHours,
   listTeams,
   listWins,
   setWinActive,
@@ -118,7 +118,7 @@ export function createScoreRoutes(deps: ApiDeps) {
       const [matchedSlots, wins, slots, teams, guildMatches] = await Promise.all([
         listMatchedSlots(db, { guildId }),
         listWins(db, guildId),
-        listSlots(db, guildId),
+        listSlotHours(db, guildId),
         listTeams(db, guildId, { includeDeleted: true }),
         listGuildMatches(db, guildId),
       ]);

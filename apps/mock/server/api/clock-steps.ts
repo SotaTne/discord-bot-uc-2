@@ -20,7 +20,7 @@ export function clockSteps(snapshot: DevSnapshot | null): ClockStep[] {
     const at = new Date(job.from).getTime();
     return { at, label: `${jstHm(at)} ${shortJobName(job.key)}` };
   });
-  const starts = snapshot.slots.map((hour) => {
+  const starts = snapshot.slotHours.map((hour) => {
     const at = Date.parse(`${snapshot.today}T${String(hour).padStart(2, "0")}:00:00+09:00`);
     return { at, label: `${jstHm(at)} ${hour}時の試合開始` };
   });

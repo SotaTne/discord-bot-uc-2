@@ -1,5 +1,5 @@
 import { handupPhase, jstDateOf } from "@uc/core";
-import { findMatchSlot, findSlot, getGuildSettings, type Db } from "@uc/db";
+import { findMatchSlot, findSlotHour, getGuildSettings, type Db } from "@uc/db";
 
 /**
  * 挙手・取り消しができる対戦枠かを確かめる。
@@ -11,7 +11,7 @@ export async function checkAcceptingSlot(
   db: Db,
   input: { guildId: string; hour: number; now: Date },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (!(await findSlot(db, input.guildId, input.hour))) {
+  if (!(await findSlotHour(db, input.guildId, input.hour))) {
     return { ok: false, message: `${input.hour}時の試合時刻は登録されていません` };
   }
 

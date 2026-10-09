@@ -12,7 +12,7 @@ import {
   listMatchedSlots,
   listMatchSlots,
   listWins,
-  listSlots,
+  listSlotHours,
   listTeams,
   type Db,
 } from "@uc/db";
@@ -42,7 +42,7 @@ export async function buildDevSnapshot(input: {
   const [settings, slots, teams, matchSlotsToday, handupsToday, rounds, scoreRows, jobRuns, jobKeys, links, sessions] =
     await Promise.all([
       getGuildSettings(db, guildId),
-      listSlots(db, guildId),
+      listSlotHours(db, guildId),
       listTeams(db, guildId, { includeDeleted: true }),
       listMatchSlots(db, { guildId, slotDate: today }),
       listHandupsOnDate(db, { guildId, slotDate: today }),
@@ -96,7 +96,7 @@ export async function buildDevSnapshot(input: {
       fixedAfterMatches: settings.fixedAfterMatches,
       fixedPoints: settings.fixedPoints,
     },
-    slots: slots.map((slot) => slot.hour),
+    slotHours: slots.map((slot) => slot.hour),
     matchSlots: matchSlotsToday.map((slot) => ({ slotHour: slot.slotHour, status: slot.status })),
     teams: teams.map((team) => ({ id: team.id, name: name(team.id), roleId: team.roleId })),
     handups: handupsToday.map((handup) => ({

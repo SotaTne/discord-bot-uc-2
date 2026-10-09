@@ -24,8 +24,9 @@ export const guildSettings = sqliteTable("guild_settings", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-export const slots = sqliteTable(
-  "slots",
+/** 試合時刻（設定で登録する、試合を行う時刻）。ある日の、ある試合時刻の場（対戦枠）は、`match_slots` */
+export const slotHours = sqliteTable(
+  "slot_hours",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     guildId: text("guild_id").notNull(),
@@ -36,8 +37,8 @@ export const slots = sqliteTable(
     deletedAt: integer("deleted_at"),
   },
   (t) => [
-    uniqueIndex("slots_guild_hour").on(t.guildId, t.hour),
-    check("slots_hour_range", sql`${t.hour} BETWEEN 0 AND 23`),
+    uniqueIndex("slot_hours_guild_hour").on(t.guildId, t.hour),
+    check("slot_hours_hour_range", sql`${t.hour} BETWEEN 0 AND 23`),
   ],
 );
 

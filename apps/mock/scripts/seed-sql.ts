@@ -17,7 +17,7 @@ export function buildSeedSql(seed: Seed, options: { slotHours: number[]; now: nu
     ),
     ...options.slotHours.map(
       (hour) =>
-        `INSERT OR IGNORE INTO slots (guild_id, hour, created_at) VALUES (${guild}, ${hour}, ${options.now});`,
+        `INSERT OR IGNORE INTO slot_hours (guild_id, hour, created_at) VALUES (${guild}, ${hour}, ${options.now});`,
     ),
   ];
   return `${statements.join("\n")}\n`;

@@ -59,7 +59,7 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
       clock: { offsetMs: 8 * 3_600_000 + 12 * 60_000 },
       today: "2026-10-07",
       settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
-      slots: [21, 22],
+      slotHours: [21, 22],
       matchSlots: [{ slotHour: 22, status: "matched" }],
       teams: [
         { id: 1, name: "KMU", roleId: "400000000000000001" },
