@@ -28,12 +28,26 @@ export const teamInputSchema = z.object({
 /** 点数の上限（勝利の点数・固定点）。桁あふれと、入力ミスを防ぐ。Discord のコマンドの max_value と同じ値 */
 export const MAX_POINTS = 100_000;
 
+/** 募集開始の通知先の選び方。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: 選んだもの */
+export const RECRUIT_MENTION_MODES = ["none", "teams", "roles"] as const;
+
+/** 通知先として選べる、特別な宛先（@here）。ロールの ID と同じ配列に入れる */
+export const HERE_TARGET = "here";
+
+/** 通知先（mode が roles のとき）: Discord のロールの ID か、"here"。重ならない */
+const mentionTargetsSchema = z
+  .array(z.union([snowflakeSchema, z.literal(HERE_TARGET)]))
+  .max(25)
+  .refine((targets) => new Set(targets).size === targets.length, { message: "同じ通知先が、重なっています" });
+
 export const settingsInputSchema = z.object({
   channelId: snowflakeSchema.nullable(),
   recruitHour: hourSchema,
   cutoffMinutes: z.number().int().min(1).max(180),
   fixedAfterMatches: z.number().int().min(0).max(100),
   fixedPoints: z.number().int().min(0).max(MAX_POINTS),
+  recruitMentionMode: z.enum(RECRUIT_MENTION_MODES),
+  recruitMentionTargets: mentionTargetsSchema,
   revokeSessionsOnReissue: z.boolean(),
 });
 

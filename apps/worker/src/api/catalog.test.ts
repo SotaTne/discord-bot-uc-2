@@ -50,6 +50,8 @@ describe("サーバーの設定", () => {
     cutoffMinutes: 15,
     fixedAfterMatches: 4,
     fixedPoints: 90,
+    recruitMentionMode: "roles" as const,
+    recruitMentionTargets: ["200000000000000099", "here"],
     revokeSessionsOnReissue: true,
   };
 
@@ -64,8 +66,13 @@ describe("サーバーの設定", () => {
     expect(await getGuildSettings(h.seeded.db, GUILD_ID)).toEqual(valid);
   });
 
-  it("不正な値（締切が0分・チャンネル ID の形式違い・時が範囲外）は 400 で、保存しない", async () => {
-    for (const bad of [{ ...valid, cutoffMinutes: 0 }, { ...valid, channelId: "abc" }, { ...valid, recruitHour: 24 }]) {
+  it("不正な値（締切が0分・チャンネル ID の形式違い・時が範囲外・通知先の形式違い）は 400 で、保存しない", async () => {
+    for (const bad of [
+      { ...valid, cutoffMinutes: 0 },
+      { ...valid, channelId: "abc" },
+      { ...valid, recruitHour: 24 },
+      { ...valid, recruitMentionTargets: ["everyone"] },
+    ]) {
       expect((await h.json("/api/settings", { method: "PUT", cookie, body: bad })).status).toBe(400);
     }
     expect(await getGuildSettings(h.seeded.db, GUILD_ID)).toEqual(defaultGuildSettings);

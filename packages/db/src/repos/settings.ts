@@ -2,12 +2,19 @@ import { eq, isNotNull } from "drizzle-orm";
 import type { Db } from "../client";
 import { guildSettings } from "../schema";
 
+/** 募集開始の通知先の選び方 */
+export type RecruitMentionMode = "none" | "teams" | "roles";
+
 export type GuildSettingsValues = {
   channelId: string | null;
   recruitHour: number;
   cutoffMinutes: number;
   fixedAfterMatches: number;
   fixedPoints: number;
+  /** 募集開始の投稿で、誰に通知するか（既定は、誰にも通知しない） */
+  recruitMentionMode: RecruitMentionMode;
+  /** mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here） */
+  recruitMentionTargets: string[];
   revokeSessionsOnReissue: boolean;
 };
 
@@ -18,6 +25,8 @@ export const defaultGuildSettings: GuildSettingsValues = {
   cutoffMinutes: 7,
   fixedAfterMatches: 5,
   fixedPoints: 100,
+  recruitMentionMode: "none",
+  recruitMentionTargets: [],
   revokeSessionsOnReissue: false,
 };
 
@@ -31,6 +40,8 @@ export async function getGuildSettings(db: Db, guildId: string): Promise<GuildSe
     cutoffMinutes: row.cutoffMinutes,
     fixedAfterMatches: row.fixedAfterMatches,
     fixedPoints: row.fixedPoints,
+    recruitMentionMode: row.recruitMentionMode,
+    recruitMentionTargets: row.recruitMentionTargets,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   };
 }
@@ -58,6 +69,8 @@ export async function listConfiguredGuilds(db: Db): Promise<({ guildId: string }
     cutoffMinutes: row.cutoffMinutes,
     fixedAfterMatches: row.fixedAfterMatches,
     fixedPoints: row.fixedPoints,
+    recruitMentionMode: row.recruitMentionMode,
+    recruitMentionTargets: row.recruitMentionTargets,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   }));
 }

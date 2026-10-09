@@ -82,12 +82,25 @@ describe("settingsInputSchema", () => {
     cutoffMinutes: 7,
     fixedAfterMatches: 5,
     fixedPoints: 100,
+    recruitMentionMode: "none",
+    recruitMentionTargets: [],
     revokeSessionsOnReissue: false,
   };
 
   it("正しい設定を通す。チャンネルは未設定（null）でもよい", () => {
     expect(settingsInputSchema.safeParse(valid).success).toBe(true);
     expect(settingsInputSchema.safeParse({ ...valid, channelId: null }).success).toBe(true);
+  });
+
+  it("募集開始の通知先: 既定は、誰にも通知しない（空）。ロールの ID と @here を、選べる。重なり・形の違う値は、拒否する", () => {
+    const roles = { ...valid, recruitMentionMode: "roles" };
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["1234567890123456789", "here"] }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, recruitMentionMode: "teams" }).success).toBe(true);
+
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["here", "here"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["everyone"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["12"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, recruitMentionMode: "all" }).success).toBe(false);
   });
 
   it("締切の分数が 0 や大きすぎる値は拒否する", () => {

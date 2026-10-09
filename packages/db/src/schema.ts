@@ -16,6 +16,10 @@ export const guildSettings = sqliteTable("guild_settings", {
   fixedAfterMatches: integer("fixed_after_matches").notNull().default(5),
   /** N 試合を超えた試合で、勝ったときの固定点 */
   fixedPoints: integer("fixed_points").notNull().default(100),
+  /** 募集開始の投稿で、誰に通知するか。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: recruit_mention_targets で選んだもの */
+  recruitMentionMode: text("recruit_mention_mode", { enum: ["none", "teams", "roles"] }).notNull().default("none"),
+  /** recruit_mention_mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here）の配列（JSON） */
+  recruitMentionTargets: text("recruit_mention_targets", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
   /** ダッシュボードのリンクを再発行したときに、古いセッションを失効させるか */
   revokeSessionsOnReissue: integer("revoke_sessions_on_reissue", { mode: "boolean" })
     .notNull()

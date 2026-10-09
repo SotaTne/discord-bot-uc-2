@@ -15,6 +15,13 @@
       "when": 1791525582343,
       "tag": "0001_rename_slots_to_slot_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791567165077,
+      "tag": "0002_add_recruit_mention",
+      "breakpoints": true
     }
   ]
 }
