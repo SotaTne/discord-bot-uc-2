@@ -1,8 +1,9 @@
-import { isJobDue, jstDateOf, scheduledJobsForDate, type Clock } from "@uc/core";
+import { isJobDue, jstDateOf, scheduledJobsForDate, type Clock, type ScheduledJobSpec } from "@uc/core";
 import {
   claimJob,
   deleteExpiredCredentials,
   listConfiguredGuilds,
+  listMatchSlots,
   listSlotHours,
   releaseJob,
   type Db,
@@ -71,6 +72,8 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
     slotHours: slots.map((slot) => slot.hour),
   });
 
+  await releaseStaleCutoffClaims(deps, guild.guildId, specs, today, now);
+
   const jobs: Job[] = specs
     .filter((spec) => isJobDue(spec, now))
     .map((spec) => ({
@@ -104,6 +107,25 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       console.error(`ジョブに失敗しました: ${job.key}`, error);
       summary.errors.push(`${job.key}: ${errorText(error)}`);
     }
+  }
+}
+
+/**
+ * 締切のジョブの「実行済み」の記録のうち、古くなったものを、解除する。
+ * 締切を過ぎてから「やり直す」を実行すると、自動で確定し直さないように、記録を残す。そのあとで、締切を後ろにずらす（7 分前 → 5 分前 など）と、
+ * 新しい締切は、まだ先なのに、古い記録が残っていて、マッチングが、行われなくなる。
+ * そこで、「対戦枠が、マッチング済みではなく、締切の時刻が、まだ来ていない」ジョブの記録は、古いものとして、解除する。
+ * 締切を過ぎているときの記録は、解除しない（過ぎてからやり直したものは、管理者が確定するまで、そのまま）
+ */
+async function releaseStaleCutoffClaims(deps: ScheduledDeps, guildId: string, specs: readonly ScheduledJobSpec[], today: string, now: Date) {
+  const waiting = specs.filter((spec) => spec.kind === "cutoff" && now.getTime() < spec.from.getTime());
+  if (waiting.length === 0) return;
+
+  const matchedHours = new Set(
+    (await listMatchSlots(deps.db, { guildId, slotDate: today })).filter((slot) => slot.status === "matched").map((slot) => slot.slotHour),
+  );
+  for (const spec of waiting) {
+    if (!matchedHours.has(spec.slotHour ?? -1)) await releaseJob(deps.db, guildId, spec.key);
   }
 }
 
