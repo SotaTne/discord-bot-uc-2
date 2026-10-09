@@ -17,7 +17,7 @@
 | `stop` | トリガーを消す（cron を止める）。使わない期間の節約になる |
 | `health` | Apps Script が動いているか（ウェブアプリが応答して、毎分のトリガーがあるか）を見る |
 | `create` | ビルドして（`dist/` が、置く先として、要る）、Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
-| `push` | ビルドして、Apps Script に置いて、ウェブアプリ（`start` / `stop` / `health` の入口）を、置いたコードに更新する。`src/config.ts` などを変えたときに実行する。**初回**（`WEB_APP_DEPLOYMENT_ID` が空）は、ウェブアプリのデプロイを作って、出た ID を、`config.ts` に書く（コミットする） |
+| `push` | ビルドして、Apps Script に置いて、ウェブアプリ（`start` / `stop` / `health` の入口）を、置いたコードに更新する。`src/config.ts` などを変えたときに実行する。**初回**（`.env.local` に `GAS_DEPLOYMENT_ID` がない）は、ウェブアプリのデプロイを作って、出た ID を、`.env.local` に書く |
 | `logs` | 実行のログを見る（失敗した回だけ、出る） |
 | `delete` | リモートの Apps Script のプロジェクトを、削除する（確認が出る）。毎分の呼び出しも、止まる |
 
@@ -38,7 +38,7 @@ cron: 動いています（1 分おき）
    pnpm --filter @uc/cron-app create
    ```
 4. Apps Script の画面（`pnpm --filter @uc/cron-app exec clasp open-script`）の「プロジェクトの設定」→「スクリプト プロパティ」に、`CRON_SECRET` を、1 と同じ値で登録する。
-5. **置いて、ウェブアプリとしてデプロイする**: `pnpm --filter @uc/cron-app push`。初回は、ウェブアプリのデプロイを作って、出た ID（`AKfycb…`）を、`src/config.ts` の `WEB_APP_DEPLOYMENT_ID` に、書いてくれる（秘密ではないので、コミットする）。
+5. **置いて、ウェブアプリとしてデプロイする**: `pnpm --filter @uc/cron-app push`。初回は、ウェブアプリのデプロイを作って、出た ID（`AKfycb…`）を、`.env.local` の `GAS_DEPLOYMENT_ID` に、書いてくれる（秘密ではないが、人ごとの設定ではなく、手元のファイルに置く。すでに作ってあるデプロイの ID は、`clasp list-deployments` で分かる）。
 6. 手元の合言葉（`.env.local` の `CRON_SECRET`）は、1 の `pnpm update-cron-secret` が、すでに書いている。
 7. **権限を許可して、cron を動かし始める**: Apps Script の画面で、関数 `installTrigger` を、**1 回だけ、手で**実行する。Google の権限の確認（外部への通信・トリガーの管理）が出るので、許可する。
    - 許可は、人が画面で押す必要がある（`start` は、ウェブアプリを呼ぶだけなので、許可の前は、動かない）。許可は、どの関数を実行しても済むが、`installTrigger` は、そのまま、毎分のトリガーを作る（cron が動き始める）。

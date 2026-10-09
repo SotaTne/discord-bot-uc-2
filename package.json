@@ -21,6 +21,7 @@
   "devDependencies": {
     "@actions/core": "catalog:",
     "@types/node": "catalog:",
+    "@uc/cron": "workspace:*",
     "tsx": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",

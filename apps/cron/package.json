@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsx scripts/build.ts",
     "create": "pnpm build && clasp create-script --type standalone --title \"UC cron\" --rootDir dist",
-    "push": "pnpm build && tsx scripts/push.ts",
+    "push": "pnpm build && tsx --env-file-if-exists=.env.local scripts/push.ts",
     "start": "tsx --env-file-if-exists=.env.local scripts/control.ts start",
     "stop": "tsx --env-file-if-exists=.env.local scripts/control.ts stop",
     "health": "tsx --env-file-if-exists=.env.local scripts/control.ts health",

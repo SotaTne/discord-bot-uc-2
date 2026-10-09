@@ -274,6 +274,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.4
+      '@uc/cron':
+        specifier: workspace:*
+        version: link:packages/cron
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
