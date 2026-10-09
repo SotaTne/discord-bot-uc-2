@@ -1,4 +1,4 @@
-// ビルドして、Apps Script に置いて、ウェブアプリ（doPost。start / stop / health の入口）を、置いたコードにそろえる。
+// （ビルドは、package.json の push が、先に行う）Apps Script に置いて、ウェブアプリ（doPost。start / stop / health の入口）を、置いたコードにそろえる。
 //   - config.ts の WEB_APP_DEPLOYMENT_ID が空（初回）: ウェブアプリのデプロイを作って、出た ID を、config.ts に書く
 //   - ある（2 回目から）: 同じデプロイ（同じ URL）の中身を、置いたコードに更新する（redeploy）
 // ウェブアプリは、「デプロイしたバージョン」を動かすので、置いただけでは、古いままになる。毎分のトリガー（tick）は、置いた最新のコードで動く。
@@ -26,7 +26,6 @@ function run(args: string[]): string {
 }
 
 if (import.meta.main) {
-  run(["build"]);
   run(["exec", "clasp", "push", "--force"]);
 
   if (WEB_APP_DEPLOYMENT_ID) {

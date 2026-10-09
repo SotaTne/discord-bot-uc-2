@@ -16,7 +16,7 @@
 | `start` | 毎分のトリガーを作る（cron を動かす）。すでにあれば、作り直す（間隔を変えたときも、これ） |
 | `stop` | トリガーを消す（cron を止める）。使わない期間の節約になる |
 | `health` | Apps Script が動いているか（ウェブアプリが応答して、毎分のトリガーがあるか）を見る |
-| `create` | Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
+| `create` | ビルドして（`dist/` が、置く先として、要る）、Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
 | `push` | ビルドして、Apps Script に置いて、ウェブアプリ（`start` / `stop` / `health` の入口）を、置いたコードに更新する。`src/config.ts` などを変えたときに実行する。**初回**（`WEB_APP_DEPLOYMENT_ID` が空）は、ウェブアプリのデプロイを作って、出た ID を、`config.ts` に書く（コミットする） |
 | `logs` | 実行のログを見る（失敗した回だけ、出る） |
 | `delete` | リモートの Apps Script のプロジェクトを、削除する（確認が出る）。毎分の呼び出しも、止まる |
