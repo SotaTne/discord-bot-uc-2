@@ -35,15 +35,16 @@ function removeTrigger() {
 
 /**
  * ウェブアプリ（POST）。手元から、cron の start（毎分のトリガーを作る）・stop（止める）・health（状態を見る）を、操作するための入口
- * （apps/cron の `pnpm start` / `stop` / `health`）。合言葉（フォームの key。スクリプトのプロパティ CRON_SECRET と同じ値）が合うときだけ、実行する。
+ * （apps/cron の `pnpm start` / `stop` / `health`）と、合言葉の取り替え（ルートの `pnpm update-cron-secret`）の入口。合言葉（フォームの key。スクリプトのプロパティ CRON_SECRET と同じ値）が合うときだけ、実行する。
  * 結果は JSON で返す（Apps Script は、ステータスコードを選べないので、本文の ok で伝える）。処理の本体は @uc/cron の handleControl
  */
 function doPost(event: GoogleAppsScript.Events.DoPost) {
   const result = handleControl(
-    { key: event.parameter.key, action: event.parameter.action },
+    { key: event.parameter.key, action: event.parameter.action, newKey: event.parameter.newKey },
     {
       expectedKey: PropertiesService.getScriptProperties().getProperty(SECRET_PROPERTY),
       intervalMinutes: CRON_INTERVAL_MINUTES,
+      setSecret: (key) => PropertiesService.getScriptProperties().setProperty(SECRET_PROPERTY, key),
       installTrigger,
       removeTrigger,
       countTriggers: () => ScriptApp.getProjectTriggers().filter((trigger) => trigger.getHandlerFunction() === "tick").length,

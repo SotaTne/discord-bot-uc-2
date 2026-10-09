@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatControlResult, handleControl, type ControlDeps } from "./control";
+import { COMMAND_ACTIONS, MIN_SECRET_LENGTH, formatControlResult, handleControl, type ControlDeps } from "./control";
 
 describe("handleControl（start・stop・health）", () => {
   const make = (overrides: Partial<ControlDeps> = {}) => {
@@ -8,6 +8,7 @@ describe("handleControl（start・stop・health）", () => {
     const deps: ControlDeps = {
       expectedKey: "s3cret",
       intervalMinutes: 1,
+      setSecret: (key) => void calls.push(`secret:${key}`),
       installTrigger: () => ((triggers = 1), void calls.push("install")),
       removeTrigger: () => ((triggers = 0), void calls.push("remove")),
       countTriggers: () => triggers,
@@ -43,6 +44,42 @@ describe("handleControl（start・stop・health）", () => {
     const { deps, calls } = make();
     expect(handleControl({ key: "s3cret", action: "delete" }, deps)).toEqual({ ok: false, error: "unknown action: delete" });
     expect(calls).toEqual([]);
+  });
+});
+
+describe("handleControl: set-secret（合言葉の取り替え）", () => {
+  const next = "n".repeat(MIN_SECRET_LENGTH);
+  const make = () => {
+    const secrets: string[] = [];
+    const deps: ControlDeps = {
+      expectedKey: "old-secret",
+      intervalMinutes: 1,
+      setSecret: (key) => void secrets.push(key),
+      installTrigger: () => undefined,
+      removeTrigger: () => undefined,
+      countTriggers: () => 1,
+    };
+    return { deps, secrets };
+  };
+
+  it("古い合言葉が合うときだけ、新しい合言葉に取り替える", () => {
+    const { deps, secrets } = make();
+    expect(handleControl({ key: "old-secret", action: "set-secret", newKey: next }, deps)).toMatchObject({ ok: true, action: "set-secret" });
+    expect(secrets).toEqual([next]);
+
+    expect(handleControl({ key: "wrong", action: "set-secret", newKey: next }, deps)).toEqual({ ok: false, error: "unauthorized" });
+    expect(secrets).toEqual([next]);
+  });
+
+  it("新しい合言葉が、ない・短いときは、取り替えない", () => {
+    const { deps, secrets } = make();
+    expect(handleControl({ key: "old-secret", action: "set-secret" }, deps)).toMatchObject({ ok: false });
+    expect(handleControl({ key: "old-secret", action: "set-secret", newKey: "short" }, deps)).toMatchObject({ ok: false });
+    expect(secrets).toEqual([]);
+  });
+
+  it("手元のコマンド（start・stop・health）の対象に、set-secret は、入らない", () => {
+    expect(COMMAND_ACTIONS).toEqual(["start", "stop", "health"]);
   });
 });
 

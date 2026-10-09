@@ -31,7 +31,7 @@ cron: 動いています（1 分おき）
 
 ## 最初の設定（1 回）
 
-1. **Worker 側に、合言葉を置く**: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）。合言葉の作成と、GitHub・`.env.local` への登録は、ルートの `pnpm update-cron-secret` が行う（ルートの `README.md` の「cron の合言葉」）。Apps Script のスクリプトプロパティだけは、手で貼る。
+1. **Worker 側に、合言葉を置く**: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）。合言葉の作成と、GitHub・`.env.local` への登録は、ルートの `pnpm update-cron-secret` が行う（ルートの `README.md` の「cron の合言葉」）。最初の 1 回だけは、Apps Script のスクリプトプロパティを、手で貼る（2 回目からは、自動で取り替える）。
 2. <https://script.google.com/home/usersettings> で、「Google Apps Script API」をオンにする（clasp が、プロジェクトを作ったり、置いたりするため）。
 3. **プロジェクトを作る**: 手元で、Google にログインして、作る。`.clasp.json`（プロジェクトの ID を持つ。git には入れない）が、できる。
    ```
@@ -55,7 +55,7 @@ cron: 動いています（1 分おき）
 
 ## ウェブアプリ（doPost）について
 
-`https://script.google.com/macros/s/<デプロイの ID>/exec` に、フォームの `key=<合言葉>` と `action=<start|stop|health>` を POST すると、合言葉が合うときだけ、実行して、JSON で状態を返す。合わなければ、`{"ok":false,"error":"unauthorized"}`（何も実行しない）。
+`https://script.google.com/macros/s/<デプロイの ID>/exec` に、フォームの `key=<合言葉>` と `action=<start|stop|health>` を POST すると（`action=set-secret` と `newKey=<新しい合言葉>` は、ルートの `pnpm update-cron-secret` が、合言葉を取り替えるために使う）、合言葉が合うときだけ、実行して、JSON で状態を返す。合わなければ、`{"ok":false,"error":"unauthorized"}`（何も実行しない）。
 
 ログインなしで呼べる設定（`access: ANYONE_ANONYMOUS`）なので、**合言葉が、唯一の守り**。漏れたら、Worker と Apps Script の両方の値を、取り替える。ウェブアプリは、「デプロイしたバージョン」を動かすので、コードを変えたら、`pnpm push`（置く + ウェブアプリの更新）を実行する。毎分のトリガー（`tick`）は、置いた最新のコードを使う。
 

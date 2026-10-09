@@ -274,6 +274,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.4
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
       turbo:
         specifier: 'catalog:'
         version: 2.11.7

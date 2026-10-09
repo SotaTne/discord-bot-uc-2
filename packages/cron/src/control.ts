@@ -1,8 +1,19 @@
 import { isAuthorizedKey } from "./auth";
 
-/** cron の操作。start: 毎分のトリガーを作る / stop: 止める / health: Apps Script が動いているか（ウェブアプリが応答して、トリガーがあるか）を見る */
-export const CONTROL_ACTIONS = ["start", "stop", "health"] as const;
+/**
+ * cron の操作。start: 毎分のトリガーを作る / stop: 止める / health: Apps Script が動いているか（ウェブアプリが応答して、トリガーがあるか）を見る /
+ * set-secret: 合言葉を、新しい値に取り替える（古い合言葉で認証する。`pnpm update-cron-secret` が使う）
+ */
+export const CONTROL_ACTIONS = ["start", "stop", "health", "set-secret"] as const;
 export type ControlAction = (typeof CONTROL_ACTIONS)[number];
+
+/** 手元から、`pnpm start` などで使う操作（set-secret は、update-cron-secret だけが使う） */
+export const COMMAND_ACTIONS = CONTROL_ACTIONS.filter((action) => action !== "set-secret");
+
+export const isCommandAction = (value: unknown): value is (typeof COMMAND_ACTIONS)[number] => (COMMAND_ACTIONS as readonly unknown[]).includes(value);
+
+/** 新しい合言葉の、最低の長さ（短い・空の値に、取り替えられないように） */
+export const MIN_SECRET_LENGTH = 32;
 
 export const isControlAction = (value: unknown): value is ControlAction => CONTROL_ACTIONS.includes(value as ControlAction);
 
@@ -17,15 +28,21 @@ export type ControlDeps = {
   intervalMinutes: number;
   installTrigger: () => void;
   removeTrigger: () => void;
+  /** 合言葉（スクリプトのプロパティ）を、書き換える */
+  setSecret: (key: string) => void;
   /** 毎分のトリガーの数 */
   countTriggers: () => number;
 };
 
 /** ウェブアプリ（doPost）の処理の本体。合言葉と操作を確かめて、実行して、状態を返す */
-export function handleControl(input: { key?: string | undefined; action?: string | undefined }, deps: ControlDeps): ControlResult {
+export function handleControl(input: { key?: string | undefined; action?: string | undefined; newKey?: string | undefined }, deps: ControlDeps): ControlResult {
   if (!isAuthorizedKey(input.key, deps.expectedKey)) return { ok: false, error: "unauthorized" };
   if (!isControlAction(input.action)) return { ok: false, error: `unknown action: ${input.action ?? ""}`.slice(0, 100) };
 
+  if (input.action === "set-secret") {
+    if (!input.newKey || input.newKey.length < MIN_SECRET_LENGTH) return { ok: false, error: `invalid new key (${MIN_SECRET_LENGTH} 文字以上)` };
+    deps.setSecret(input.newKey);
+  }
   if (input.action === "start") deps.installTrigger();
   if (input.action === "stop") deps.removeTrigger();
   return {

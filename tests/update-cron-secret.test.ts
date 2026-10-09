@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENVIRONMENTS, generateSecret, nextSteps, plan, upsertEnvLine } from "../scripts/update-cron-secret";
+import { ENVIRONMENTS, generateSecret, nextSteps, plan, readEnvValue, upsertEnvLine } from "../scripts/update-cron-secret";
 
 describe("generateSecret", () => {
   it("十分に長い、URL にも使える文字だけの値を、毎回、別に作る", () => {
@@ -29,6 +29,20 @@ describe("実行前の表示と、次にやること", () => {
   it("デプロイは、しないと、先に伝える。両方の環境を対象にする", () => {
     expect(ENVIRONMENTS).toEqual(["staging", "production"]);
     expect(plan().join("\n")).toContain("デプロイは、しない");
-    expect(nextSteps().join("\n")).toContain("cd を、develop と main の両方で");
+    expect(nextSteps(true).join("\n")).toContain("cd を、develop と main の両方で");
+  });
+
+  it("Apps Script を自動で取り替えたときは、手で貼る手順が、入らない", () => {
+    expect(nextSteps(true).join("\n")).not.toContain("スクリプト プロパティ");
+    expect(nextSteps(false).join("\n")).toContain("スクリプト プロパティ");
+  });
+});
+
+describe("readEnvValue", () => {
+  it("KEY の値を読む。ない・空は、null。前方一致だけの別の名前は、読まない", () => {
+    expect(readEnvValue("A=1\nCRON_SECRET=abc\n", "CRON_SECRET")).toBe("abc");
+    expect(readEnvValue("CRON_SECRET=\n", "CRON_SECRET")).toBeNull();
+    expect(readEnvValue("A=1\n", "CRON_SECRET")).toBeNull();
+    expect(readEnvValue("CRON_SECRET_OLD=x\n", "CRON_SECRET")).toBeNull();
   });
 });

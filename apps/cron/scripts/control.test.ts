@@ -19,6 +19,12 @@ describe("callControl（ウェブアプリを呼ぶ）", () => {
     expect(calls).toEqual([{ url: webAppUrl("AKfycbX"), method: "POST", body: "key=s3cret&action=health" }]);
   });
 
+  it("合言葉の取り替えでは、新しい合言葉も、フォームで送る", async () => {
+    const { calls, fetchImpl } = respond(JSON.stringify({ ok: true, action: "set-secret", running: true, intervalMinutes: 1 }));
+    await callControl({ deploymentId: "d", secret: "old", action: "set-secret", newSecret: "new", fetch: fetchImpl });
+    expect(calls[0]?.body).toBe("key=old&action=set-secret&newKey=new");
+  });
+
   it("JSON でない応答（権限が未許可の画面など）は、失敗として返す", async () => {
     const result = await callControl({ deploymentId: "d", secret: "x", action: "start", fetch: respond("<html>…</html>").fetchImpl });
     expect(result).toMatchObject({ ok: false });

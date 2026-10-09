@@ -16,11 +16,12 @@
     "test": "vitest run && turbo run test",
     "check": "pnpm typecheck && pnpm test",
     "register-commands": "pnpm --filter @uc/discord run register-commands",
-    "update-cron-secret": "node scripts/update-cron-secret.ts"
+    "update-cron-secret": "tsx scripts/update-cron-secret.ts"
   },
   "devDependencies": {
     "@actions/core": "catalog:",
     "@types/node": "catalog:",
+    "tsx": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

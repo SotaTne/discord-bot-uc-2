@@ -182,17 +182,21 @@ pnpm register-commands                                    # 全サーバー（�
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
-**cron の合言葉（`CRON_SECRET`）の作成と取り替え**: `pnpm update-cron-secret`（ルートで実行）。新しい合言葉を作って、次の 3 つを、まとめて行う。
+**cron の合言葉（`CRON_SECRET`）の作成と取り替え**: `pnpm update-cron-secret`（ルートで実行）。新しい合言葉を作って、次を、まとめて行う。
 
 1. GitHub の Environments（`staging`・`production`）の Secrets の `CRON_SECRET` を、取り替える（`gh` コマンド。`gh auth login` 済みで、2 つの Environment が、先に、あること）。
-2. `apps/cron/.env.local` の `CRON_SECRET` を、書き換える（手元の `start` / `stop` / `health` が使う）。
-3. 新しい値を、1 回だけ、画面に出す。
+2. Apps Script のスクリプトプロパティの `CRON_SECRET` を、取り替える。ウェブアプリに、**古い合言葉で認証して**、新しい合言葉を送る（古い合言葉は、`.env.local` にある）。
+3. `apps/cron/.env.local` の `CRON_SECRET` を、書き換える（手元の `start` / `stop` / `health` が使う）。
+4. 新しい値を、1 回だけ、画面に出す。
 
-実行の前に、やることを表示して、確認する（`--yes` で省略）。**デプロイは、しない**。そのため、終わりに表示される「次にやること」を、実行する。
+実行の前に、やることを表示して、確認する（`--yes` で省略）。**デプロイは、しない**。終わりに表示される「次にやること」を、実行する。
 
-- Apps Script の「スクリプト プロパティ」の `CRON_SECRET` を、画面に出た値に、取り替える（ここだけ、手で貼る）。
 - Worker に届けるため、Actions の画面から `cd` を、`develop` と `main` の両方で、手動で実行する。
 - `pnpm --filter @uc/cron-app health` で、動いているか確かめる。
+
+**最初の 1 回だけ**は、Apps Script の側が、まだ合言葉を持たないので、自動で取り替えられない（`.env.local` に古い合言葉がない、または、`apps/cron/src/config.ts` のデプロイの ID が、まだ空）。そのときは、画面に出た値を、Apps Script の「スクリプト プロパティ」に、手で貼る（手順は、画面に出る）。2 回目からは、自動。
+
+2 が失敗したとき（古い合言葉が合わない など）は、そこで止まる。GitHub の値は、新しくなっていて、`.env.local` は、古いまま残るので、原因を直して、もう一度実行すればよい。
 
 取り替えから、Worker のデプロイまでの間は、`/cron` が 401 になる。Worker には猶予（募集開始は 1 時間、締切のマッチングは試合開始の 30 分後まで）があるので、その間に済ませれば、取りこぼさない。漏れたと思ったときも、同じコマンドで、取り替える。
 
