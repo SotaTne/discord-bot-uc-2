@@ -7,6 +7,6 @@ export default defineConfig({
     // 画面のテストは jsdom で動かす（ブラウザの代わり）
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "dev/**/*.test.ts"],
   },
 });
