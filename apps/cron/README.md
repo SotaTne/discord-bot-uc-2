@@ -9,10 +9,26 @@
 ## 最初の設定（1 回）
 
 1. Worker 側に、合言葉を置く: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）（`/cron` が、合言葉つきで動くようになる）。
-2. <https://script.google.com> で、新しいプロジェクトを作る。「プロジェクトの設定」から、ID を、`apps/cron/.clasp.json`（`.clasp.example.json` をコピー）の `scriptId` に書く。
-3. 「プロジェクトの設定」→「スクリプト プロパティ」に、`CRON_SECRET` を、1 と同じ値で登録する。
-4. 手元で `pnpm --filter @uc/cron-app exec clasp login` を実行してから、`pnpm --filter @uc/cron-app push`（ビルドして、Apps Script に置く）。
-5. Apps Script の画面で、`installTrigger` を、1 回、手で実行する（Google の権限の確認が出る）。
+2. <https://script.google.com/home/usersettings> で、「Google Apps Script API」をオンにする（clasp が、プロジェクトを作ったり、置いたりするため）。
+3. 手元で、Google にログインして、プロジェクトを作る。`.clasp.json`（プロジェクトの ID を持つ。git には入れない）が、できる。
+   ```
+   pnpm --filter @uc/cron-app exec clasp login
+   pnpm --filter @uc/cron-app create
+   ```
+4. Apps Script の画面（`pnpm --filter @uc/cron-app exec clasp open-script`）の「プロジェクトの設定」→「スクリプト プロパティ」に、`CRON_SECRET` を、1 と同じ値で登録する。
+5. `pnpm --filter @uc/cron-app push`（ビルドして、Apps Script に置く）。
+6. Apps Script の画面で、`installTrigger` を、1 回、手で実行する（Google の権限の確認が出る）。
+
+## 使うコマンド
+
+`pnpm --filter @uc/cron-app <名前>` で実行する。
+
+| 名前 | 内容 |
+|---|---|
+| `create` | Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
+| `push` | ビルドして、Apps Script に置く。呼ぶ先や間隔（`src/config.ts`）を変えたときに実行する（ステージングと本番の両方に、すぐ反映される） |
+| `logs` | 実行のログを見る（失敗した回だけ、出る） |
+| `delete` | リモートの Apps Script のプロジェクトを、削除する（確認が出る）。毎分の呼び出しも、止まる。手元のファイルと、`.clasp.json` は、残る |
 
 動いているかは、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（ジョブを実行した回と、失敗した回だけ、出る）。
 

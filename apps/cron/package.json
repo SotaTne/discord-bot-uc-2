@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "build": "tsx scripts/build.ts",
+    "create": "clasp create-script --type standalone --title \"UC cron\" --rootDir dist",
     "push": "pnpm build && clasp push",
+    "logs": "clasp tail-logs",
+    "delete": "clasp delete-script",
     "typecheck": "tsc",
     "test": "vitest run"
   },
