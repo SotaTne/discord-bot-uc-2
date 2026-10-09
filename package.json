@@ -2,10 +2,10 @@
   "name": "discord-bot-uc",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.28.5",
+  "packageManager": "pnpm@12.10.1",
   "engines": {
-    "node": ">=24.21.0 <25",
-    "pnpm": "11.28.5"
+    "node": ">=26.11.1 <27",
+    "pnpm": "12.10.1"
   },
   "scripts": {
     "build": "turbo run build",
