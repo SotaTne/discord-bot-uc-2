@@ -274,13 +274,13 @@ describe("失敗したとき", () => {
   });
 
   it("募集開始の投稿に失敗しても、同じ tick の締切のジョブは続けて実行する", async () => {
-    // 募集開始（12:00 から1時間）と締切が重なる設定
-    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 20 }, 2);
+    // 募集開始（20:00 から 30 分）と締切（試合の 40 分前 = 20:20 から）が重なる設定
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 20, cutoffMinutes: 40 }, 2);
     await raise("KMU", KMU_ROLE, 21, 100);
     await raise("UT", UT_ROLE, 21, 200);
 
     failNext = 1;
-    const summary = await tick("2026-10-07T20:53:00");
+    const summary = await tick("2026-10-07T20:20:00");
 
     expect(summary.errors).toHaveLength(1);
     expect(summary.errors[0]).toContain("recruit:2026-10-07");

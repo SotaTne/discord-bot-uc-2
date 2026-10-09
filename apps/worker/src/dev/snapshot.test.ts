@@ -170,8 +170,8 @@ describe("buildDevSnapshot", () => {
     it("今日の予定を、時刻順に、状態（済・実行できる・待ち・期限切れ）つきで返す", async () => {
       await claimJob(seeded.db, GUILD_ID, "recruit:2026-10-07", 1);
 
-      // 21時の締切は、試合開始の30分後（21:30）の直前まで、実行できる
-      const { schedule } = await snapshot(jst("2026-10-07T21:29:00"));
+      // 21時の締切は、締切の時刻（20:53）から 30 分後（21:23）の直前まで、実行できる
+      const { schedule } = await snapshot(jst("2026-10-07T21:22:00"));
 
       expect(schedule.map((s) => [s.key, s.state])).toEqual([
         ["recruit:2026-10-07", "done"],
@@ -185,10 +185,10 @@ describe("buildDevSnapshot", () => {
     });
 
     it("実行されないまま猶予を過ぎたものは、期限切れ", async () => {
-      const { schedule } = await snapshot(jst("2026-10-07T22:29:00"));
+      const { schedule } = await snapshot(jst("2026-10-07T22:22:00"));
       expect(schedule.map((s) => s.state)).toEqual(["expired", "expired", "ready", "waiting"]);
-      // 22:30 になると、22時の締切も期限切れ
-      expect((await snapshot(jst("2026-10-07T22:30:00"))).schedule.map((s) => s.state)).toEqual(["expired", "expired", "expired", "waiting"]);
+      // 22:23（22 時の締切 21:53 から 30 分）になると、22時の締切も期限切れ
+      expect((await snapshot(jst("2026-10-07T22:23:00"))).schedule.map((s) => s.state)).toEqual(["expired", "expired", "expired", "waiting"]);
     });
 
     it("実行済みのジョブの履歴を、新しい順に返す", async () => {
