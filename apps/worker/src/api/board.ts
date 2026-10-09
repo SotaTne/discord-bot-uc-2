@@ -170,6 +170,9 @@ export function createBoardRoutes(deps: ApiDeps) {
         return c.json({ error: "slot_matched" as const }, 409);
       }
       const key = cutoffJobKey(slotDate, input.slotHour);
+      // 対戦枠が未マッチングなのに権利が残っているのは、締切を過ぎてから「やり直す」を実行したとき（cron が自動で確定しないように、権利を残してある）。
+      // 管理者の確定は、それを承知の操作なので、権利を取り直して実行する
+      await releaseJob(db, guildId, key);
       if (!(await claimJob(db, guildId, key, now.getTime()))) return c.json({ error: "slot_matched" as const }, 409);
 
       try {

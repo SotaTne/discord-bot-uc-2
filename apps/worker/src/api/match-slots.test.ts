@@ -181,6 +181,17 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
     const { claimJob } = await import("@uc/db");
     expect(await claimJob(h.seeded.db, GUILD_ID, "cutoff:2026-10-07:21", 1)).toBe(false);
   });
+
+  it("締切を過ぎてから「やり直す」を実行しても、管理者は、もう一度確定できる", async () => {
+    h.time.now = jst("2026-10-07T21:00:00");
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+    await reopen();
+
+    expect((await confirm()).status).toBe(200);
+    expect((await slotOf(21)).matches).toHaveLength(1);
+  });
 });
 
 describe("試合時刻を削除したあとの対戦枠（論理削除。削除した日までの対戦枠が、残る）", () => {
