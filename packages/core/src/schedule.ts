@@ -1,9 +1,6 @@
 import { handupDeadline, slotStart } from "./slot-time";
 
-/**
- * cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない。
- * どちらも 30 分。数えはじめが違う: 募集開始は、募集開始の時刻から。締切のマッチングは、試合開始から（締切の時刻からではない）
- */
+/** cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない。どちらも、そのジョブを実行する時刻（募集開始・締切）から 30 分 */
 export const RECRUIT_GRACE_MS = 30 * 60 * 1000;
 export const CUTOFF_GRACE_MS = 30 * 60 * 1000;
 
@@ -27,7 +24,7 @@ export type ScheduledJobSpec = {
 /**
  * ある日の、cron が実行するジョブの予定。
  * - 募集開始（N 時から1時間）
- * - 各対戦枠の締切（試合の K 分前から、試合開始の30分後まで）。マッチングの確定と投稿
+ * - 各対戦枠の締切（試合の K 分前から 30 分）。マッチングの確定と投稿
  * 実行する側（runScheduled）と、画面に出す予定の両方が、この関数を使う。
  */
 export function scheduledJobsForDate(input: {
@@ -54,7 +51,7 @@ export function scheduledJobsForDate(input: {
       kind: "cutoff",
       slotHour: hour,
       from: handupDeadline(input.date, hour, input.cutoffMinutes),
-      until: new Date(slotStart(input.date, hour).getTime() + CUTOFF_GRACE_MS),
+      until: new Date(handupDeadline(input.date, hour, input.cutoffMinutes).getTime() + CUTOFF_GRACE_MS),
     });
   }
   return jobs;
