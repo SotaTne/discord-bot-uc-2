@@ -92,4 +92,16 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 .mermaid-diagram svg { max-width: min(100%, 460px) !important; height: auto; }
 
 /* ガイドの表は、1 列目（状態・用語・こうなった など）を、折り返さない */
-.guide table td:first-child, .guide table th:first-child { white-space: nowrap; vertical-align: top; }
+.guide table td, .guide table th { vertical-align: top; }
+.guide table td:first-child, .guide table th:first-child { white-space: nowrap; }
+
+/* コマンド一覧: 1 コマンド = 1 枚の色つきの枠（左の太い線と、見出しの背景で、どこからどこまでかが分かる） */
+.command-list { display: grid; gap: var(--mantine-spacing-md); margin: var(--mantine-spacing-md) 0; }
+.command-card { --accent: var(--mantine-color-blue-filled); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-left: 6px solid var(--accent); border-radius: var(--mantine-radius-md); overflow: hidden; }
+.command-card.command-admin { --accent: var(--mantine-color-orange-filled); }
+.command-head { padding: 10px 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.command-name { font-size: 1.05rem; font-weight: 600; background: transparent !important; padding: 0 !important; overflow-wrap: anywhere; }
+.command-body { padding: 4px 14px 10px; }
+.command-body table { margin: 0; }
+.command-body table th, .command-body table td { padding: 6px 10px; }
+.command-body table th:first-child, .command-body table td:first-child { padding-left: 0; }

@@ -22,6 +22,8 @@ describe("ガイド", () => {
 
     const list = within(screen.getByRole("list", { name: "コマンド一覧" }));
     expect(list.getAllByRole("listitem")).toHaveLength(commands.length);
+    // 全員と管理者のコマンドは、バッジで見分ける
+    expect(list.getAllByText("管理者のみ")).toHaveLength(commands.filter((command) => command.default_member_permissions !== undefined).length);
     expect(list.getByText("/uc-admin-win time team-role point image [date]")).toBeTruthy();
 
     // 引数は、コマンドごとの表で、型・必須・範囲つきで出る

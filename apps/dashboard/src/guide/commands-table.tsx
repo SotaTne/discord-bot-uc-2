@@ -1,4 +1,4 @@
-import { Badge, Group, Stack, Table, Text } from "@mantine/core";
+import { Badge, Group, Table, Text } from "@mantine/core";
 import { CommandOptionType, commands, type CommandDefinition, type CommandOption } from "@uc/discord/commands";
 
 const TYPE_LABEL: Record<number, string> = {
@@ -56,26 +56,31 @@ function Options({ command }: { command: CommandDefinition }) {
   );
 }
 
-/** Discord に登録するコマンドの一覧（コマンド定義から作るので、ガイドと実際のコマンドがずれない）。コマンドごとに、書き方・説明・引数の表を出す */
+/** Discord に登録するコマンドの一覧（コマンド定義から作るので、ガイドと実際のコマンドがずれない）。コマンドごとに、色つきの枠で、書き方・説明・引数の表を出す。管理者のコマンドは橙、全員のコマンドは青 */
 export function CommandsTable() {
   return (
-    <Stack gap="lg" role="list" aria-label="コマンド一覧" className="command-list">
-      {commands.map((command) => (
-        <div key={command.name} role="listitem">
-          <Group gap="xs" align="baseline">
-            <code>{signature(command)}</code>
-            {command.default_member_permissions !== undefined && (
-              <Badge variant="light" color="gray">
-                管理者のみ
-              </Badge>
-            )}
-          </Group>
-          <Text size="sm" my={4}>
-            {plainDescription(command)}
-          </Text>
-          <Options command={command} />
-        </div>
-      ))}
-    </Stack>
+    <div role="list" aria-label="コマンド一覧" className="command-list">
+      {commands.map((command) => {
+        const admin = command.default_member_permissions !== undefined;
+        return (
+          <div key={command.name} role="listitem" className={`command-card ${admin ? "command-admin" : "command-member"}`}>
+            <div className="command-head">
+              <Group gap="sm" align="center" justify="space-between" wrap="nowrap">
+                <code className="command-name">{signature(command)}</code>
+                <Badge variant="filled" color={admin ? "orange" : "blue"} style={{ flexShrink: 0 }}>
+                  {admin ? "管理者のみ" : "全員"}
+                </Badge>
+              </Group>
+              <Text size="sm" mt={4}>
+                {plainDescription(command)}
+              </Text>
+            </div>
+            <div className="command-body">
+              <Options command={command} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
