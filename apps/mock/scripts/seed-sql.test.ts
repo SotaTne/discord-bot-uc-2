@@ -1,6 +1,6 @@
 import { createTestDatabase } from "@uc/db/testing";
 import { describe, expect, it } from "vitest";
-import { defaultSeed } from "./seed";
+import { defaultSeed } from "../src/seed";
 import { buildSeedSql } from "./seed-sql";
 
 const options = { slotHours: [21, 22, 23], now: 1_700_000_000_000 };

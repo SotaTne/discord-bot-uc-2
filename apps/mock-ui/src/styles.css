@@ -1,0 +1,33 @@
+:root {
+  --paper: light-dark(#f5f6f8, #12151a);
+  --surface: light-dark(#ffffff, #1a1e25);
+  --rule: light-dark(#e1e4ea, #2b3039);
+  --ink-muted: light-dark(#646c7a, #98a1b0);
+  --private: light-dark(#eef3ff, #1b2438);
+}
+body { margin: 0; background: var(--paper); color: var(--mantine-color-text); font-variant-numeric: tabular-nums; -webkit-text-size-adjust: 100%; }
+button, a { touch-action: manipulation; }
+.surface { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--mantine-radius-md); }
+
+/* 時計: このページの目印 */
+.clock-time { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Discord のメッセージ */
+.msgs { max-height: 360px; overflow: auto; }
+.msg { padding: 8px 14px; border-left: 3px solid transparent; }
+.msg + .msg { border-top: 1px solid var(--rule); }
+.msg.private { background: var(--private); border-left-color: var(--mantine-color-primary-filled); }
+.msg .line { overflow-wrap: anywhere; }
+.msg .sub { font-size: 12px; color: var(--ink-muted); }
+.msg .h1 { font-size: 1.2em; font-weight: 600; margin: 2px 0; }
+.msg .h2 { font-size: 1.08em; font-weight: 600; margin: 2px 0; }
+.msg .blank { height: 0.6em; }
+
+/* 対戦枠（今日）: 時刻と状態を、1 行ずつ */
+.fixture { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; }
+.fixture + .fixture { border-top: 1px solid var(--rule); }
+
+.log-when { color: var(--ink-muted); white-space: nowrap; min-width: 7.5em; }
+.struck-text { text-decoration: line-through; color: var(--ink-muted); }
+.link-button { color: var(--mantine-color-anchor); text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+.link-button:hover { text-decoration: underline; }

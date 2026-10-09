@@ -20,7 +20,8 @@ pnpm check   # 型チェックとテスト
 |---|---|
 | `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る |
-| `apps/mock` | 開発専用の疑似 Discord と動作確認ページ（Node） |
+| `apps/mock` | 開発専用の疑似 Discord のサーバー。「Discord のサーバー役」（`src/discord`）と「画面用の API」（`src/api`）に分かれる。Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |
+| `apps/mock-ui` | 疑似 Discord の画面（Vite + React + Mantine + TanStack Query）。サーバーには HTTP（`/mock-api`）で話すだけの、独立したアプリ |
 | `packages/core` | 純粋なドメイン規則（マッチング、得点、勝利の記録の確認、時刻）。依存なし |
 | `packages/db` | Drizzle のスキーマ、D1 のマイグレーション、リポジトリ |
 | `packages/discord` | 署名検証、REST クライアント、コマンド定義と登録 |
@@ -35,11 +36,12 @@ pnpm dev
 `pnpm dev` は、準備（`dev:setup`）をしてから、3つをまとめて起動する。
 
 - 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・疑似時計（`DEV_CLOCK`）・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
-- 起動: worker（wrangler dev）、ダッシュボード（Vite）、疑似 Discord（mock）。
+- 起動: worker（wrangler dev）、ダッシュボード（Vite）、疑似 Discord のサーバー（mock）、疑似 Discord の画面（mock-ui）。
 
 | URL | 内容 |
 |---|---|
-| http://localhost:8788 | 疑似 Discord の動作確認ページ |
+| http://localhost:5174 | 疑似 Discord の動作確認ページ（mock-ui。`/mock-api` は mock に proxy される） |
+| http://localhost:8788 | 疑似 Discord のサーバー（worker が、`/api/v10` を呼ぶ。画面はない） |
 | http://localhost:5173 | ダッシュボード（Vite。`/api` は worker に proxy される） |
 | http://localhost:8787 | worker（wrangler dev） |
 

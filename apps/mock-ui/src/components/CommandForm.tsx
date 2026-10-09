@@ -1,0 +1,99 @@
+import { Button, Group, NativeSelect, Stack, TextInput, UnstyledButton } from "@mantine/core";
+import { ApplicationCommandOptionType, commands, type CommandDefinition } from "@uc/discord";
+import { useState, type FormEvent } from "react";
+import { formOf, useAction } from "../actions";
+import { mockApi } from "../api";
+import type { MockStateData } from "../mockState";
+import { hourLabel } from "../time";
+
+type Option = NonNullable<CommandDefinition["options"]>[number];
+
+/** オプション 1 つ分の入力欄。名前と型に合わせて、選択・数値・日付・ファイルにする */
+function Field({ option, state }: { option: Option; state: MockStateData }) {
+  const label = option.description;
+  const required = option.required === true;
+  const slots = state.snapshot?.slots ?? [21, 22, 23];
+
+  if (option.type === ApplicationCommandOptionType.Role) {
+    return (
+      <NativeSelect
+        label={label}
+        name={option.name}
+        required={required}
+        data={[{ value: "", label: required ? "選択" : "（指定しない）" }, ...state.roles.map((role) => ({ value: role.name, label: role.name }))]}
+      />
+    );
+  }
+  if (option.type === ApplicationCommandOptionType.Integer && option.name === "time") {
+    return <NativeSelect label={label} name="time" required data={[{ value: "", label: "選択" }, ...slots.map((hour) => ({ value: String(hour), label: hourLabel(hour) }))]} />;
+  }
+  if (option.type === ApplicationCommandOptionType.Integer) {
+    return <TextInput label={label} name={option.name} type="number" step={1} required={required} {...(option.min_value !== undefined ? { min: option.min_value } : {})} {...(option.max_value !== undefined ? { max: option.max_value } : {})} />;
+  }
+  if (option.type === ApplicationCommandOptionType.Attachment) {
+    return <TextInput label={label} name={option.name} type="file" accept="image/png,image/jpeg,image/webp,image/gif" required={required} />;
+  }
+  return option.name === "date" ? <TextInput label={label} name="date" type="date" /> : <TextInput label={label} name={option.name} required={required} />;
+}
+
+/**
+ * コマンドの選択と、選んだコマンド 1 つ分のフォーム。
+ * フォームは、コマンドの定義（@uc/discord）から作るので、コマンドやオプションを変えても追従する。
+ * 実行するユーザーは、フォームの外（実行者の選択）で決める。
+ */
+export function CommandForm({ state, selectedUsers }: { state: MockStateData; selectedUsers: string[] }) {
+  const [current, setCurrent] = useState(commands[0]?.name ?? "");
+  const definition = commands.find((command) => command.name === current);
+  const send = useAction((form) => mockApi.send.$post({}, { init: { body: form } }));
+  const names = selectedUsers.map((id) => state.users.find((user) => user.id === id)?.username ?? id);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (selectedUsers.length === 0) return;
+    const form = new FormData(event.currentTarget);
+    form.set("command", current);
+    form.set("users", selectedUsers.join(","));
+    send.mutate(form, { onSuccess: () => undefined });
+  }
+
+  return (
+    <Stack gap="sm">
+      <Group gap={4} role="tablist" aria-label="コマンド">
+        {commands.map((command) => (
+          <UnstyledButton
+            key={command.name}
+            role="tab"
+            aria-selected={command.name === current}
+            onClick={() => setCurrent(command.name)}
+            style={{
+              padding: "2px 9px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontFamily: "ui-monospace, 'SF Mono', monospace",
+              background: command.name === current ? "var(--mantine-color-text)" : "transparent",
+              color: command.name === current ? "var(--paper)" : "var(--ink-muted)",
+            }}
+          >
+            /{command.name}
+            {command.default_member_permissions ? <small style={{ marginLeft: 4, opacity: 0.8 }}>管理者</small> : null}
+          </UnstyledButton>
+        ))}
+      </Group>
+      {definition && (
+        // コマンドを切り替えたら、入力を、いったん、空にする（key で、作り直す）
+        <form key={definition.name} aria-label={`/${definition.name}`} onSubmit={submit}>
+          <Stack gap="sm">
+            {(definition.options ?? []).map((option) => (
+              <Field key={option.name} option={option} state={state} />
+            ))}
+            <Button type="submit" fullWidth disabled={selectedUsers.length === 0 || send.isPending}>
+              {selectedUsers.length === 0 ? "実行者を選んでください" : `${names.join("・")} で実行`}
+            </Button>
+          </Stack>
+        </form>
+      )}
+    </Stack>
+  );
+}
+
+export { formOf };

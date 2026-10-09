@@ -2,9 +2,12 @@
   "name": "@uc/mock",
   "private": true,
   "type": "module",
+  "exports": {
+    "./api": "./src/api/index.ts"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "setup-dev": "tsx src/setup.ts",
+    "dev": "vite --configLoader runner",
+    "setup-dev": "tsx scripts/setup-dev.ts",
     "typecheck": "tsc",
     "test": "vitest run"
   },
@@ -15,12 +18,11 @@
     "hono": "catalog:"
   },
   "devDependencies": {
-    "@types/jsdom": "catalog:",
     "@types/node": "catalog:",
     "@uc/db": "workspace:*",
-    "jsdom": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }
