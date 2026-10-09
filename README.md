@@ -105,7 +105,7 @@ pnpm register-commands                                    # 全サーバー（�
 
 | ブランチ | 役割 | デプロイ先（GitHub Actions が、自動で行う） |
 |---|---|---|
-| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-staging`） |
+| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-stg`） |
 | `main` | リリース済み | **本番**（`uc-bot`） |
 
 1. 機能の PR を、`develop` に、マージする（スカッシュ）。ステージングに出る。

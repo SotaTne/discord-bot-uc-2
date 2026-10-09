@@ -37,7 +37,7 @@
 
   "env": {
     "staging": {
-      "name": "uc-bot-staging",
+      "name": "uc-bot-stg",
       "d1_databases": [
         {
           "binding": "DB",
