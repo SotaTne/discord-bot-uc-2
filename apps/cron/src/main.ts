@@ -1,4 +1,4 @@
-import { runTick } from "@uc/cron";
+import { isAuthorizedKey, runTick } from "@uc/cron";
 import { CRON_INTERVAL_MINUTES, SECRET_PROPERTY, TARGETS } from "./config";
 
 /**
@@ -33,6 +33,18 @@ function removeTrigger() {
   }
 }
 
+/**
+ * ウェブアプリ（POST）。CD（.github/workflows/gas-cd.yml）が、デプロイのあとに呼んで、毎分のトリガーがあることを保証する。
+ * 合言葉（フォームの key。スクリプトのプロパティ CRON_SECRET と同じ値）が合うときだけ、installTrigger を実行する（何度呼んでも、結果は同じ）。
+ * 応答の本文が「ok」なら成功。Apps Script は、ステータスコードを選べないので、本文で伝える
+ */
+function doPost(event: GoogleAppsScript.Events.DoPost) {
+  const expected = PropertiesService.getScriptProperties().getProperty(SECRET_PROPERTY);
+  if (!isAuthorizedKey(event.parameter.key, expected)) return ContentService.createTextOutput("unauthorized");
+  installTrigger();
+  return ContentService.createTextOutput("ok");
+}
+
 // Apps Script は、トップレベルの関数の宣言を探して、実行する（エディタの一覧にも、それが出る）。
 // 束ねると、関数が束ねの中に入って見えなくなるので、bundle.ts が、同じ名前の宣言を足して、ここから呼ぶ
-export { installTrigger, removeTrigger, tick };
+export { doPost, installTrigger, removeTrigger, tick };

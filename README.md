@@ -18,7 +18,7 @@ pnpm check   # 型チェックとテスト
 
 | 場所 | 役割 |
 |---|---|
-| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（呼ぶ先と間隔だけ。処理の本体は `packages/cron`）（`apps/cron/README.md`） |
+| `apps/cron` | Google Apps Script。毎分、ステージングと本番の `POST /cron` を呼んで、cron を起こす（呼ぶ先と間隔だけ。処理の本体は `packages/cron`）。`main` で変わると、`gas-cd.yml` が、自動でデプロイする（`apps/cron/README.md`） |
 | `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る。`src/` は、本番に載る画面のコードだけ。開発専用の設定（`/api` の proxy）は `dev/` に置き、`vite.config.ts` が、開発サーバー（`command === "serve"`）のときだけ使う |
 | `apps/mock` | 開発専用の疑似 Discord。`server/`（Discord のサーバー役 `discord/` と、画面用の API `api/`）・`client/`（画面。Vite + React + Mantine + TanStack Query。サーバーには HTTP で話すだけ）・`scripts/`（開発の準備）。1 つの Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |

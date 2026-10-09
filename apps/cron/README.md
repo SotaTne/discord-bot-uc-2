@@ -8,29 +8,41 @@
 
 ## 最初の設定（1 回）
 
-1. Worker 側に、合言葉を置く: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）（`/cron` が、合言葉つきで動くようになる）。
+1. **Worker 側に、合言葉を置く**: GitHub の Environments（`staging` と `production`）の Secrets に、`CRON_SECRET` を、**同じ値**で登録して、デプロイする（秘密なので、リポジトリの Secrets ではなく、環境に置く）。値は、`openssl rand -base64 32` などで作る。
 2. <https://script.google.com/home/usersettings> で、「Google Apps Script API」をオンにする（clasp が、プロジェクトを作ったり、置いたりするため）。
-3. 手元で、Google にログインして、プロジェクトを作る。`.clasp.json`（プロジェクトの ID を持つ。git には入れない）が、できる。
+3. **プロジェクトを作る**: 手元で、Google にログインして、作る。`.clasp.json`（プロジェクトの ID を持つ。git には入れない）が、できる。
    ```
    pnpm --filter @uc/cron-app exec clasp login
    pnpm --filter @uc/cron-app create
    ```
 4. Apps Script の画面（`pnpm --filter @uc/cron-app exec clasp open-script`）の「プロジェクトの設定」→「スクリプト プロパティ」に、`CRON_SECRET` を、1 と同じ値で登録する。
-5. `pnpm --filter @uc/cron-app push`（ビルドして、Apps Script に置く）。
-6. Apps Script の画面で、`installTrigger` を、1 回、手で実行する（Google の権限の確認が出る）。
+5. **置いて、ウェブアプリとしてデプロイする**:
+   ```
+   pnpm --filter @uc/cron-app push
+   pnpm --filter @uc/cron-app deployment
+   ```
+   2 つ目の出力に、デプロイの ID が出る（`- AKfycb... @1 - UC cron` の、`AKfycb...`）。
+6. Apps Script の画面で、`installTrigger` を、**1 回だけ、手で**実行する。Google の権限の確認（外部への通信・トリガーの管理）が出るので、許可する。ここで許可しておくと、以降の、自動のデプロイが、トリガーを作れる。
+7. **自動のデプロイ（gas-cd）の設定**: GitHub の Settings → Environments で、`gas` を作る。Deployment branches は、`main` だけにする。
 
-## 使うコマンド
+   | 名前 | 種類 | 値 |
+   |---|---|---|
+   | `CLASPRC_JSON` | Secret | `~/.clasprc.json` の中身（Google へのログイン情報。他の人に見せない） |
+   | `CRON_SECRET` | Secret | 1 と同じ値 |
+   | `GAS_SCRIPT_ID` | Variable | `.clasp.json` の `scriptId` |
+   | `GAS_DEPLOYMENT_ID` | Variable | 5 で出た、デプロイの ID |
 
-`pnpm --filter @uc/cron-app <名前>` で実行する。
+以降は、`main` で、`apps/cron` か `packages/cron` が変わると、`gas-cd`（`.github/workflows/gas-cd.yml`）が、自動で、次を行う。Actions の画面から、手動でも実行できる。
+1. プロジェクトと、デプロイが、あるかを確かめる（なければ、手順を書いたエラーで止まる）。
+2. `clasp push`（コードを置く）。
+3. `clasp redeploy`（ウェブアプリを、置いたコードに更新する）。
+4. ウェブアプリに合言葉つきで POST して、毎分のトリガーがあることを保証する（`doPost` が、`installTrigger` を実行する）。
 
-| 名前 | 内容 |
-|---|---|
-| `create` | Apps Script のプロジェクトを作って、`.clasp.json` を書く（最初の 1 回） |
-| `push` | ビルドして、Apps Script に置く。呼ぶ先や間隔（`src/config.ts`）を変えたときに実行する（ステージングと本番の両方に、すぐ反映される） |
-| `logs` | 実行のログを見る（失敗した回だけ、出る） |
-| `delete` | リモートの Apps Script のプロジェクトを、削除する（確認が出る）。毎分の呼び出しも、止まる。手元のファイルと、`.clasp.json` は、残る |
+動いているかは、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（受け付けられなかった回だけ、出る）。
 
-動いているかは、Apps Script の「実行数」で見る。何も起きなかった回は、ログに出さない（ジョブを実行した回と、失敗した回だけ、出る）。
+## ウェブアプリ（doPost）について
+
+CD が、トリガーを保証するための入口。`https://script.google.com/macros/s/<デプロイの ID>/exec` に、フォームの `key=<合言葉>` を POST すると、合言葉が合うときだけ、`installTrigger` を実行して、`ok` と返す。合わなければ、`unauthorized`（何も実行しない）。ログインなしで呼べる設定（`access: ANYONE_ANONYMOUS`）なので、合言葉が、唯一の守り。合言葉が漏れたら、Worker と Apps Script の両方の値を、取り替える。
 
 ## 注意
 

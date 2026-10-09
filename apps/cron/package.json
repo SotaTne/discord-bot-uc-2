@@ -6,6 +6,7 @@
     "build": "tsx scripts/build.ts",
     "create": "clasp create-script --type standalone --title \"UC cron\" --rootDir dist",
     "push": "pnpm build && clasp push",
+    "deployment": "clasp create-deployment --description \"UC cron\"",
     "logs": "clasp tail-logs",
     "delete": "clasp delete-script",
     "typecheck": "tsc",

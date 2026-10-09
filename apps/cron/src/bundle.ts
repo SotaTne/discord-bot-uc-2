@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 
 /** Apps Script に置く関数の名前（main.ts が export するもの） */
-export const ENTRY_FUNCTIONS = ["tick", "installTrigger", "removeTrigger"] as const;
+export const ENTRY_FUNCTIONS = ["tick", "installTrigger", "removeTrigger", "doPost"] as const;
 
 const NAMESPACE = "__uc";
 
@@ -14,7 +14,7 @@ export async function bundleScript(): Promise<string> {
     globalName: NAMESPACE,
     target: "es2022",
     write: false,
-    footer: { js: ENTRY_FUNCTIONS.map((name) => `function ${name}() { return ${NAMESPACE}.${name}(); }`).join("\n") },
+    footer: { js: ENTRY_FUNCTIONS.map((name) => `function ${name}(event) { return ${NAMESPACE}.${name}(event); }`).join("\n") },
   });
   return result.outputFiles[0]!.text;
 }
