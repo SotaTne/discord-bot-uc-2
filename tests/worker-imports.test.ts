@@ -30,7 +30,7 @@ function importsDev(file: string): string[] {
 describe("開発専用のコード（apps/worker/src/dev/）は、本番のコードから、読み込まない", () => {
   it("本番のコードを、見つけられている（空ではない）", () => {
     expect(production.length).toBeGreaterThan(30);
-    expect(production.map((file) => relative(srcDir, file))).toEqual(expect.arrayContaining(["index.ts", "app.ts", "worker.ts"]));
+    expect(production.map((file) => relative(srcDir, file))).toEqual(expect.arrayContaining(["index.ts", "app.ts", "routes/cron.ts"]));
   });
 
   it("本番のコードは、src/dev/ を、1 つも import しない", () => {

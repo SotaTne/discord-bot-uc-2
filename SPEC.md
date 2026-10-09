@@ -69,7 +69,7 @@
    - 組分けと除外チームを、**ロールのメンションで**投稿する（Discord が、ロールの名前で見せ、通知もする）。
    - 管理者が、ダッシュボードで対戦枠を「やり直す」と、「21時のマッチングはキャンセルされました」と、取り消された組分けと除外チームを、同じ並びで、ロールのメンションつきで投稿する（チェックで、投稿しないこともできる）。
    - 結果を対戦枠（除外チーム）と `matches`（組分け）に保存する（挙手が足りないときも、処理済みにして、組分けは 0 件で保存する）。組分けは 1 度だけ作る（勝利が紐づくので、作り直さない）。
-5. **cron は毎分**起動する（Cloudflare の Cron Trigger と、外のタイマー〔`apps/cron` の Google Apps Script が、合言葉つきで `POST /cron` を呼ぶ〕のどちらからでも、同じ処理を行う）。時刻が来ていれば、募集開始の投稿と、各対戦枠の締切のマッチングを行う。
+5. **cron は毎分**起動する。外のタイマー（`apps/cron` の Google Apps Script）が、合言葉つきで `POST /cron` を呼ぶ（Cloudflare の Cron Trigger は、使わない）。時刻が来ていれば、募集開始の投稿と、各対戦枠の締切のマッチングを行う。
    - ジョブは `job_runs` で「実行する権利」を取ってから実行する（UNIQUE 制約）。cron が二重に動いても、1回しか実行されない。
    - ジョブが失敗したら、権利を返す。次の cron でやり直す。
    - cron が遅れても取りこぼさないよう、猶予がある。募集開始は N 時から 1 時間、締切のマッチングは K 分前から試合開始の 30 分後まで。猶予を過ぎたら、もう実行しない。
@@ -182,7 +182,7 @@
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - 環境は 3 つ（`apps/worker/wrangler.jsonc`）: 最上位（ローカルの開発用。デプロイは、失敗する）・`staging`（`develop` ブランチ）・`production`（`main` ブランチ）。デプロイは、GitHub Actions（`.github/workflows/cd.yml`）が、ブランチに入ったときに、そのコミットの CI（`ci.yml`）が通ったときだけ、自動で行う（マイグレーションの適用 → `wrangler deploy --env …` → スラッシュコマンドの登録。登録を、デプロイの後にして、「新しいコマンドを、古い Worker が処理できない」期間を、なくす）。マージできるのは、CI が通った PR だけ（ブランチ保護）。秘密（Cloudflare の API トークン、Discord の Bot のトークン）は、GitHub の Environments だけに置き、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す（手動で、Cloudflare に置かない）。公開してよい値（公開鍵、アプリの ID）は、Variables にして、`--var` で渡す。手順は、`README.md`。
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
-- Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
+- cron: `POST /cron`（`Authorization: Bearer <CRON_SECRET>`）。毎分、外のタイマー（`apps/cron`）が呼ぶ。すぐ 202 を返して、処理は `waitUntil` で行う。合言葉が未設定なら、すべて 401。Cloudflare の Cron Trigger は、使わない（`triggers.crons` は、空）。
 - 3 秒制限のある処理は、deferred response と `waitUntil` で行う。
 - Gateway は使わない。Discord へは REST のみ（チャンネル投稿、返信の編集、ロール一覧の取得、コマンド登録）。
 - Bot の権限は最小にする（チャンネルへの投稿。ロール管理は不要）。

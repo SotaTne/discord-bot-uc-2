@@ -35,7 +35,7 @@ describe("POST /cron（外のタイマーが、毎分呼ぶ入口）", () => {
     expect(first.status).toBe(202);
     expect(await first.json()).toEqual({ accepted: true });
     await settle();
-    expect(log).toHaveBeenCalledWith("cron(http):", JSON.stringify({ ran: ["recruit:2026-10-07"], errors: [] }));
+    expect(log).toHaveBeenCalledWith("cron:", JSON.stringify({ ran: ["recruit:2026-10-07"], errors: [] }));
 
     // 2 回目（同じ分に、もう一度呼ばれても）は、二重には行わない（何も行わないときは、ログも出さない）
     log.mockClear();
@@ -52,7 +52,7 @@ describe("POST /cron（外のタイマーが、毎分呼ぶ入口）", () => {
 
     await post(undefined, { now: () => jst("2026-10-07T20:53:30") });
     await settle();
-    expect(log).toHaveBeenCalledWith("cron(http):", expect.stringContaining("cutoff:2026-10-07:21"));
+    expect(log).toHaveBeenCalledWith("cron:", expect.stringContaining("cutoff:2026-10-07:21"));
   });
 
   it("合言葉が違う・ない・メソッドが違うときは、処理を行わない", async () => {
