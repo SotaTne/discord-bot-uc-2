@@ -25,11 +25,6 @@
     "@uc/dashboard#typecheck": {
       "dependsOn": ["@uc/worker#build:types"]
     },
-    // 本番へのデプロイ。worker は、ダッシュボード（@uc/dashboard）に依存しているので、先に、ダッシュボードが、ビルドされる
-    "deploy": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
     "test": {},
     "dev": {
       "cache": false,

@@ -11,7 +11,6 @@
   "scripts": {
     "dev": "mkdir -p node_modules/@uc/dashboard/dist && wrangler dev src/dev/entry.ts",
     "preview": "wrangler dev",
-    "deploy": "wrangler deploy",
     "tunnel": "ngrok http 8787 ${NGROK_URL:+--url=$NGROK_URL}",
     "db:migrate": "wrangler d1 migrations apply uc-bot --local",
     "db:seed": "wrangler d1 execute uc-bot --local --file=.wrangler/dev-seed.sql",

@@ -128,7 +128,7 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm deploy   # ダッシュボードをビルドして、worker をデプロイする
    ```
 
-   worker は、ダッシュボード（`@uc/dashboard`）に、`package.json` で依存している。`pnpm deploy`（`turbo run deploy`）は、その依存から、先にダッシュボードをビルドして（変更がなければ、キャッシュで飛ばす）、`wrangler deploy` を実行する。配信するファイルの場所は、`apps/worker/wrangler.jsonc` の `assets.directory`（`node_modules/@uc/dashboard/dist`）。
+   `pnpm deploy` は、ビルド（`turbo run build`。ダッシュボードのビルド。変更がなければ、キャッシュで飛ばす）のあと、`wrangler deploy` を実行する。worker は、ダッシュボード（`@uc/dashboard`）に、`package.json` で依存していて、配信するファイルの場所は、`apps/worker/wrangler.jsonc` の `assets.directory`（`node_modules/@uc/dashboard/dist`）。
    開発専用のコード（疑似時計・`/dev/*`）は、`apps/worker/src/dev/` に集めてあり、本番の入口（`wrangler.jsonc` の `main` = `src/index.ts`）は、読み込まない。開発（`pnpm dev`）は、別の入口（`wrangler dev src/dev/entry.ts`）で、それを足す。
    デプロイせずに確かめる方法:
    - 本番に近い形で、ローカルで動かす（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。本番の入口なので、開発専用のコードは、ない（`/dev/*` は、404）。
