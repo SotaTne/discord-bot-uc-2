@@ -195,7 +195,7 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ```
 .
 ├─ apps/
-│  ├─ worker/      Hono。/interactions、cron、/api/*、/dev/*（開発専用）、ダッシュボードの静的配信
+│  ├─ worker/      Hono。/interactions、/cron、/api/*、/dev/*（開発専用）、ダッシュボードの静的配信
 │  ├─ dashboard/   Vite + React の管理画面
 │  ├─ cron/        Google Apps Script。毎分、POST /cron を呼ぶ（呼ぶ先と間隔だけ。処理は packages/cron）
 │  └─ mock/        開発専用。疑似 Discord と動作確認ページ
