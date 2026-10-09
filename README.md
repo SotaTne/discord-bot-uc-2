@@ -153,19 +153,27 @@ pnpm register-commands                                    # 全サーバー（�
 
 3. **Discord のアプリは、環境ごとに別にする**（Interactions Endpoint URL が、1つのアプリに、1つしか、設定できないため）。ステージング用に、テスト用のアプリと、テスト用のサーバーを、作る。
 
-4. **GitHub の Environments** を、作る（Settings → Environments）。`staging` と `production`。それぞれに、次を設定する（値は、その環境の、Cloudflare と Discord のアプリのもの）。
+4. **GitHub に、設定を置く**。環境（Settings → Environments → `staging` と `production`）と、リポジトリ全体（Settings → Secrets and variables → Actions）に、分ける。
+   - **置き場の考え方**: 環境で値が違うものと、**秘密**は、環境に置く（環境の Secrets は、「デプロイできるブランチ」を、`develop` / `main` に、限れる。リポジトリの Secrets は、PR のブランチの、書き換えたワークフローからも、読めてしまう）。環境で同じで、秘密ではないものだけを、リポジトリに置く。同じ名前が、両方にあると、環境の値が、優先される。
+
+   **リポジトリの Variables**（共通）
+
+   | 名前 | 内容 |
+   |---|---|
+   | `CLOUDFLARE_ACCOUNT_ID` | アカウントの ID（`pnpm exec wrangler whoami` か、ダッシュボードの Workers & Pages の右側。秘密ではない） |
+
+   **環境の Secrets と Variables**（`staging` と `production` の、それぞれ。値は、その環境の、Cloudflare と Discord のアプリのもの）
 
    | 名前 | 種類 | 内容 |
    |---|---|---|
-   | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。環境ごとに、別のトークンにしてよい |
-   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、これだけ**）。Worker の実行時と、コマンドの登録に、使う |
-   | `CLOUDFLARE_ACCOUNT_ID` | Variable | アカウントの ID（秘密ではない） |
+   | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
+   | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、この2つだけ**）。Worker の実行時と、コマンドの登録に、使う |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
    | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |
 
    - `main` のときは、`DISCORD_GUILD_ID` を、ワークフローが、必ず、空にする（本番は、常に、全サーバーに登録する）。
-   - Deployment branches: `staging` は `develop`、`production` は `main` に、限る（ほかのブランチからは、その環境のシークレットを、使えない）。
+   - 環境の Deployment branches: `staging` は `develop`、`production` は `main` に、限る（ほかのブランチからは、その環境のシークレットを、使えない）。
    - 本番だけ、Required reviewers（承認者）を付けると、本番へのデプロイの前に、承認の画面が出る（任意）。
 
 5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定する（環境ごとのアプリで）。スラッシュコマンドの登録は、CD が、デプロイのたびに行う（手動の登録は、要らない）。
