@@ -35,12 +35,13 @@ pnpm dev
 `pnpm dev` は、準備（`dev:setup`）をしてから、3つをまとめて起動する。
 
 - 準備: モックの鍵を作って `apps/worker/.dev.vars` に公開鍵・ダッシュボードの URL（`PUBLIC_URL`）を設定し、wrangler でローカルの D1 にマイグレーションを適用する。あわせて、疑似 Discord のロール（KMU・UT・NGT・ITF）をチーム、21〜23時を試合時刻として登録する（何度実行しても重複しない）。
-- 起動: ダッシュボードと worker（**1 つの Vite**。画面も API も、同じサーバー・同じオリジン）、疑似 Discord（mock。サーバーと画面）の 2 つ。
+- 起動: worker（`wrangler dev`。開発専用のコードが入る）、ダッシュボード（Vite。`/api` は worker に proxy する）、疑似 Discord（mock。サーバーと画面）。
 
 | URL | 内容 |
 |---|---|
 | http://localhost:8788 | 疑似 Discord の動作確認ページ（同じ場所で、worker が、`/api/v10` も呼ぶ） |
-| http://localhost:5173 | ダッシュボードと worker（1 つの Vite。`/api` も、ここ） |
+| http://localhost:5173 | ダッシュボード（Vite。`/api` は worker に proxy する） |
+| http://localhost:8787 | worker（`wrangler dev`） |
 
 ### 疑似 Discord でできること
 
@@ -56,7 +57,7 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 - 「データを初期化」で、挙手・マッチング・得点・ログイン・メッセージ・時計を、初期状態に戻せる（設定・対戦枠・チームは残る）。
 
 時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示・勝利の未記録の印）が、同じ時計に従う。
-`/dev/*`（時計・状態・cron・初期化）と、疑似時計と、モックの Discord への差し替え（`DISCORD_API_BASE`）は、開発のビルドにだけ入る。本番のビルド（`vite build`）では、ビルド時の定数（`import.meta.env.DEV`）が false になり、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）。
+`/dev/*`（時計・状態・cron・初期化）と、疑似時計と、モックの Discord への差し替え（`DISCORD_API_BASE`）は、開発のビルドにだけ入る。本番のビルド（`wrangler deploy`）では、ビルド時の定数（`import.meta.env.DEV`。`wrangler.jsonc` の `define` の既定が false）で、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）。
 
 ### DB を変えるとき（マイグレーション）
 
@@ -124,11 +125,14 @@ pnpm register-commands                                    # 全サーバー（�
    cd apps/worker
    pnpm exec wrangler d1 migrations apply uc-bot --remote
    cd ../..
-   pnpm deploy   # ダッシュボードと worker をビルドして、デプロイする
+   pnpm deploy   # ダッシュボードをビルドして、worker をデプロイする
    ```
 
-   `pnpm deploy` は、`apps/dashboard` で、`vite build` → `wrangler deploy` を実行する。ダッシュボードの Vite が、Cloudflare のプラグイン（`@cloudflare/vite-plugin`）で、worker（`apps/worker`）も、いっしょにビルドする。配信の設定（assets）は、プラグインが、自動で作る。
-   デプロイせずに確かめるには、`cd apps/dashboard && pnpm exec vite build && pnpm exec wrangler deploy --dry-run` を実行する。
+   worker は、ダッシュボード（`@uc/dashboard`）に、`package.json` で依存している。`pnpm deploy`（`turbo run deploy`）は、その依存から、先にダッシュボードをビルドして（変更がなければ、キャッシュで飛ばす）、`wrangler deploy` を実行する。配信するファイルの場所は、`apps/worker/wrangler.jsonc` の `assets.directory`（`node_modules/@uc/dashboard/dist`）。
+   開発専用のコード（疑似時計・`/dev/*`・モックの Discord への差し替え）は、`wrangler.jsonc` の `define`（`import.meta.env.DEV` が、既定で false）で、デプロイされるコードから、消える。開発（`pnpm dev`）のときだけ、`--define import.meta.env.DEV:true` で、入る。
+   デプロイせずに確かめる方法:
+   - 本番に近い形で、ローカルで動かす（`vite preview` のようなもの）: `pnpm build` のあと、`pnpm --filter @uc/worker preview`。開発専用のコードは、入らない（`/dev/*` は、404）。
+   - ビルドだけ確かめる: `cd apps/worker && pnpm exec wrangler deploy --dry-run --outdir /tmp/out`。
 
 4. Developer Portal の「Interactions Endpoint URL」に `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する。
 5. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。

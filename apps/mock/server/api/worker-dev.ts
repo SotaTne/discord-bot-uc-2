@@ -2,7 +2,7 @@ import type { DevClock, DevSnapshot } from "@uc/api";
 import type { MockState } from "../discord/state";
 
 export type WorkerDevOptions = {
-  /** worker の URL（例: http://localhost:5173） */
+  /** worker の URL（例: http://localhost:8787） */
   workerUrl: string;
   fetch?: typeof fetch;
 };

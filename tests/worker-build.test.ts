@@ -1,68 +1,56 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 // 本番のビルドに、開発専用のコード（疑似時計・/dev/*・モックの Discord への差し替え）が入っていないことを、
-// 実際にビルドして確かめる。ダッシュボードの Vite が、worker も、いっしょにビルドする。
-// dist/uc_bot/index.js が、Cloudflare に出す Worker そのもの。dist/client が、同じ Worker から配信する、ダッシュボード。
+// 実際にビルドして確かめる（`wrangler deploy --dry-run`。ログインは要らない）。
+// 開発専用のコードは、wrangler.jsonc の define（import.meta.env.DEV = false。既定）で、コードごと消える。
+// 画面（ダッシュボード）は、ワークスペースのパッケージ（@uc/dashboard）として、Worker に載る。
 
 const root = join(import.meta.dirname, "..");
-const dashboard = join(root, "apps/dashboard");
-const bundle = join(dashboard, "dist/uc_bot/index.js");
-const builtConfig = join(dashboard, "dist/uc_bot/wrangler.json");
+const outDir = mkdtempSync(join(tmpdir(), "uc-worker-"));
 
 /** 開発専用のコードにだけある文字列（疑似時計・/dev/* のルート） */
-const DEV_ONLY = ["invalid_clock", "getDevClockState", "no_guild", '"/dev"'];
+const DEV_ONLY = ["invalid_clock", "getDevClockState", "no_guild", '"/dev"', "createDevRoutes", "devClock", "env.DISCORD_API_BASE"];
 /** 今は、どこにも書かれていない、古い仕組み（環境変数と、ヘッダーによる疑似時計）の名前。もう、入っていないこと */
 const REMOVED = ["DEV_CLOCK", "X-Dev-Now"];
 /** 本番のコードにある文字列（ビルドが空でないことの確認） */
 const PROD = ["invalid request signature", "unauthorized"];
 
-/** worker をビルドして、できた Worker のコードを返す。mode が development のときだけ、開発専用のコードが入る */
-function build(mode: "production" | "development"): string {
-  execFileSync("pnpm", ["--filter", "@uc/dashboard", "exec", "vite", "build", "--mode", mode], {
-    cwd: root,
-    env: { ...process.env, NODE_ENV: mode },
-    stdio: "pipe",
-  });
-  return readFileSync(bundle, "utf8");
+/** Worker をビルドして（デプロイはしない）、できたコードと、ログを返す。defineDev を渡すと、開発のビルドになる */
+function build(name: string, defineDev?: boolean): { code: string; log: string } {
+  const dir = join(outDir, name);
+  const args = ["--filter", "@uc/worker", "exec", "wrangler", "deploy", "--dry-run", "--outdir", dir];
+  if (defineDev !== undefined) args.push("--define", `import.meta.env.DEV:${defineDev}`);
+  const log = execFileSync("pnpm", args, { cwd: root, encoding: "utf8", stdio: "pipe" });
+  return { code: readFileSync(join(dir, "index.js"), "utf8"), log };
 }
 
-describe("本番のビルド（ダッシュボードと worker）", () => {
-  it("開発のビルドには、開発専用のコードが入る（この確認が、意味を持つことの確認）", () => {
-    const code = build("development");
-
-    for (const text of [...DEV_ONLY, ...PROD]) {
-      expect(code, text).toContain(text);
-    }
+describe("本番のビルド（worker と、載せるダッシュボード）", () => {
+  beforeAll(() => {
+    // 画面のビルド結果（worker が、同じ Worker から配信する）
+    execFileSync("pnpm", ["--filter", "@uc/dashboard", "build"], { cwd: root, stdio: "pipe" });
   }, 120_000);
 
-  it("本番のビルドには、開発専用のコードが、1つも入っていない（疑似時計・/dev/*）。本番のコードは、入っている", () => {
-    const code = build("production");
+  it("開発のビルド（define で、DEV を true にする）には、開発専用のコードが入る（この確認が、意味を持つことの確認）", () => {
+    const { code } = build("dev", true);
+
+    for (const text of [...DEV_ONLY.filter((text) => text !== "env.DISCORD_API_BASE"), ...PROD]) expect(code, text).toContain(text);
+  }, 120_000);
+
+  it("本番のビルド（何も付けない）には、開発専用のコードが、1つも入っていない。本番のコードは、入っている", () => {
+    const { code } = build("prod");
 
     for (const text of [...DEV_ONLY, ...REMOVED]) expect(code, text).not.toContain(text);
     for (const text of PROD) expect(code, text).toContain(text);
   }, 120_000);
 
-  it("ビルド後の設定に、ダッシュボードの静的配信（assets）が、自動で入る。配信するファイルが、実際にある", () => {
-    build("production");
+  it("ダッシュボード（画面）が、静的ファイルとして、同じ Worker に載る（ワークスペースのパッケージ @uc/dashboard の dist）", () => {
+    const { log } = build("assets");
 
-    const config = JSON.parse(readFileSync(builtConfig, "utf8")) as {
-      assets?: { directory: string; not_found_handling?: string; run_worker_first?: string[] };
-      triggers?: { crons?: string[] };
-    };
-    expect(config.assets).toMatchObject({ directory: "../client", not_found_handling: "single-page-application" });
-    // API と Discord は、静的ファイルより先に、worker が処理する
-    expect(config.assets?.run_worker_first).toEqual(expect.arrayContaining(["/api/*", "/interactions"]));
-    expect(existsSync(join(dashboard, "dist/client/index.html"))).toBe(true);
-    // cron は、設定のとおり
-    expect(config.triggers?.crons).toEqual(["* * * * *"]);
+    expect(log).toMatch(/Read \d+ files from the assets directory .*@uc\/dashboard\/dist/);
+    expect(log).not.toMatch(/Read 0 files/);
   }, 120_000);
-
-  it("本番のビルドは、Discord REST の差し替え（DISCORD_API_BASE の環境変数）を、読まない", () => {
-    const code = readFileSync(bundle, "utf8"); // 直前の、本番のビルド
-
-    expect(code).not.toContain("env.DISCORD_API_BASE");
-  });
 });

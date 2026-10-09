@@ -173,11 +173,11 @@
 
 ## 8. Cloudflare 構成
 
-- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ダッシュボードと worker は、**1 つの Vite アプリ**（`apps/dashboard`。Cloudflare のプラグインが、worker〔`apps/worker`〕も、いっしょにビルドする）。開発は、1 つのサーバー（5173）で、画面も API も動く（proxy は、ない）。配信の設定（assets）は、プラグインが、自動で作る。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
+- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ダッシュボード（`apps/dashboard`。Vite）は、ワークスペースのパッケージ。worker（`apps/worker`。wrangler）が、`package.json` で依存して、そのビルド結果（`node_modules/@uc/dashboard/dist`）を、静的アセットとして配信する。ビルドの順序と、キャッシュは、turbo が、依存関係から決める（`pnpm deploy`）。開発は、2 つのサーバー（worker 8787 と、ダッシュボード 5173。`/api` は proxy）。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
-  - `/dev`: 認証はない。開発のビルドにだけ入る（`import.meta.env.DEV` の中だけ。本番のビルドには、コードごと、ない）
+  - `/dev`: 認証はない。開発のビルドにだけ入る（`import.meta.env.DEV` の中だけ。wrangler.jsonc の `define` が、既定で false にして、minify で、コードごと消える）
   - `routes/auth-policy.test.ts` が、登録されたすべてのルートを列挙して、上の方針に合うか（認証なしで 401 / 404 になるか）を確かめる。新しい入口を足すと、方針を書くまで、テストが落ちる
 - D1: 上記テーブル（Drizzle のマイグレーションを、そのまま wrangler で適用する）。R2: 画像。
 - Cron Triggers: 毎分起動（`wrangler.jsonc` の `triggers.crons`）。
@@ -205,7 +205,7 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ```
 
 - `core` は Discord にも Cloudflare にも依存しない。`Clock` は外から注入する。
-- ダッシュボードは worker と**同一オリジン**で配信する（Cookie の `SameSite=Strict` と Origin の検証のため）。開発時も、ダッシュボードと worker は、1 つの Vite（`apps/dashboard`。Cloudflare のプラグインが、worker も動かす）で、同じオリジンから配信する。proxy も、Origin の書き換えも、要らない。
+- ダッシュボードは worker と**同一オリジン**で配信する（Cookie の `SameSite=Strict` と Origin の検証のため）。開発時は、Vite の proxy で `/api` を worker に向ける。そのとき、ブラウザ自身（Vite の画面）の Origin だけを、worker の Origin に書き換える（ほかのサイトの Origin は、書き換えずに渡して、worker に拒否させる）。
 - 画面と API の型は **Hono RPC**（`hc<ApiType>`）で共有する。worker は、API の型を宣言ファイル（`dist/types`）として出力し、dashboard は型だけを参照する（ランタイムの依存は持たない）。
 - 画面の部品は Mantine（表・フォーム・バッジ・確認など。ライト / ダークに対応。見た目の既定は `apps/dashboard/src/theme.ts`）。自前の CSS は、無効な行の取り消し線だけ。Tailwind は使わない。TanStack Start も使わない（Interactions を受ける worker を軽く保つため）。
 
@@ -220,7 +220,7 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 - **擬似 Interactions**: 本物と同じ形式の JSON を、開発用の Ed25519 鍵で署名して worker に送る。worker は本番と同じ署名検証を通る。鍵は `apps/mock/.dev-keys.json` に保存して使い回す（git には入れない）。
 - **擬似 REST**: Discord REST の必要な部分（チャンネル投稿、返信の編集、ロール一覧）を実装する。worker は `DISCORD_API_BASE` を切り替えてモックに向ける。
 - **疑似時計**: 「本物の時刻 + ずれ」。時計は **worker が持つ**（`apps/worker/src/dev/clock.ts`）。mock は、同じ状態を、`PUT /dev/clock` で伝える（worker を作り直したときは、状態を取りに行くたびに、ずれていれば、伝え直す）。時刻へ移っても、時間は進む（固定・停止はしない）。worker 全体（API・Discord・cron）が、この時計に従うので、ダッシュボードの「今」・ログインの期限・勝利の未記録の印も、同じ時計で動く。mock の画面は、「本物より +8時間12分」のように、ずれを出す。時計が動いている間、画面が状態を取りに来るたびに、1 分ごとに、cron の処理を実行する（本物の cron と同じ）。
-- **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発のビルドにだけ入る**。本番のビルドでは、`import.meta.env.DEV` が false になり、ルートも、疑似時計も、`DISCORD_API_BASE` の読み取りも、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）:
+- **開発専用の worker のルート**（`/dev/*`。認証はない）は、**開発のビルドにだけ入る**。本番のビルドでは、`import.meta.env.DEV` が false（`wrangler.jsonc` の `define` の既定）になり、minify で、ルートも、疑似時計も、`DISCORD_API_BASE` の読み取りも、コードごと消える（`tests/worker-build.test.ts` が、実際にビルドして確かめる）:
   - `GET /dev/clock` / `PUT /dev/clock`: 疑似時計の状態（`{ offsetMs }`）と、いまの時刻
   - `POST /dev/tick`: いまの疑似時計で、cron の処理（募集開始・締切）を1回実行する
   - `GET /dev/state`: いまの状態を、まとめて返す（`@uc/api` の `DevSnapshot`）。挙手・チームごとの対戦数と勝利数と得点・マッチング結果・勝利の記録（集計された点数と、そのチームの何試合目か）・cron の予定と履歴・試合ごとの勝利の記録・ログインの状況を含む

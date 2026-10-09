@@ -7,6 +7,6 @@
     "outDir": "dist/types",
     "rootDir": "src"
   },
-  "include": ["src/routes/api.ts", "src/vite-env.d.ts", "worker-configuration.d.ts"],
+  "include": ["src/routes/api.ts", "src/build-env.d.ts", "worker-configuration.d.ts"],
   "exclude": ["src/**/*.test.ts"]
 }
