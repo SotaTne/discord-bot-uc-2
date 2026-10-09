@@ -1,5 +1,5 @@
 import { Badge, Button, CloseButton, Group, NativeSelect, Table, Text, TextInput, UnstyledButton } from "@mantine/core";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { Async, ConfirmButton, ErrorNote, PageTitle, ScreenshotLink, Section, SortableTh, nextSort, type SortDirection } from "../components/ui";
 import { api } from "../lib/api";
@@ -9,14 +9,9 @@ import { useBoard, useInvalidatingMutation, useRoles, useScores, useTeamHistory,
 
 /** チームごとの得点と成績。チームの追加と削除（チームは、Discord のロール） */
 export function TeamsPage() {
-  // 詳細を開いているチームは、URL に持つ（?team=）。いくつでも開ける。開いている行を押すと、そのチームだけ閉じる
-  const { team } = useSearch({ strict: false }) as { team?: number[] };
-  const openIds = team ?? [];
-  const navigate = useNavigate();
-  const toggle = (teamId: number) => {
-    const next = openIds.includes(teamId) ? openIds.filter((id) => id !== teamId) : [...openIds, teamId];
-    void navigate({ to: "/teams", search: next.length > 0 ? { team: next } : {} });
-  };
+  // 詳細を開いているチーム。いくつでも開ける。開いている行を押すと、そのチームだけ閉じる
+  const [openIds, setOpenIds] = useState<number[]>([]);
+  const toggle = (teamId: number) => setOpenIds((current) => (current.includes(teamId) ? current.filter((id) => id !== teamId) : [...current, teamId]));
 
   return (
     <>
