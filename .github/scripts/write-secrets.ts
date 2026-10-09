@@ -1,36 +1,28 @@
 // wrangler の --secrets-file に渡す、シークレットのファイル（NAME=value の行）を作る。CD（.github/workflows/cd.yml）が、node で実行する。
 //
-// 使い方:
-//   node .github/scripts/write-secrets.ts <出力先のファイル> [--required NAME]... [--optional NAME]...
+//   node .github/scripts/write-secrets.ts <出力先のファイル>
 //
-//   --required NAME  環境変数 NAME の値を書く。空なら、エラーにして止まる（デプロイを止める）
-//   --optional NAME  環境変数 NAME の値を書く。空なら、書かない（未登録の秘密は、渡さない）
-//
-// 値は、コマンドの引数ではなく、環境変数から読む（プロセスの一覧や、ログに、値が出ないようにするため）。
+// 渡す秘密の一覧は、下の SECRETS に書く（足すときは、cd.yml の deploy ジョブの env にも、同じ名前を足す。tests/write-secrets.test.ts が、そろっているかを確かめる）。
+// 値は、環境変数から読む（コマンドの引数に出さない）。
 import { chmodSync, writeFileSync } from "node:fs";
 
-export type SecretsSpec = { required: string[]; optional: string[] };
+export type SecretsSpec = {
+  /** 必ず渡す秘密。空なら、エラーにして止まる（デプロイを止める） */
+  required: readonly string[];
+  /** 登録されているときだけ渡す秘密。空なら、書かない */
+  optional: readonly string[];
+};
+
+export const SECRETS: SecretsSpec = {
+  required: ["DISCORD_BOT_TOKEN"],
+  // 未登録の間は、/cron が、すべて断る
+  optional: ["CRON_SECRET"],
+};
+
 type Env = Record<string, string | undefined>;
 
-/** 呼び出し方の間違い（終了コード 2） */
-export class UsageError extends Error {}
-/** 秘密が足りない・使えない値（終了コード 1。デプロイを止める） */
+/** 秘密が足りない・使えない値（デプロイを止める） */
 export class SecretError extends Error {}
-
-const NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
-
-/** `--required NAME --optional NAME ...` を読む */
-export function parseArgs(args: readonly string[]): SecretsSpec {
-  const spec: SecretsSpec = { required: [], optional: [] };
-  for (let index = 0; index < args.length; index += 2) {
-    const option = args[index];
-    const name = args[index + 1];
-    if (option !== "--required" && option !== "--optional") throw new UsageError(`知らないオプションです: ${option}`);
-    if (!name || !NAME_PATTERN.test(name)) throw new UsageError(`${option} に、正しい名前（大文字・数字・_）がありません: ${name ?? ""}`);
-    spec[option === "--required" ? "required" : "optional"].push(name);
-  }
-  return spec;
-}
 
 /** ファイルの中身（NAME=value の行）を作る。必須の秘密が空なら、SecretError */
 export function buildSecretsFile(spec: SecretsSpec, env: Env): string {
@@ -53,27 +45,25 @@ export function buildSecretsFile(spec: SecretsSpec, env: Env): string {
   return lines.map((line) => `${line}\n`).join("");
 }
 
-function main(args: readonly string[], env: Env): number {
-  const [output, ...options] = args;
-  try {
-    if (!output) throw new UsageError("出力先のファイルがありません");
-    const text = buildSecretsFile(parseArgs(options), env);
-    // 自分だけが読めるファイルにする（すでにあるファイルの権限も、変える）
-    writeFileSync(output, text, { mode: 0o600 });
-    chmodSync(output, 0o600);
-    return 0;
-  } catch (error) {
-    if (error instanceof SecretError) {
-      // GitHub Actions の画面に、注釈として出る（標準出力）
-      console.log(`::error::${error.message}`);
-      return 1;
-    }
-    if (error instanceof UsageError) {
-      console.error(`使い方が違います: ${error.message}\n使い方: node write-secrets.ts <出力先のファイル> [--required NAME]... [--optional NAME]...`);
-      return 2;
-    }
-    throw error;
-  }
+/** ファイルに書く。自分だけが読めるファイルにする（すでにあるファイルの権限も、変える） */
+export function writeSecretsFile(path: string, env: Env, spec: SecretsSpec = SECRETS): void {
+  writeFileSync(path, buildSecretsFile(spec, env), { mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
-if (import.meta.main) process.exitCode = main(process.argv.slice(2), process.env);
+if (import.meta.main) {
+  const output = process.argv[2];
+  if (!output) {
+    console.error("使い方: node write-secrets.ts <出力先のファイル>");
+    process.exitCode = 2;
+  } else {
+    try {
+      writeSecretsFile(output, process.env);
+    } catch (error) {
+      if (!(error instanceof SecretError)) throw error;
+      // GitHub Actions の画面に、注釈として出る（標準出力）
+      console.log(`::error::${error.message}`);
+      process.exitCode = 1;
+    }
+  }
+}
