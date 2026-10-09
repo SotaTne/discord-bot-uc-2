@@ -53,7 +53,7 @@ jobs:
       # 必須の秘密が、登録されていなければ、ここで止まる。任意の秘密は、登録されているときだけ渡す（CRON_SECRET は、未登録の間、/cron が、すべて断る）
       - name: シークレットのファイルを、一時的に作る
         run: >
-          .github/scripts/write-secrets.sh "$RUNNER_TEMP/secrets.env"
+          node .github/scripts/write-secrets.ts "$RUNNER_TEMP/secrets.env"
           --required DISCORD_BOT_TOKEN
           --optional CRON_SECRET
       - run: >
