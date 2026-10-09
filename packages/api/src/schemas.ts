@@ -59,12 +59,15 @@ export const matchInputSchema = z
   })
   .refine((value) => value.teamAId !== value.teamBId, { message: "別のチームを選んでください", path: ["teamBId"] });
 
-/** 対戦枠（日付 × 対戦枠）の指定。マッチングの確定と、やり直しに使う */
+/** 対戦枠（日付 × 試合時刻）の指定。マッチングの確定と、やり直しに使う */
 export const matchSlotInputSchema = z.object({
   slotHour: hourSchema,
   /** 省略すると今日 */
   slotDate: dateSchema.optional(),
 });
+
+/** 対戦枠のやり直し。notify（省略は true）が true なら、Discord に、マッチングのキャンセルを投稿する */
+export const matchSlotReopenInputSchema = matchSlotInputSchema.extend({ notify: z.boolean().optional() });
 
 /**
  * 組分けへの、勝利の記録（multipart/form-data）。フォームの値はすべて文字列で届くので、数値に変換する。
@@ -91,6 +94,7 @@ export type SlotInput = z.infer<typeof slotInputSchema>;
 export type TeamInput = z.infer<typeof teamInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 export type MatchSlotInput = z.infer<typeof matchSlotInputSchema>;
+export type MatchSlotReopenInput = z.infer<typeof matchSlotReopenInputSchema>;
 export type MatchInput = z.infer<typeof matchInputSchema>;
 export type AdminHandupInput = z.infer<typeof adminHandupInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;

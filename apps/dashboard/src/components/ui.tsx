@@ -56,6 +56,8 @@ export function ConfirmButton(props: {
   /** 表の行の中などで、場所を取らないように、×の印のボタンにする（読み上げ用の名前は、label） */
   icon?: boolean;
   description?: string;
+  /** ダイアログ（heavy）の中に、説明のあとに出す、追加の部品（チェックなど） */
+  extra?: ReactNode;
 }) {
   const [opened, setOpened] = useState(false);
   const close = () => setOpened(false);
@@ -94,6 +96,7 @@ export function ConfirmButton(props: {
         <Modal opened={opened} onClose={close} title={props.label} centered>
           <Stack gap="md">
             {props.description && <Text size="sm">{props.description}</Text>}
+            {props.extra}
             <Text size="sm" fw={600}>
               本当に実行しますか？
             </Text>

@@ -1,4 +1,4 @@
-import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchWinFormSchema } from "@uc/api";
+import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema, matchWinFormSchema } from "@uc/api";
 import { cutoffJobKey, jstDateOf, matchNumbers, slotPhase } from "@uc/core";
 import {
   addMatch,
@@ -27,6 +27,7 @@ import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { toCoreMatches } from "../scoring/events";
 import { deleteScreenshots } from "../usecases/clear-scores";
+import { matchingCancelledMessage } from "../scheduled/messages";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, WinExistsError, describeWin, addWin } from "../usecases/add-win";
 import { teamNames } from "../usecases/team-names";
@@ -181,12 +182,18 @@ export function createBoardRoutes(deps: ApiDeps) {
     })
 
     // マッチング済みの対戦枠を、未マッチングに戻す。その対戦枠の組分けと勝利（無効なものも）と画像を削除する。挙手は残る
-    .post("/match-slots/reopen", zValidator("json", matchSlotInputSchema), async (c) => {
+    .post("/match-slots/reopen", zValidator("json", matchSlotReopenInputSchema), async (c) => {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");
       const input = c.req.valid("json");
       const now = deps.clock.now();
       const slotDate = input.slotDate ?? jstDateOf(now);
+
+      // キャンセルの投稿に使うので、消す前の、組分けと、組まれなかったチームを、控えておく
+      const before = {
+        slot: await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }),
+        matches: (await listMatchesOnDate(db, { guildId, slotDate })).filter((match) => match.slotHour === input.slotHour),
+      };
 
       const reopened = await reopenMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
       if (!reopened) return c.json({ error: "slot_not_matched" as const }, 409);
@@ -197,7 +204,32 @@ export function createBoardRoutes(deps: ApiDeps) {
       if (slotPhase(now, slotDate, input.slotHour, settings) !== "closed") {
         await releaseJob(db, guildId, cutoffJobKey(slotDate, input.slotHour));
       }
-      return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, deletedWins: reopened.deletedWins });
+
+      // 投稿済みの組分けが、取り消されたことを、Discord に知らせる（組分けの個別の編集では、知らせない）。
+      // 投稿に失敗しても、やり直しは、取り消さない（notified: false で、画面に知らせる）
+      const excludedTeamId = before.slot?.excludedTeamId ?? null;
+      const announced = before.matches.length > 0 || excludedTeamId !== null;
+      let notified = false;
+      let notifyFailed = false;
+      if ((input.notify ?? true) && announced && settings.channelId) {
+        try {
+          const teams = await listTeams(db, guildId, { includeDeleted: true });
+          await createRestFromEnv(c.env).createMessage(settings.channelId, {
+            content: matchingCancelledMessage({
+              hour: input.slotHour,
+              pairs: before.matches.map((match): [string, string] => [String(match.teamAId), String(match.teamBId)]),
+              excluded: excludedTeamId === null ? null : String(excludedTeamId),
+              teamById: new Map(teams.map((team) => [String(team.id), team])),
+            }),
+            allowed_mentions: { parse: ["roles"] },
+          });
+          notified = true;
+        } catch (error) {
+          console.error("マッチングのキャンセルの投稿に失敗しました", error);
+          notifyFailed = true;
+        }
+      }
+      return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, deletedWins: reopened.deletedWins, notified, notifyFailed });
     })
 
     // 組分けに、勝利を追加する（画像つきの multipart/form-data）。有効な記録は、1つの組分けに1件まで

@@ -1,4 +1,4 @@
-import { ActionIcon, Anchor, Badge, Button, CloseButton, FileButton, Group, Input, Modal, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Anchor, Badge, Button, Checkbox, CloseButton, FileButton, Group, Input, Modal, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MAX_POINTS } from "@uc/api";
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -107,8 +107,10 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
     () => unwrap(api["match-slots"].confirm.$post({ json: { slotHour: slot.hour, slotDate: date } })),
     REFRESH,
   );
+  // やり直すとき、Discord に、マッチングのキャンセルを投稿するか（初期は、投稿する）
+  const [notifyCancel, setNotifyCancel] = useState(true);
   const reopen = useInvalidatingMutation(
-    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date } })),
+    () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: notifyCancel } })),
     REFRESH,
   );
   const winCount = slot.matches.filter((match) => match.win).length + slot.matches.reduce((sum, match) => sum + match.deletedWins, 0);
@@ -127,6 +129,15 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           heavy
           description="この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
           danger
+          extra={
+            (slot.matches.length > 0 || slot.excluded !== null) && (
+              <Checkbox
+                label="Discord に、マッチングのキャンセルを投稿する（組まれていたチームに通知します）"
+                checked={notifyCancel}
+                onChange={(event) => setNotifyCancel(event.currentTarget.checked)}
+              />
+            )
+          }
           disabled={reopen.isPending}
           onConfirm={() => reopen.mutate()}
         />
@@ -164,6 +175,11 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             {slotAction}
           </Group>
           <ErrorNote error={confirm.error ?? reopen.error} />
+          {reopen.data?.notifyFailed && (
+            <Text size="sm" c="red" role="alert">
+              やり直しはできましたが、Discord への投稿に失敗しました。必要なら、チームに、直接お知らせください。
+            </Text>
+          )}
           {slot.handups.length === 0 && slot.matched && (
             <Text c="dimmed" size="sm">
               まだありません

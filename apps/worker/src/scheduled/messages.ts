@@ -5,6 +5,26 @@ import type { Team } from "@uc/db";
 export const recruitMessage = (hour: number) => `# ${hour}:00になりましたので、本日の募集を開始します`;
 
 /**
+ * マッチングのキャンセルの投稿（対戦枠のやり直し）。取り消された組分けと、組まれなかったチームを、マッチング結果と同じ並びで出す。
+ * チームは、ロールのメンションで表す（取り消された組分けのチームに、通知される）。
+ */
+export function matchingCancelledMessage(input: {
+  hour: number;
+  pairs: [teamAId: string, teamBId: string][];
+  excluded: string | null;
+  teamById: Map<string, Team>;
+}): string {
+  const mention = (id: string) => {
+    const team = input.teamById.get(id);
+    return team ? `<@&${team.roleId}>` : id;
+  };
+  const lines = [`## ${input.hour}時のマッチングはキャンセルされました`];
+  for (const [a, b] of input.pairs) lines.push(`- ${mention(a)} vs ${mention(b)}`);
+  if (input.excluded) lines.push(`- ${mention(input.excluded)}（マッチングしていませんでした）`);
+  return lines.join("\n");
+}
+
+/**
  * マッチング結果の投稿。チームは、ロールのメンションで表す（組まれたチームと除外されたチームに、通知される）。
  * （挙手が足りないときは、メンションなし）
  */

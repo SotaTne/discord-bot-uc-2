@@ -160,7 +160,7 @@ export async function listMatchedSlots(db: Db, input: { guildId: string; slotDat
   }));
 }
 
-/** その対戦枠（日付 × 対戦枠）で、そのチームが出る試合。なければ undefined（マッチングされていない・対戦していない） */
+/** その対戦枠（日付 × 試合時刻）で、そのチームが出る試合。なければ undefined（マッチングされていない・対戦していない） */
 export async function findMatchForTeam(
   db: Db,
   input: { guildId: string; slotDate: string; slotHour: number; teamId: number },

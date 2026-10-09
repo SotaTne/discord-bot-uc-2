@@ -415,7 +415,48 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
     fireEvent.click(screen.getByRole("button", { name: "組分け2件と勝利2件を削除して、やり直す" }));
 
     await waitFor(() => expect(backend.count("POST", "/api/match-slots/reopen")).toBe(1));
-    expect(backend.last("POST", "/api/match-slots/reopen")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07" });
+    // 投稿のチェックは、初期はオン
+    expect(backend.last("POST", "/api/match-slots/reopen")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07", notify: true });
+  });
+
+  it("やり直しのダイアログに、「Discord に、マッチングのキャンセルを投稿する」のチェックが出る（初期はオン）。外すと、投稿しないことを送る", async () => {
+    const backend = installFakeBackend({
+      ...apis([slot({ matched: true, matches: [match()] })]),
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: false } },
+    });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+    fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
+
+    const check = screen.getByLabelText(/マッチングのキャンセルを投稿する/) as HTMLInputElement;
+    expect(check.checked).toBe(true);
+    fireEvent.click(check);
+    fireEvent.click(screen.getByRole("button", { name: "組分け1件を削除して、やり直す" }));
+
+    await waitFor(() => expect(backend.last("POST", "/api/match-slots/reopen")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07", notify: false }));
+  });
+
+  it("組分けも除外チームもない対戦枠の、やり直しのダイアログには、投稿のチェックは出ない", async () => {
+    installFakeBackend(apis([slot({ matched: true })]));
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
+
+    expect(screen.queryByLabelText(/マッチングのキャンセルを投稿する/)).toBeNull();
+  });
+
+  it("投稿に失敗したときは、やり直しはできたことと、投稿に失敗したことを出す", async () => {
+    installFakeBackend({
+      ...apis([slot({ matched: true, matches: [match()] })]),
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: true } },
+    });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+    fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
+    fireEvent.click(screen.getByRole("button", { name: "組分け1件を削除して、やり直す" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Discord への投稿に失敗しました");
   });
 
   it("組分けも勝利もない対戦枠は、件数を出さずに「やり直しを実行する」だけ", async () => {

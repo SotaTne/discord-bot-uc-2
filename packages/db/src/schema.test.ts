@@ -19,7 +19,7 @@ function insertTeam(_label: string, roleId: string, guildId = GUILD): number {
   return Number(result.lastInsertRowid);
 }
 
-/** 対戦枠（日付 × 対戦枠）。同じものがあれば、それを使う */
+/** 対戦枠（日付 × 試合時刻）。同じものがあれば、それを使う */
 function matchSlotId(slotHour = 21, slotDate = "2026-10-07"): number {
   db.prepare("INSERT OR IGNORE INTO match_slots (guild_id, slot_date, slot_hour, created_at) VALUES (?, ?, ?, ?)").run(
     GUILD,

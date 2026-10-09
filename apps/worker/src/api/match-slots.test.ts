@@ -1,6 +1,6 @@
 import { createHandup, defaultGuildSettings, saveGuildSettings } from "@uc/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ALICE, GUILD_ID, jst } from "../test-helpers";
+import { ALICE, GUILD_ID, KMU_ROLE, UT_ROLE, jst } from "../test-helpers";
 import { createApiHarness, type ApiHarness } from "./harness";
 
 let h: ApiHarness;
@@ -100,6 +100,66 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
     expect([...h.r2.objects.keys()]).toHaveLength(0);
     expect((await confirm()).status).toBe(200);
     expect((await slotOf(21)).matches).toHaveLength(1);
+  });
+
+  it("やり直すと、Discord に、マッチングのキャンセルを投稿する（取り消された組分けのチームに、通知する）", async () => {
+    const posted = await withChannel();
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+    posted.length = 0;
+
+    const result = await reopen();
+
+    expect(result.body).toMatchObject({ ok: true, notified: true });
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toBe(["## 21時のマッチングはキャンセルされました", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"));
+  });
+
+  it("組まれなかったチームも、キャンセルの投稿に出す", async () => {
+    const posted = await withChannel();
+    await raise(h.seeded.kmuId);
+    await confirm();
+    posted.length = 0;
+
+    await reopen();
+
+    expect(posted[0]).toBe(["## 21時のマッチングはキャンセルされました", `- <@&${KMU_ROLE}>（マッチングしていませんでした）`].join("\n"));
+  });
+
+  it("notify: false なら、投稿しない。組分けも除外チームもない対戦枠は、投稿しない", async () => {
+    const posted = await withChannel();
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+    await confirm(22);
+    posted.length = 0;
+
+    const quiet = await h.json<{ notified?: boolean }>("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour: 21, notify: false } });
+    const empty = await reopen(22);
+
+    expect(quiet.body.notified).toBe(false);
+    expect(empty.body).toMatchObject({ ok: true });
+    expect(posted).toEqual([]);
+  });
+
+  it("チャンネルが未設定なら、投稿しない。投稿に失敗しても、やり直しは、取り消さない（notified: false）", async () => {
+    await raise(h.seeded.kmuId);
+    await raise(h.seeded.utId);
+    await confirm();
+    expect((await reopen()).body).toMatchObject({ ok: true, notified: false, notifyFailed: false });
+
+    await withChannel();
+    await confirm();
+    const base = globalThis.fetch;
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) =>
+      String(input instanceof Request ? input.url : input).endsWith("/messages") ? new Response("{}", { status: 500 }) : base(input, init),
+    );
+
+    const failed = await reopen();
+
+    expect(failed).toMatchObject({ status: 200, body: { notified: false, notifyFailed: true } });
+    expect((await slotOf(21)).matched).toBe(false);
   });
 
   it("未マッチングの対戦枠は 409（slot_not_matched）。ほかの対戦枠は、変わらない", async () => {
