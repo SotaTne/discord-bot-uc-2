@@ -20,9 +20,16 @@ describe("ガイド", () => {
     expect(toc.getByRole("link", { name: "得点の数え方" }).getAttribute("href")).toBe("#得点の数え方");
     expect(document.getElementById("得点の数え方")).not.toBeNull();
 
-    const table = within(screen.getByRole("table", { name: "コマンド一覧" }));
-    expect(table.getAllByRole("row")).toHaveLength(commands.length + 1);
-    expect(table.getByText("/uc-admin-win time team-role point image [date]")).toBeTruthy();
+    const list = within(screen.getByRole("list", { name: "コマンド一覧" }));
+    expect(list.getAllByRole("listitem")).toHaveLength(commands.length);
+    expect(list.getByText("/uc-admin-win time team-role point image [date]")).toBeTruthy();
+
+    // 引数は、コマンドごとの表で、型・必須・範囲つきで出る
+    const winArgs = within(list.getByRole("table", { name: "/uc-admin-win の引数" }));
+    const rows = winArgs.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+    expect(rows[0]).toEqual(["time", "整数", "必須", "試合の開始時刻（時）（0〜23）"]);
+    expect(rows.at(-1)?.slice(0, 3)).toEqual(["date", "文字列", "省略できる"]);
+    expect(list.getAllByText("引数はない").length).toBeGreaterThan(0);
     expect(screen.queryByText(COMMANDS_MARKER)).toBeNull();
   });
 

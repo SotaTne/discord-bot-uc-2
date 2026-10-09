@@ -1,6 +1,9 @@
 import { ApplicationCommandOptionType as OptionType } from "./types";
 
-type CommandOption = {
+/** オプションの型（ガイドで、引数の型を表示するために使う） */
+export { OptionType as CommandOptionType };
+
+export type CommandOption = {
   name: string;
   description: string;
   type: number;
