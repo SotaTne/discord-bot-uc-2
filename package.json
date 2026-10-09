@@ -11,6 +11,7 @@
     "build": "turbo run build",
     "dev": "pnpm dev:setup && turbo run dev",
     "dev:setup": "pnpm --filter @uc/mock run setup-dev && pnpm --filter @uc/worker run db:migrate && pnpm --filter @uc/worker run db:seed",
+    "deploy": "turbo run build && pnpm --filter @uc/worker exec wrangler deploy",
     "tunnel": "pnpm --filter @uc/worker tunnel",
     "typecheck": "turbo run typecheck",
     "test": "vitest run && turbo run test",

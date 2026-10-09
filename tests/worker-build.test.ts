@@ -44,6 +44,20 @@ describe("worker のビルド（本番に出すもの）", () => {
     for (const text of PROD) expect(code, text).toContain(text);
   }, 120_000);
 
+  it("ビルド後の設定に、ダッシュボードの静的配信（assets）を足す。/dev/* は、worker を先に呼ぶ対象から外す", () => {
+    build("production");
+    execFileSync("node", ["scripts/add-dashboard-assets.mjs"], { cwd: worker, stdio: "pipe" });
+
+    const config = JSON.parse(readFileSync(join(worker, "dist/uc_bot/wrangler.json"), "utf8")) as {
+      assets?: { directory: string; not_found_handling?: string; run_worker_first?: string[] };
+    };
+    expect(config.assets).toEqual({
+      directory: "../../../dashboard/dist",
+      not_found_handling: "single-page-application",
+      run_worker_first: ["/api/*", "/interactions"],
+    });
+  }, 120_000);
+
   it("本番のビルドは、Discord REST の差し替え（DISCORD_API_BASE の環境変数）を、読まない", () => {
     const code = readFileSync(bundle, "utf8"); // 直前の、本番のビルド
 

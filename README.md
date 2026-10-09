@@ -119,13 +119,17 @@ pnpm register-commands                                    # 全サーバー（�
    pnpm exec wrangler secret put DISCORD_APPLICATION_ID
    ```
 
-3. マイグレーションを適用して、ダッシュボードをビルドし、デプロイする。
+3. マイグレーションを適用して、デプロイする。ダッシュボードも、同じ Worker から、静的ファイルとして配信される（Cloudflare Workers の静的アセット。Cookie の `SameSite=Strict` と、同一オリジンのため）。
 
    ```bash
+   cd apps/worker
    pnpm exec wrangler d1 migrations apply uc-bot --remote
-   pnpm --filter @uc/dashboard build
-   pnpm --filter @uc/worker deploy
+   cd ../..
+   pnpm deploy   # ダッシュボードと worker をビルドして、デプロイする
    ```
+
+   `pnpm deploy` は、ダッシュボードのビルド → worker のビルド（Vite）→ ダッシュボードの配信設定（assets）を足す（`apps/worker/scripts/add-dashboard-assets.mjs`）→ `wrangler deploy` の順に動く。assets を足す手順がないと、ダッシュボードが配信されない（Vite のビルドが、設定から assets を落とすため）。
+   デプロイせずに確かめるには、`pnpm build` のあと、`cd apps/worker && pnpm exec wrangler deploy --dry-run` を実行する。
 
 4. Developer Portal の「Interactions Endpoint URL」に `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する。
 5. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。

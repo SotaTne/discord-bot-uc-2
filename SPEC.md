@@ -173,7 +173,7 @@
 
 ## 8. Cloudflare 構成
 
-- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets）。
+- Workers（Hono）: Interactions Endpoint（Ed25519 署名検証）、ダッシュボード用 JSON API（`/api`）、ダッシュボードの静的配信（Workers Static Assets。同じ Worker から配信する）。ビルドは、ダッシュボード → worker（Vite）→ 配信設定（assets）の追加（`apps/worker/scripts/add-dashboard-assets.mjs`）の順。`/api/*` と `/interactions` は、assets より先に、worker が処理する。
 - 認証は、すべて middleware（`apps/worker/src/middleware/`）で行い、通った結果を `c.var` に入れる。処理は、通ったあとのものだけを使う。
   - `/api`: 原則はすべて認証あり（`requireSession` → `c.var.auth`）。公開するパスは、許可リスト（`PUBLIC_API_PATHS`: `/health`・`/health/db`・`/login`・`/logout`）だけ。新しいルートは、足すだけで、認証が掛かる。状態を変える操作は、同じオリジンだけ（`originGuard`）
   - `/interactions`: Discord の署名（`verifyDiscordRequest` → `c.var.interaction`）。署名の時刻（`X-Signature-Timestamp`）が、本物の時刻の前後 5 分以内でなければ、署名が正しくても 401（盗まれた署名つきのリクエストを、あとから送り直せない。再送攻撃への対策。判定には、疑似時計でなく、本物の時刻を使う）
