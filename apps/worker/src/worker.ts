@@ -14,7 +14,9 @@ export function createWorker(app: Pick<Hono<{ Bindings: AppEnv }>, "fetch">, clo
     fetch: app.fetch,
 
     /** cron（毎分）。募集開始の投稿と、試合の K 分前の締切（マッチングの確定）を行う */
-    async scheduled(_controller, env, ctx) {
+    async scheduled(controller, env, ctx) {
+      // 動いているかを、tail で確かめられるように、何も実行しなかった回も、1 行だけ残す
+      console.log("cron: 発火", new Date(controller.scheduledTime).toISOString());
       ctx.waitUntil(
         runScheduled({ db: createDb(env.DB), rest: createRestFromEnv(env), clock }).then((summary) => {
           if (summary.ran.length > 0 || summary.errors.length > 0) {
