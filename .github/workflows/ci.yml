@@ -1,6 +1,6 @@
 # CI（型の確認・テスト・マイグレーションの整合性）。
 # - develop・main への PR で動く。この「ci」のチェックを、ブランチ保護で、マージの必須条件にする
-# - deploy.yml からも呼ばれる（develop・main への push）。通ったときだけ、デプロイに進む
+# - cd.yml からも呼ばれる（develop・main への push）。通ったときだけ、デプロイに進む
 name: ci
 
 on:
@@ -20,9 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Node と pnpm は、mise.toml のバージョンを使う（手元と同じ）
-      - uses: jdx/mise-action@v2
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       # 型の確認と、すべてのテスト（本番のビルドに、開発専用のコードが入っていないことの確認を含む）
       - run: pnpm check
       # マイグレーションの履歴の整合性（ブランチ間で、番号が衝突していないか、など）

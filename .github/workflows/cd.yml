@@ -1,0 +1,57 @@
+# CD。develop に入ったらステージング、main に入ったら本番へ。
+# CI が通ったときだけ進む（そのコミットの CI。ブランチ保護の抜け道があっても、止まる）。
+# 環境ごとの設定（Cloudflare の API トークン、Discord のトークンなど）は、GitHub の Environments（staging・production）に置く。
+#
+# 順序: ci → deploy（マイグレーション → Worker）→ register-commands（スラッシュコマンドの登録）
+# 登録を、デプロイの「後」にする理由: 先に登録すると、「新しいコマンドが画面に出るのに、古い Worker が処理できない」期間が、できる。
+# 後なら、失敗しても、古いコマンドが動き続けるだけ（登録は、独立したジョブなので、そこだけ再実行できる）。
+name: cd
+
+on:
+  push:
+    branches: [develop, main]
+
+# 同じブランチのデプロイは、順番に処理する（途中のデプロイを、止めない）
+concurrency:
+  group: cd-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    # ブランチから、環境を決める（develop → staging、main → production）
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      DEPLOY_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # ダッシュボードをビルドする（worker が、同じ Worker から、静的ファイルとして配信する）
+      - run: pnpm build
+      # マイグレーションを、先に適用する。新しい DB で、古いコードが動く形にしておくこと（README の「DB を変えるとき」）
+      - run: pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
+      - run: pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
+
+  # スラッシュコマンドを、Discord に登録する（毎回、全部を、上書きする。何度実行しても、同じ結果）
+  register-commands:
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
+      # 指定すると、そのサーバーだけに登録する（すぐに反映される）。ステージング向け。本番は、設定しない（全サーバー）
+      DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm register-commands

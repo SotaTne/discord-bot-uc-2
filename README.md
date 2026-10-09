@@ -113,9 +113,14 @@ pnpm register-commands                                    # 全サーバー（�
 3. `develop` → `main` の PR（リリースの PR）を、マージする（**マージコミット**。スカッシュにすると、次のリリースで、同じ変更が重複して見える）。本番に出る。
 4. 緊急の修正は、`main` から、ブランチを切って、`main` に PR。マージしたあと、`develop` に、取り込む。
 
-ワークフローは、2つ（`.github/workflows/`）。
+ワークフローは、2つ（`.github/workflows/`）と、共通のセットアップ（`.github/actions/setup`。Node・pnpm のバージョンは `mise.toml`。pnpm のパッケージ、mise のツール、turbo の結果を、キャッシュする）。
 - **`ci.yml`**: `develop` と `main` への PR で動く。型の確認とテスト（`pnpm check`）と、マイグレーションの履歴の確認（`drizzle-kit check`）。
-- **`deploy.yml`**: `develop` と `main` に、コミットが入ったとき（マージされたとき）に動く。まず、**そのコミットの CI**（`ci.yml`）を動かし、通ったときだけ、デプロイする（ビルド → マイグレーションの適用 → `wrangler deploy --env …`）。同じブランチのデプロイは、順番に処理する。
+- **`cd.yml`**: `develop` と `main` に、コミットが入ったとき（マージされたとき）に動く。順序は、次のとおり。
+  1. **`ci`**: そのコミットの CI（`ci.yml`）。通ったときだけ、次へ進む。
+  2. **`deploy`**: ビルド → マイグレーションの適用 → `wrangler deploy --env …`。
+  3. **`register-commands`**: スラッシュコマンドを、Discord に登録する（`pnpm register-commands`。毎回、全部を、上書きする）。
+  同じブランチのデプロイは、順番に処理する。
+  **登録を、デプロイの後にする理由**: 先に登録すると、「新しいコマンドが画面に出るのに、古い Worker が処理できない」期間ができる。後なら、登録が失敗しても、古いコマンドが、動き続けるだけ。登録は、独立したジョブなので、失敗したときは、GitHub の「Re-run failed jobs」で、そこだけを、やり直せる。
 
 **ブランチ保護**（GitHub の Settings → Branches。`develop` と `main` の両方）:
 - Require a pull request before merging（直接の push を、禁止する）
@@ -157,16 +162,18 @@ pnpm register-commands                                    # 全サーバー（�
 4. **GitHub の Environments** を、作る（Settings → Environments）。`staging` と `production`。それぞれに、Secrets を設定する。
    - `CLOUDFLARE_API_TOKEN`: Cloudflare の API トークン。Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。環境ごとに、別のトークンにしてよい。
    - `CLOUDFLARE_ACCOUNT_ID`: アカウントの ID。
+   - `DISCORD_BOT_TOKEN` と `DISCORD_APPLICATION_ID`: コマンドの登録に使う（その環境の、Discord のアプリのもの。Worker の実行時の同名のシークレット（手順 2）と、同じ値）。
+   - Variables: `DISCORD_GUILD_ID`（任意）。指定すると、そのサーバーだけに登録する（すぐに反映される）。ステージング向け。本番は、設定しない（全サーバー）。
    - Deployment branches: `staging` は `develop`、`production` は `main` に、限る（ほかのブランチからは、その環境のシークレットを、使えない）。
    - 本番だけ、Required reviewers（承認者）を付けると、本番へのデプロイの前に、承認の画面が出る（任意）。
 
-5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定し、`pnpm register-commands` を実行する（環境ごとのアプリで）。
+5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定する（環境ごとのアプリで）。スラッシュコマンドの登録は、CD が、デプロイのたびに行う（手動の登録は、要らない）。
 6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
 cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。
 
-**DB の変更は、後ろ向きの互換を保つ**: マイグレーションは、コードより先に適用される。新しい DB で、古いコードが、動く形にする（列や表の、削除と名前の変更は、2回に分けて出す）。
+**後ろ向きの互換を保つ**: マイグレーションは、コードより先に適用され、コマンドの登録は、コードより後になる。そのため、新しい DB で、古いコードが、動くようにする（列や表の、削除と名前の変更は、2回に分けて出す）。コマンドも、同じ考え方で、コードが、古い定義と新しい定義の、両方を処理できる状態を、保つ（コマンドや必須のオプションの削除は、2回に分けて出す）。
 
 ### デプロイせずに確かめる
 - ビルドだけ（ログインは要らない）: `pnpm build` のあと、`cd apps/worker && pnpm exec wrangler deploy --env production --dry-run --outdir /tmp/out`

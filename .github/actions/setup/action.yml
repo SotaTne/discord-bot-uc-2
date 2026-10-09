@@ -1,0 +1,29 @@
+name: setup
+description: Node と pnpm（mise.toml のバージョン）、依存のインストール、キャッシュ
+
+runs:
+  using: composite
+  steps:
+    # Node と pnpm は、mise.toml のバージョンを使う（手元と同じ）。インストールしたツールは、mise-action が、キャッシュする
+    - uses: jdx/mise-action@v2
+
+    # pnpm のパッケージの保存場所。pnpm-lock.yaml が同じなら、ダウンロードを省く
+    - name: pnpm の保存場所
+      id: pnpm-store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-
+
+    # turbo のキャッシュ（型の確認・テスト・ビルドの結果）。入力が同じタスクは、再実行しない
+    - uses: actions/cache@v4
+      with:
+        path: .turbo/cache
+        key: turbo-${{ runner.os }}-${{ github.sha }}
+        restore-keys: turbo-${{ runner.os }}-
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash
