@@ -50,28 +50,12 @@ jobs:
       - run: pnpm --filter @uc/worker exec wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
       # シークレットは、デプロイと一緒に、Cloudflare に渡す（GitHub が、唯一の置き場。Cloudflare に、手動で置かない）。
       # --secrets-file は、足すだけ（消えない）。消すときは、wrangler secret delete
+      # 必須の秘密が、登録されていなければ、ここで止まる。任意の秘密は、登録されているときだけ渡す（CRON_SECRET は、未登録の間、/cron が、すべて断る）
       - name: シークレットのファイルを、一時的に作る
-        run: |
-          secrets_file="$RUNNER_TEMP/secrets.env"
-          : > "$secrets_file"
-
-          # 必須の秘密。登録されていなければ、ここでデプロイを止める
-          for name in DISCORD_BOT_TOKEN; do
-            value="${!name}"
-            if [ -z "$value" ]; then
-              echo "::error::${name} が、この環境の Secrets に登録されていません"
-              exit 1
-            fi
-            printf '%s=%s\n' "$name" "$value" >> "$secrets_file"
-          done
-
-          # 任意の秘密。登録されているときだけ渡す（未登録の間は、/cron が、すべて断る）
-          for name in CRON_SECRET; do
-            value="${!name}"
-            if [ -n "$value" ]; then
-              printf '%s=%s\n' "$name" "$value" >> "$secrets_file"
-            fi
-          done
+        run: >
+          .github/scripts/write-secrets.sh "$RUNNER_TEMP/secrets.env"
+          --required DISCORD_BOT_TOKEN
+          --optional CRON_SECRET
       - run: >
           pnpm --filter @uc/worker exec wrangler deploy --env "$DEPLOY_ENV"
           --secrets-file "$RUNNER_TEMP/secrets.env"
