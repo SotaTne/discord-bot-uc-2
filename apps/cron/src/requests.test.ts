@@ -1,31 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { CRON_INTERVAL_MINUTES, TARGETS, secretPropertyOf } from "./config";
+import { CRON_INTERVAL_MINUTES, TARGETS } from "./config";
 import { buildRequests, describeResponse } from "./requests";
 
 const staging = TARGETS[0]!;
 
 describe("buildRequests", () => {
-  it("合言葉があるところだけ、Bearer を付けた POST を作る。ないところは、missing に入れる", () => {
-    const { requests, missing } = buildRequests(TARGETS, (property) => (property === secretPropertyOf(staging) ? "s3cret" : null));
+  it("呼ぶ先ごとに、同じ合言葉の Bearer を付けた POST を作る", () => {
+    const requests = buildRequests(TARGETS, "s3cret");
 
-    expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ url: staging.url, options: { method: "post", headers: { Authorization: "Bearer s3cret" }, muteHttpExceptions: true } });
-    expect(missing.map((target) => target.name)).toEqual(["production"]);
+    expect(requests?.map((request) => request.url)).toEqual(TARGETS.map((target) => target.url));
+    for (const request of requests ?? []) {
+      expect(request.options).toEqual({ method: "post", headers: { Authorization: "Bearer s3cret" }, muteHttpExceptions: true });
+    }
   });
 
-  it("空の合言葉は、ないものとして扱う", () => {
-    expect(buildRequests(TARGETS, () => "").requests).toEqual([]);
+  it("合言葉がない（未設定・空）ときは、何も作らない", () => {
+    expect(buildRequests(TARGETS, null)).toBeNull();
+    expect(buildRequests(TARGETS, "")).toBeNull();
   });
 });
 
 describe("config", () => {
-  it("URL は、https の /cron で終わる。名前は重ならない（合言葉のプロパティの名前が、名前から決まるため）", () => {
+  it("URL は、https の /cron で終わる。名前は重ならない", () => {
     for (const target of TARGETS) expect(new URL(target.url)).toMatchObject({ protocol: "https:", pathname: "/cron" });
     expect(new Set(TARGETS.map((target) => target.name)).size).toBe(TARGETS.length);
-  });
-
-  it("合言葉のプロパティの名前は、名前を大文字にして決まる", () => {
-    expect(secretPropertyOf(staging)).toBe("CRON_SECRET_STAGING");
   });
 
   it("間隔は、Apps Script の時間トリガーが使える値（1・5・10・15・30 分）", () => {

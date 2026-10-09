@@ -1,6 +1,6 @@
 /** cron を起こす先（ステージングと本番）。Apps Script は 1 つだけなので、ここを変えて `pnpm push` すると、両方に、すぐ反映される */
 export type Target = {
-  /** ログに出す名前。合言葉を入れるスクリプトのプロパティの名前も、これから決まる（secretPropertyOf） */
+  /** ログに出す名前 */
   name: string;
   /** POST /cron の URL（Worker の公開 URL + /cron） */
   url: string;
@@ -14,5 +14,5 @@ export const TARGETS: readonly Target[] = [
   { name: "production", url: "https://uc-bot.motarou-engineer.workers.dev/cron" },
 ];
 
-/** 合言葉（Worker の CRON_SECRET と同じ値）を入れる、スクリプトのプロパティの名前。例: staging → CRON_SECRET_STAGING */
-export const secretPropertyOf = (target: Target) => `CRON_SECRET_${target.name.toUpperCase()}`;
+/** 合言葉（Worker の CRON_SECRET と同じ値）を入れる、スクリプトのプロパティの名前。全部の呼ぶ先で、同じ合言葉を使う */
+export const SECRET_PROPERTY = "CRON_SECRET";

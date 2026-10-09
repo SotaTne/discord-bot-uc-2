@@ -1,4 +1,4 @@
-import { CRON_INTERVAL_MINUTES, TARGETS, secretPropertyOf } from "./config";
+import { CRON_INTERVAL_MINUTES, SECRET_PROPERTY, TARGETS } from "./config";
 import { buildRequests, describeResponse } from "./requests";
 
 /**
@@ -6,11 +6,11 @@ import { buildRequests, describeResponse } from "./requests";
  * 待ち時間は、いちばん遅い 1 件の分だけで済む（1 日の実行時間の上限に、収めるため）
  */
 function tick() {
-  const properties = PropertiesService.getScriptProperties();
-  const { requests, missing } = buildRequests(TARGETS, (property) => properties.getProperty(property));
-
-  for (const target of missing) console.error(`${target.name}: 合言葉（スクリプトのプロパティ ${secretPropertyOf(target)}）が、設定されていません`);
-  if (requests.length === 0) return;
+  const requests = buildRequests(TARGETS, PropertiesService.getScriptProperties().getProperty(SECRET_PROPERTY));
+  if (!requests) {
+    console.error(`合言葉（スクリプトのプロパティ ${SECRET_PROPERTY}）が、設定されていません`);
+    return;
+  }
 
   try {
     const responses = UrlFetchApp.fetchAll(requests.map(({ url, options }) => ({ url, ...options })));

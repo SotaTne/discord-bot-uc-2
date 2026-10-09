@@ -169,7 +169,7 @@ pnpm register-commands                                    # 全サーバー（�
    |---|---|---|
    | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
    | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン。Worker の実行時と、コマンドの登録に、使う |
-   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**環境ごとに、別の値**にする。同じ値を、`apps/cron` の Apps Script のプロパティにも、登録する |
+   | `CRON_SECRET` | Secret | `POST /cron` の合言葉。長いランダムな文字列（例: `openssl rand -base64 32`）。**ステージングと本番で、同じ値**を登録する（Apps Script が、1 つの合言葉で、両方を呼ぶため）。同じ値を、`apps/cron` の Apps Script のプロパティにも、登録する。秘密なので、リポジトリではなく、環境に置く |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
    | `DISCORD_GUILD_ID` | Variable | **`staging` だけ**。コマンドを、そのサーバーだけに登録する（すぐに反映される）。サーバー ID は、Discord の開発者モードで、サーバーを右クリックして、コピーする。`production` には、設定しない |
