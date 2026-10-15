@@ -19,40 +19,28 @@ export function parseWaitingCustomId(customId: string): { action: WaitingAction;
 
 const row = (...buttons: ActionRow["components"]): ActionRow[] => [{ type: 1, components: buttons }];
 
-/** 奇数で組まれなかったチームへの案内（「待機する」のボタンつき） */
-export function waitingOfferMessage(input: { hour: number; excluded: Team; slotDate: string }) {
-  return {
-    content: [
-      `${teamMention(input.excluded)} 挙手が奇数だったため、${input.hour}時は組まれませんでした。`,
-      `待機すると、${input.hour}:00 まで、対戦したいチームを募集します。待機しなければ、この対戦枠は、このまま終わります。`,
-    ].join("\n"),
-    components: row({ type: 2, style: 3, label: "待機する", custom_id: waitingCustomId("wait", input.slotDate, input.hour) }),
-  };
-}
-
-/** 待機が始まったときの、案内の本文（「対戦する」「待機をキャンセル」のボタンつき） */
-export function waitingStartedMessage(input: { hour: number; excluded: Team; slotDate: string }) {
-  return {
-    content: [
-      `${teamMention(input.excluded)} が待機中です（${input.hour}時）。`,
-      `対戦したいチームは、${input.hour}:00 までに「対戦する」を押してください（先着 1 チーム）。`,
-    ].join("\n"),
-    components: row(
-      { type: 2, style: 1, label: "対戦する", custom_id: waitingCustomId("join", input.slotDate, input.hour) },
-      { type: 2, style: 2, label: "待機をキャンセル", custom_id: waitingCustomId("wait-cancel", input.slotDate, input.hour) },
-    ),
-  };
-}
-
 /**
- * 待機が取り消されたときの、案内の本文。最初の案内（「待機する」ボタンつき）に戻す。
- * 試合の開始までは、何度でも、待機し直せるように、ボタンを残す。
+ * 奇数で組まれなかったチームへの案内（1 つのメッセージを、状態に合わせて、編集し続ける）。
+ * 本文は、いつも同じ。「待機する」のボタンも、いつも表示する。
+ * 待機中のときだけ、その下に、「対戦する」「待機をキャンセル」を出す（キャンセルすると、消える）。
  */
-export function waitingCancelledMessage(input: { hour: number; excluded: Team; slotDate: string }) {
-  const offer = waitingOfferMessage(input);
+export function waitingMessage(input: { hour: number; excluded: Team; slotDate: string; waiting: boolean }) {
+  const mention = teamMention(input.excluded);
+  const rows: ActionRow[] = [
+    ...row({ type: 2, style: 3, label: "待機する", custom_id: waitingCustomId("wait", input.slotDate, input.hour) }),
+    ...(input.waiting
+      ? row(
+          { type: 2, style: 1, label: "対戦する", custom_id: waitingCustomId("join", input.slotDate, input.hour) },
+          { type: 2, style: 2, label: "待機をキャンセル", custom_id: waitingCustomId("wait-cancel", input.slotDate, input.hour) },
+        )
+      : []),
+  ];
   return {
-    content: [`${teamMention(input.excluded)} の待機は取り消されました（${input.hour}時）。`, offer.content].join("\n"),
-    components: offer.components,
+    content: [
+      `${mention} 挙手が奇数だったため、${input.hour}時は組まれませんでした。`,
+      `待機すると、${input.hour}:00 まで、${mention} と対戦したいチームを募集します。待機しなければ、この対戦枠は、このまま終わります。`,
+    ].join("\n"),
+    components: rows,
   };
 }
 

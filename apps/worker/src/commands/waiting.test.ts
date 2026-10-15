@@ -85,12 +85,19 @@ describe("継続募集: ボタン", () => {
   const CANCEL = `wait-cancel:${DATE}:21`;
   const JOIN = `join:${DATE}:21`;
 
-  it("「待機する」: 組まれなかったチームが押すと、待機が始まる。案内は、「対戦する」「待機をキャンセル」に変わり、通知先に知らせる", async () => {
+  /** 案内の本文（いつも同じ） */
+  const OFFER_TEXT = [
+    `<@&${NGT_ROLE}> 挙手が奇数だったため、21時は組まれませんでした。`,
+    `待機すると、21:00 まで、<@&${NGT_ROLE}> と対戦したいチームを募集します。待機しなければ、この対戦枠は、このまま終わります。`,
+  ].join("\n");
+  const buttons = (response: Awaited<ReturnType<typeof press>>) => response.data?.components?.map((row) => row.components.map((b) => b.label));
+
+  it("「待機する」: 組まれなかったチームが押すと、待機が始まる。本文は同じまま、「待機する」の下に、「対戦する」「待機をキャンセル」が出る。通知先に知らせる", async () => {
     const response = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
 
     expect((await slotOf()).waitingSince).toBe(jst("2026-10-07T20:56:00").getTime());
-    expect(contentOf(response)).toContain(`<@&${NGT_ROLE}> が待機中です（21時）`);
-    expect(response.data?.components?.[0]?.components.map((b) => b.label)).toEqual(["対戦する", "待機をキャンセル"]);
+    expect(contentOf(response)).toBe(OFFER_TEXT);
+    expect(buttons(response)).toEqual([["待機する"], ["対戦する", "待機をキャンセル"]]);
     expect(posted).toHaveLength(1);
     expect(posted[0]?.content).toContain("# 21時の対戦相手を募集しています");
   });
@@ -109,32 +116,43 @@ describe("継続募集: ボタン", () => {
     expect((await slotOf()).waitingSince).toBeNull();
   });
 
-  it("「待機をキャンセル」: 待機しているチームが押すと、待機が終わる。組まれなかったチームは、そのまま", async () => {
+  it("「待機をキャンセル」: 待機しているチームが押すと、待機が終わる。組まれなかったチームは、そのまま。本文は同じで、「待機する」だけが残る", async () => {
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
 
     const response = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
 
-    expect(contentOf(response)).toContain(`<@&${NGT_ROLE}> の待機は取り消されました（21時）。`);
+    expect(contentOf(response)).toBe(OFFER_TEXT);
+    expect(buttons(response)).toEqual([["待機する"]]);
     expect(await slotOf()).toMatchObject({ waitingSince: null, excludedTeamId: ngtId });
   });
 
-  it("「待機をキャンセル」: 案内は消えず、「待機する」のボタンに戻る。何度でも、待機し直せる", async () => {
-    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
-
+  it("待機 → キャンセル → 待機 を、何度でも繰り返せる。「待機する」は、いつも表示される。「対戦する」「待機をキャンセル」は、待機中だけ出る", async () => {
+    const first = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
     const cancelled = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
-
-    // 案内が「待機する」のボタンに戻っている（ボタンがなくなると、待機し直せない）
-    expect(cancelled.data?.components?.[0]?.components.map((b) => [b.label, b.custom_id])).toEqual([["待機する", WAIT]]);
-
-    // 戻った案内の「待機する」を押して、もう一度、待機できる。もう一度キャンセルして、また待機もできる
     const again = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
-    expect(contentOf(again)).toContain("が待機中です（21時）");
-    expect((await slotOf()).waitingSince).toBe(jst("2026-10-07T20:57:00").getTime());
-
-    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    const cancelledAgain = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:30");
     const third = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:58:00");
-    expect(contentOf(third)).toContain("が待機中です（21時）");
+
+    expect([first, cancelled, again, cancelledAgain, third].map(buttons)).toEqual([
+      [["待機する"], ["対戦する", "待機をキャンセル"]],
+      [["待機する"]],
+      [["待機する"], ["対戦する", "待機をキャンセル"]],
+      [["待機する"]],
+      [["待機する"], ["対戦する", "待機をキャンセル"]],
+    ]);
+    // 本文は、いつも同じ
+    for (const response of [first, cancelled, again, cancelledAgain, third]) expect(contentOf(response)).toBe(OFFER_TEXT);
     expect((await slotOf()).waitingSince).toBe(jst("2026-10-07T20:58:00").getTime());
+  });
+
+  it("募集中の投稿（通知先への知らせ）は、同じ対戦枠では、最初の 1 回だけ。待機し直しても、重ねない", async () => {
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:30");
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:58:00");
+
+    expect(posted.filter((message) => message.content.includes("対戦相手を募集しています"))).toHaveLength(1);
   });
 
   it("「対戦する」: 待機中に、別のチームが押すと、組分けになる。結果は、何試合目か・主催つきで投稿される", async () => {

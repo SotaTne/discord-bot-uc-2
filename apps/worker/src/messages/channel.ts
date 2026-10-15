@@ -4,7 +4,7 @@ import type { DiscordRest } from "@uc/discord";
 import { matchingCancelledMessage, matchingMessage } from "./matching";
 import { NO_MENTION, recruitMessage, type RecruitMention } from "./recruit";
 import { settingsChangeMessage, type SettingsChange } from "./settings-change";
-import { waitingAnnounceMessage, waitingOfferMessage } from "./waiting";
+import { waitingAnnounceMessage, waitingMessage } from "./waiting";
 
 /**
  * 投稿先のチャンネルに、投稿する（Worker が、チャンネルへ投稿するのは、ここだけ）。
@@ -66,7 +66,7 @@ export async function postWaitingOffer(
   rest: ChannelPoster,
   input: { channelId: string; slotDate: string; hour: number; excluded: Team },
 ): Promise<string> {
-  const message = waitingOfferMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate });
+  const message = waitingMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, waiting: false });
   const created = await rest.createMessage(input.channelId, {
     content: message.content,
     components: message.components,

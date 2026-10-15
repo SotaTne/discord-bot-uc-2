@@ -16,12 +16,7 @@ import {
 } from "@uc/db";
 import { ephemeralMessage, updateMessage, type InteractionResponse } from "@uc/discord";
 import { postMatchingResult, postWaitingAnnounce, recruitMention } from "../messages";
-import {
-  parseWaitingCustomId,
-  waitingCancelledMessage,
-  waitingJoinedMessage,
-  waitingStartedMessage,
-} from "../messages/waiting";
+import { parseWaitingCustomId, waitingJoinedMessage, waitingMessage } from "../messages/waiting";
 import { resolveCaller } from "./caller";
 import type { CommandContext, CommandHandler } from "./registry";
 
@@ -72,9 +67,11 @@ export const wait: CommandHandler = async (context) => {
     return ephemeralMessage("すでに待機中です");
   }
 
-  // 待機が始まったことを、募集開始と同じ通知先に知らせる（案内の編集では、通知されないため）。失敗しても、待機は、そのまま
+  // 待機が始まったことを、募集開始と同じ通知先に知らせる。同じ対戦枠では、最初の 1 回だけ（待機し直すたびに、通知を重ねない）。
+  // 案内の編集では、通知されないため、新しく投稿する。投稿に失敗しても、待機は、そのまま（次の待機で、もう一度、試す）
   const settings = await getGuildSettings(context.db, guildId);
-  if (settings.channelId) {
+  const noticeKey = `wait-notice:${slotDate}:${slotHour}`;
+  if (settings.channelId && (await claimJob(context.db, guildId, noticeKey, context.clock.now().getTime()))) {
     try {
       const teams = settings.recruitMentionMode === "teams" ? await listTeams(context.db, guildId) : [];
       await postWaitingAnnounce(context.rest, {
@@ -84,11 +81,13 @@ export const wait: CommandHandler = async (context) => {
         mention: recruitMention(settings, teams),
       });
     } catch (error) {
+      await releaseJob(context.db, guildId, noticeKey);
       console.error("待機の知らせの投稿に失敗しました", error);
     }
   }
 
-  const message = waitingStartedMessage({ hour: slotHour, excluded, slotDate });
+  // 案内を、待機中の状態にする（「待機する」はそのまま。「対戦する」「待機をキャンセル」が、下に出る）
+  const message = waitingMessage({ hour: slotHour, excluded, slotDate, waiting: true });
   return updateMessage(message.content, message.components);
 };
 
@@ -101,8 +100,8 @@ export const waitCancel: CommandHandler = async (context) => {
   if (team.id !== excluded.id) return ephemeralMessage("待機をキャンセルできるのは、待機しているチームだけです");
   if (!(await stopWaiting(context.db, slot.id))) return ephemeralMessage("待機していません（すでに、対戦相手が決まったか、取り消されています）");
 
-  // 案内を、最初の「待機する」の状態に戻す（試合の開始までは、待機し直せる）
-  const message = waitingCancelledMessage({ hour: slotHour, excluded, slotDate });
+  // 案内を、待機していない状態に戻す（「待機する」だけが残る。試合の開始までは、待機し直せる）
+  const message = waitingMessage({ hour: slotHour, excluded, slotDate, waiting: false });
   return updateMessage(message.content, message.components);
 };
 
