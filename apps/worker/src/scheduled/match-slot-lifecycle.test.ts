@@ -77,7 +77,7 @@ describe("対戦枠の状態（時刻ではなく、状態で挙手の受付を�
     expect(contentOf(response)).toContain("22時の試合に挙手しました");
   });
 
-  it("/uc-status は、処理済みの対戦枠を「マッチング済み」と見せる", async () => {
+  it("/uc-status は、処理済みの対戦枠を、「マッチング済み」（組まれたなら、相手つき）と見せる", async () => {
     await raise(ALICE, "2026-10-07T15:00:00");
     await tick("2026-10-07T20:53:00");
 
@@ -85,8 +85,8 @@ describe("対戦枠の状態（時刻ではなく、状態で挙手の受付を�
       commandContext(seeded.db, commandInteraction({ name: "uc-status", userId: ALICE }), jst("2026-10-07T15:00:00")),
     );
 
-    expect(contentOf(response)).toContain("21時: 挙手済み");
-    expect(contentOf(response)).toContain("・マッチング済み");
+    // 挙手が 1 チームだけで、組まれなかった。処理済みなので、締切や受付中とは出さない
+    expect(contentOf(response)).toContain("21時: 組まれませんでした");
     expect(contentOf(response)).toContain("22時: 未挙手・受付中");
   });
 

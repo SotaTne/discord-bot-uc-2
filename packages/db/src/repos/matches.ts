@@ -192,9 +192,16 @@ export async function findMatchForTeam(
 export function listGuildMatches(
   db: Db,
   guildId: string,
-): Promise<{ id: number; slotDate: string; slotHour: number; teamAId: number; teamBId: number }[]> {
+): Promise<{ id: number; slotDate: string; slotHour: number; teamAId: number; teamBId: number; hostTeamId: number | null }[]> {
   return db
-    .select({ id: matches.id, slotDate: matchSlots.slotDate, slotHour: matchSlots.slotHour, teamAId: matches.teamAId, teamBId: matches.teamBId })
+    .select({
+      id: matches.id,
+      slotDate: matchSlots.slotDate,
+      slotHour: matchSlots.slotHour,
+      teamAId: matches.teamAId,
+      teamBId: matches.teamBId,
+      hostTeamId: matches.hostTeamId,
+    })
     .from(matches)
     .innerJoin(matchSlots, eq(matches.matchSlotId, matchSlots.id))
     .where(eq(matchSlots.guildId, guildId))
