@@ -1,4 +1,4 @@
-import { fixedClock, hostTeamOf } from "@uc/core";
+import { fixedClock } from "@uc/core";
 import { addMatch, createHandup, createTeam, defaultGuildSettings, ensureHandup, listMatchedSlots, saveGuildSettings, withdrawHandup } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import { GUILD_ID, KMU_ROLE, UT_ROLE, createSeededDb, jst } from "../test-helpers";
@@ -12,9 +12,12 @@ let posted: Posted[];
 let failNext = 0;
 const CHANNEL = "300000000000000001";
 
-/** 組分けの 1 行（主催つき）。主催は、日付・時刻・2 チームから、計算で決まる */
-const pairLine = (a: { id: number; role: string }, b: { id: number; role: string }) => {
-  const host = hostTeamOf({ slotDate: "2026-10-07", slotHour: 21, teamAId: a.id, teamBId: b.id });
+/** 組分けの 1 行（主催つき）。主催は、保存された値（2 チームのどちらか）を、DB から読んで確かめる */
+const pairLine = async (a: { id: number; role: string }, b: { id: number; role: string }) => {
+  const [slot] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07" });
+  const pair = slot?.pairs.find((p) => [p.teamAId, p.teamBId].sort().join() === [a.id, b.id].sort().join());
+  const host = pair?.hostTeamId;
+  expect([a.id, b.id]).toContain(host);
   return `- <@&${a.role}> vs <@&${b.role}>（主催: <@&${host === a.id ? a.role : b.role}>）`;
 };
 
@@ -159,7 +162,7 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
     expect(posted).toHaveLength(1);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
+      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
     );
     expect(posted[0]?.allowedMentions).toEqual({ parse: ["roles"] });
 
@@ -269,8 +272,8 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     expect(posted[0]?.content).toBe(
       [
         "## 試合 (時間:21時) の組分け:",
-        pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE }),
-        pairLine({ id: ngt, role: "r-ngt" }, { id: itf, role: "r-itf" }),
+        await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE }),
+        await pairLine({ id: ngt, role: "r-ngt" }, { id: itf, role: "r-itf" }),
       ].join("\n"),
     );
   });
@@ -294,7 +297,7 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     await tick("2026-10-07T20:53:00");
 
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
+      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
     );
   });
 

@@ -84,8 +84,8 @@ export function createBoardRoutes(deps: ApiDeps) {
                 id: match.id,
                 teamA: team(match.teamAId),
                 teamB: team(match.teamBId),
-                // 主催（部屋を立てる側）。保存せず、日付・時刻・2 チームから、毎回、計算する
-                host: team(hostTeamOf({ slotDate: date, slotHour: slot.hour, teamAId: match.teamAId, teamBId: match.teamBId })),
+                // 主催（部屋を立てる側）。組分けを作るときに、無作為に決めて保存した値。古い行（空）だけ、計算で補う
+                host: team(match.hostTeamId ?? hostTeamOf({ slotDate: date, slotHour: slot.hour, teamAId: match.teamAId, teamBId: match.teamBId })),
               })),
           };
         }),

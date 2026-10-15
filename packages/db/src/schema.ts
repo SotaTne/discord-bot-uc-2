@@ -131,6 +131,8 @@ export const matches = sqliteTable(
     teamBId: integer("team_b_id")
       .notNull()
       .references(() => teams.id),
+    /** 主催（マリオカートの部屋を立てる側）。組分けを作るときに、2 チームから無作為に決めて保存する。古い行は空（表示では、計算で補う） */
+    hostTeamId: integer("host_team_id").references(() => teams.id),
   },
   (t) => [
     index("matches_match_slot").on(t.matchSlotId),

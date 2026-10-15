@@ -11,6 +11,7 @@ import {
   findMatchForTeam,
   findMatchSlot,
   listHandupsForSlot,
+  listMatchedSlots,
   listMatchesOnDate,
   saveMatchResult,
 } from "./index";
@@ -64,7 +65,7 @@ describe("addMatch（管理者による、組分けの追加）", () => {
   it("組分けを追加できる。対戦枠は、未マッチングのまま（自動のマッチングが、あとで残りを組める）", async () => {
     const id = await add(a, b);
 
-    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toEqual([{ id, slotHour: 21, teamAId: a, teamBId: b }]);
+    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toMatchObject([{ id, slotHour: 21, teamAId: a, teamBId: b }]);
     expect(await findMatchSlot(db, slot)).toMatchObject({ status: "open" });
     expect(await findMatchForTeam(db, { ...slot, teamId: b })).toMatchObject({ matchId: id });
   });
@@ -116,6 +117,25 @@ describe("自動のマッチングと、管理者が追加した組分け", () =
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ id: manual, teamAId: a, teamBId: b });
     expect(await findMatchSlot(db, slot)).toMatchObject({ status: "matched", matchedAt: 30 });
+  });
+});
+
+describe("主催（部屋を立てる側）", () => {
+  const hostOf = async () => (await listMatchedSlots(db, { guildId: GUILD, slotDate: DATE })).flatMap((s) => s.pairs.map((p) => p.hostTeamId));
+
+  it("組分けを作るときに、2 チームから無作為に決めて保存する（乱数が小さければ 1 チーム目、大きければ 2 チーム目）", async () => {
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[a, b]], now: 5, random: () => 0.1 });
+    expect(await hostOf()).toEqual([a]);
+
+    await saveMatchResult(db, { ...slot, slotHour: 22, excludedTeamId: null, pairs: [[c, d]], now: 5, random: () => 0.9 });
+    expect((await listMatchedSlots(db, { guildId: GUILD, slotDate: DATE })).flatMap((s) => s.pairs.map((p) => p.hostTeamId))).toEqual([a, d]);
+  });
+
+  it("管理者が追加した組分けにも、主催が付く。保存し直しても、主催は変わらない", async () => {
+    await addMatch(db, { ...slot, teamAId: a, teamBId: b, createdAt: 10, random: () => 0.9 });
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[a, b]], now: 5, random: () => 0.1 });
+
+    expect(await hostOf()).toEqual([b]);
   });
 });
 

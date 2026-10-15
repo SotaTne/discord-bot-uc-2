@@ -13,7 +13,7 @@ export type MatchedSlot = {
   excludedTeamId: number | null;
   /** マッチングを処理した時刻 */
   matchedAt: number;
-  pairs: { matchId: number; teamAId: number; teamBId: number }[];
+  pairs: { matchId: number; teamAId: number; teamBId: number; hostTeamId: number | null }[];
 };
 
 /** 組分けに入れようとしたチームが、その対戦枠で、すでに別の組分けに入っているとき */
@@ -23,6 +23,9 @@ export class MatchTeamTakenError extends Error {
     this.name = "MatchTeamTakenError";
   }
 }
+
+/** 主催（部屋を立てる側）を、2 チームから無作為に選ぶ。random は 0 以上 1 未満（テストで差し替える） */
+const pickHost = (teamAId: number, teamBId: number, random: () => number) => (random() < 0.5 ? teamAId : teamBId);
 
 const inSlot = (matchSlotId: number, teamId: number) =>
   and(eq(matches.matchSlotId, matchSlotId), or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)));
@@ -42,6 +45,8 @@ export async function saveMatchResult(
     excludedTeamId: number | null;
     pairs: [teamAId: number, teamBId: number][];
     now: number;
+    /** 主催を決める乱数（既定は Math.random） */
+    random?: () => number;
   },
 ): Promise<number> {
   const slot = await ensureMatchSlot(db, { ...input, createdAt: input.now });
@@ -54,7 +59,10 @@ export async function saveMatchResult(
       .from(matches)
       .where(and(eq(matches.matchSlotId, slot.id), inSlot(slot.id, teamAId), inSlot(slot.id, teamBId)))
       .limit(1);
-    if (existing.length === 0) await db.insert(matches).values({ matchSlotId: slot.id, teamAId, teamBId });
+    if (existing.length === 0) {
+      const hostTeamId = pickHost(teamAId, teamBId, input.random ?? Math.random);
+      await db.insert(matches).values({ matchSlotId: slot.id, teamAId, teamBId, hostTeamId });
+    }
   }
   return slot.id;
 }
@@ -66,7 +74,7 @@ export async function saveMatchResult(
  */
 export async function addMatch(
   db: Db,
-  input: { guildId: string; slotDate: string; slotHour: number; teamAId: number; teamBId: number; createdAt: number },
+  input: { guildId: string; slotDate: string; slotHour: number; teamAId: number; teamBId: number; createdAt: number; random?: () => number },
 ): Promise<number> {
   const slot = await ensureMatchSlot(db, input);
   for (const teamId of [input.teamAId, input.teamBId]) {
@@ -76,7 +84,12 @@ export async function addMatch(
 
   const [row] = await db
     .insert(matches)
-    .values({ matchSlotId: slot.id, teamAId: input.teamAId, teamBId: input.teamBId })
+    .values({
+      matchSlotId: slot.id,
+      teamAId: input.teamAId,
+      teamBId: input.teamBId,
+      hostTeamId: pickHost(input.teamAId, input.teamBId, input.random ?? Math.random),
+    })
     .returning({ id: matches.id });
   if (!row) throw new Error("組分けの追加に失敗しました");
 
@@ -104,9 +117,9 @@ export async function deleteMatch(db: Db, input: { guildId: string; id: number }
 export async function listMatchesOnDate(
   db: Db,
   input: { guildId: string; slotDate: string },
-): Promise<{ id: number; slotHour: number; teamAId: number; teamBId: number }[]> {
+): Promise<{ id: number; slotHour: number; teamAId: number; teamBId: number; hostTeamId: number | null }[]> {
   return db
-    .select({ id: matches.id, slotHour: matchSlots.slotHour, teamAId: matches.teamAId, teamBId: matches.teamBId })
+    .select({ id: matches.id, slotHour: matchSlots.slotHour, teamAId: matches.teamAId, teamBId: matches.teamBId, hostTeamId: matches.hostTeamId })
     .from(matches)
     .innerJoin(matchSlots, eq(matches.matchSlotId, matchSlots.id))
     .where(and(eq(matchSlots.guildId, input.guildId), eq(matchSlots.slotDate, input.slotDate)))
@@ -152,7 +165,7 @@ export async function listMatchedSlots(db: Db, input: { guildId: string; slotDat
     matchedAt: slot.matchedAt ?? 0,
     pairs: rows
       .filter((row) => row.matchSlotId === slot.id)
-      .map((row) => ({ matchId: row.id, teamAId: row.teamAId, teamBId: row.teamBId })),
+      .map((row) => ({ matchId: row.id, teamAId: row.teamAId, teamBId: row.teamBId, hostTeamId: row.hostTeamId })),
   }));
 }
 

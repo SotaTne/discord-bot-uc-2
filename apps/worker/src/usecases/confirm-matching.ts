@@ -1,4 +1,4 @@
-import { pairTeams, type MatchingResult } from "@uc/core";
+import { hostTeamOf, pairTeams, type MatchingResult } from "@uc/core";
 import {
   ensureMatchSlot,
   listHandupsForSlot,
@@ -16,7 +16,7 @@ import { postMatchingResult } from "../messages";
  * cron の締切と、管理者の手動の確定の、どちらからも使う。管理者が先に追加した組分けがあれば、そのチームは自動のマッチングから外し、組分けは残して、投稿にも含める。
  */
 export async function confirmMatching(
-  deps: { db: Db; rest: Pick<DiscordRest, "createMessage"> },
+  deps: { db: Db; rest: Pick<DiscordRest, "createMessage">; /** 主催を決める乱数（既定は Math.random。テストで差し替える） */ random?: () => number },
   input: { guildId: string; channelId: string | null; slotDate: string; slotHour: number; now: Date },
 ) {
   const { db } = deps;
@@ -47,6 +47,7 @@ export async function confirmMatching(
     excludedTeamId,
     pairs,
     now: input.now.getTime(),
+    ...(deps.random ? { random: deps.random } : {}),
   });
 
   // 投稿するのは、この対戦枠の、すべての組分け（管理者が追加した分も含む）
@@ -63,6 +64,11 @@ export async function confirmMatching(
   // 投稿先のチャンネルが設定されていなければ、結果の保存だけを行う
   if (input.channelId === null) return;
   const teams = await listTeams(db, input.guildId, { includeDeleted: true });
-  await postMatchingResult(deps.rest, { channelId: input.channelId, slotDate: input.slotDate, hour: input.slotHour, result: announced, teams });
+  // 主催は、組分けを作るときに決めて保存した値。古い行（空）だけ、計算で補う
+  const hostOf = (teamAId: number, teamBId: number) => {
+    const found = all.find((m) => (m.teamAId === teamAId && m.teamBId === teamBId) || (m.teamAId === teamBId && m.teamBId === teamAId));
+    return found?.hostTeamId ?? hostTeamOf({ slotDate: input.slotDate, slotHour: input.slotHour, teamAId, teamBId });
+  };
+  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, hostOf, teams });
 }
 
