@@ -48,6 +48,18 @@ describe("formatStatus", () => {
       expect(lines).toContain("- 22時: マッチング済み（組まれていません）");
     });
 
+    it("継続募集中なら、「マッチング済み」や「締切」ではなく、継続募集中（誰が待機中か）を出す。待機しているのが自チームなら、その旨", () => {
+      const waiting = { id: 3, guildId: GUILD_ID, roleId: "400000000000000003", createdAt: 1, deletedAt: null } satisfies Team;
+      const lines = text([
+        { hour: 21, phase: "closed", handups: [], matched: true, continued: { waiting, self: false } },
+        { hour: 22, phase: "closed", handups: [], matched: true, excluded: true, continued: { waiting: team, self: true } },
+      ]);
+
+      expect(lines).toContain(`- 21時: 継続募集中（<@&${waiting.roleId}> が待機中。21:00 までに、先着 1 チームが対戦できます）`);
+      expect(lines).toContain("- 22時: 待機中（22:00 まで、対戦相手を募集しています）");
+      expect(lines.join("\n")).not.toContain("マッチング済み");
+    });
+
     it("まだマッチングされていないなら、締切か、受付中か、受付前かを出す（挙手の有無も）", () => {
       const lines = text([
         { hour: 21, phase: "closed", handups: [] },

@@ -18,6 +18,8 @@ export type SlotStatus = {
   match?: { opponent: Team; number: number; host: Team };
   /** マッチング済みで、自チームが、奇数のために組まれなかった */
   excluded?: boolean;
+  /** 継続募集中（組まれなかったチームが待機して、00 分まで、別のチームを募集している）。self: 待機しているのが、自チーム */
+  continued?: { waiting: Team; self: boolean };
 };
 
 /** 自チームの挙手状況の文面を作る（純粋な関数） */
@@ -35,9 +37,15 @@ export function formatStatus(input: {
   }
 
   // 対戦枠ごとに、知りたいのは、3 つ: 誰とマッチングしたか / 締切か / 受付中か
-  const lines = input.slots.map(({ hour, phase, handups, matched, match, excluded }) => {
+  const lines = input.slots.map(({ hour, phase, handups, matched, match, excluded, continued }) => {
     if (match) {
       return `- ${hour}時: ${teamMention(match.opponent)} と対戦（${match.number}試合目・主催: ${teamMention(match.host)}）`;
+    }
+    // 継続募集中は、「マッチング済み」「締切」とは別の状態。参加できるのに、できないと見せない
+    if (continued) {
+      return continued.self
+        ? `- ${hour}時: 待機中（${hour}:00 まで、対戦相手を募集しています）`
+        : `- ${hour}時: 継続募集中（${teamMention(continued.waiting)} が待機中。${hour}:00 までに、先着 1 チームが対戦できます）`;
     }
     if (matched) {
       return `- ${hour}時: ${excluded ? "組まれませんでした（挙手が奇数のため）" : "マッチング済み（組まれていません）"}`;

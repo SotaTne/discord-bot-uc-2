@@ -111,6 +111,8 @@ export function commandKit(
     origin?: string;
     /** 返信の編集を、この HTTP ステータスで順に失敗させる（例: [404, 404] なら、2回失敗して3回目に成功） */
     editFailures?: number[];
+    /** チャンネルへの投稿の記録先（指定すると、createMessage の内容が入る） */
+    posted?: { channelId: string; content: string; allowedMentions: unknown }[];
   } = {},
 ) {
   const pending: Promise<unknown>[] = [];
@@ -119,6 +121,10 @@ export function commandKit(
   const failures = [...(overrides.editFailures ?? [])];
 
   const rest = {
+    createMessage: async (channelId: string, payload: { content?: string; allowed_mentions?: unknown }) => {
+      overrides.posted?.push({ channelId, content: payload.content ?? "", allowedMentions: payload.allowed_mentions });
+      return { id: String((overrides.posted?.length ?? 0) + 1000) };
+    },
     editOriginalResponse: async (applicationId: string, token: string, payload: { content?: string }) => {
       const status = failures.shift();
       if (status !== undefined) throw new DiscordApiError(status, "failed", "/webhooks/x/y/messages/@original");

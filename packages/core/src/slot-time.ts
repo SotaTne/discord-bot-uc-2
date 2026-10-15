@@ -24,6 +24,22 @@ export function slotHoursOnDate(entries: readonly SlotHourEntry[], date: string)
     .sort((a, b) => a.hour - b.hour);
 }
 
+/**
+ * 継続募集中か（奇数で組まれなかったチームが「待機する」を押し、その対戦枠の開始前で、別のチームの挙手を待っている）。
+ * 保存せず、対戦枠の状態と、時刻から、毎回、計算する。試合開始を過ぎれば、何も保存し直さなくても、終わる。
+ */
+export function isContinuedRecruit(
+  slot: { status: "open" | "matched"; excludedTeamId: number | null; waitingSince: number | null; slotDate: string; slotHour: number },
+  now: Date,
+): boolean {
+  return (
+    slot.status === "matched" &&
+    slot.excludedTeamId !== null &&
+    slot.waitingSince !== null &&
+    now.getTime() < slotStart(slot.slotDate, slot.slotHour).getTime()
+  );
+}
+
 /** JST の「日付 + 時」の開始時刻 */
 export function slotStart(slotDate: string, slotHour: number): Date {
   assertHour(slotHour);

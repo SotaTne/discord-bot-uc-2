@@ -4,6 +4,7 @@ import {
   handupDeadline,
   handupPhase,
   isAcceptingHandups,
+  isContinuedRecruit,
   jstDateOf,
   slotHoursOnDate,
   slotPhase,
@@ -106,6 +107,26 @@ describe("formatJstTime", () => {
   it("JST の HH:MM で表す（UTC の日付をまたぐ場合も）", () => {
     expect(formatJstTime(jst("2026-10-07T14:05:30"))).toBe("14:05");
     expect(formatJstTime(new Date("2026-10-07T15:30:00Z"))).toBe("00:30");
+  });
+});
+
+describe("isContinuedRecruit（継続募集中か）", () => {
+  const waiting = { status: "matched" as const, excludedTeamId: 3, waitingSince: 1, slotDate: "2026-10-07", slotHour: 21 };
+
+  it("マッチング済みで、待機中のチームがいて、試合開始の前なら、継続募集中", () => {
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T20:57:00"))).toBe(true);
+  });
+
+  it("試合開始の時刻を過ぎたら、何も保存し直さなくても、終わる（ちょうどの時刻も、終わり）", () => {
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T21:00:00"))).toBe(false);
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T21:30:00"))).toBe(false);
+  });
+
+  it("待機していない・組まれなかったチームがいない・未マッチングなら、継続募集中ではない", () => {
+    const now = jst("2026-10-07T20:57:00");
+    expect(isContinuedRecruit({ ...waiting, waitingSince: null }, now)).toBe(false);
+    expect(isContinuedRecruit({ ...waiting, excludedTeamId: null }, now)).toBe(false);
+    expect(isContinuedRecruit({ ...waiting, status: "open" }, now)).toBe(false);
   });
 });
 

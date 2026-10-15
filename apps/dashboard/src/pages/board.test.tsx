@@ -11,6 +11,7 @@ const slot = (over: Record<string, unknown> = {}) => ({
   phase: "open",
   matched: false,
   excluded: null,
+  waiting: null,
   handups: [],
   matches: [],
   ...over,
@@ -243,6 +244,16 @@ describe("対戦枠の画面: 組分けの追加", () => {
 });
 
 describe("対戦枠の画面: 組分け", () => {
+  it("継続募集中の対戦枠は、「マッチング済み」ではなく「継続募集中」と、待機しているチームを出す", async () => {
+    installFakeBackend(apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" }, matches: [match()] })]));
+    renderApp("/");
+
+    const within21 = await card("21:00の対戦枠");
+    expect(await within21.findByText("継続募集中")).toBeTruthy();
+    expect(within21.queryByText("マッチング済み")).toBeNull();
+    expect(within21.getByText("NGT が待機中")).toBeTruthy();
+  });
+
   it("組分け（AA vs BB）を出し、組まれなかったチームも出す", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match()], excluded: { id: 3, name: "NGT" } })]));
     renderApp("/");

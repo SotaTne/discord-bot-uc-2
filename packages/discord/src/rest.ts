@@ -1,4 +1,5 @@
 import { RouteBases, Routes } from "discord-api-types/v10";
+import type { ActionRow } from "./responses";
 
 /** Discord の API の URL（バージョンつき）。公式の型定義の値を使う */
 export const DISCORD_API_BASE = `${RouteBases.api}`;
@@ -12,6 +13,8 @@ export type MessagePayload = {
    */
   allowed_mentions?: { parse?: string[]; roles?: string[] };
   flags?: number;
+  /** ボタン。空の配列を渡すと、メッセージのボタンが消える（編集のとき） */
+  components?: ActionRow[];
 };
 
 export class DiscordApiError extends Error {
@@ -75,6 +78,10 @@ export function createDiscordRest(options: DiscordRestOptions) {
     /** deferred で返したインタラクションの応答を、あとから編集する（トークンで認証するので Bot トークンは不要） */
     editOriginalResponse: (applicationId: string, interactionToken: string, payload: MessagePayload) =>
       request<unknown>("PATCH", `${Routes.webhook(applicationId, interactionToken)}/messages/@original`, payload, false),
+
+    /** チャンネルのメッセージを編集する（ボタンを消す・付け替える） */
+    editMessage: (channelId: string, messageId: string, payload: MessagePayload) =>
+      request<unknown>("PATCH", `${Routes.channelMessages(channelId)}/${messageId}`, payload),
 
     getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", Routes.guildRoles(guildId)),
 

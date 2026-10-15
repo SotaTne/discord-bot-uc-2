@@ -149,15 +149,24 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
       {/* 左: 時刻（目印）・状態・この対戦枠への操作 */}
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
-        {/* 状態は、3 つ: 未マッチング（受付の段階つき）/ マッチング済み / 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
+        {/* 状態: 未マッチング（受付の段階つき）/ マッチング済み / 継続募集中（組まれなかったチームが待機して、00 分まで、別のチームを募集している）/ 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
         {slot.deleted ? (
           <Badge color="gray" variant="filled" tt="none" title="設定で削除した試合時刻です。削除した日までの対戦枠が、残っています">
             削除済み
+          </Badge>
+        ) : slot.waiting ? (
+          <Badge color="orange" variant="light" tt="none" title={`${slot.waiting.name} が待機中。試合開始まで、先着 1 チームが対戦できます`}>
+            継続募集中
           </Badge>
         ) : (
           <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
             {slot.matched ? "マッチング済み" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
           </Badge>
+        )}
+        {slot.waiting && (
+          <Text size="xs" c="dimmed">
+            {slot.waiting.name} が待機中
+          </Text>
         )}
       </Stack>
 

@@ -1,4 +1,4 @@
-import { createHandup, type Handup, type Team } from "@uc/db";
+import { createHandup, createTeam, findMatchSlot, saveMatchResult, startWaiting, type Handup, type Team } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ALICE,
@@ -48,6 +48,20 @@ describe("/uc-status", () => {
       ].join("\n"),
     );
     expect(response.data?.flags).toBe(64);
+  });
+
+  it("継続募集中は、「マッチング済み」「締切」ではなく、継続募集中と、待機中のチームを出す。待機しているのが自チームなら、待機中", async () => {
+    // UT と ITF が組まれ、NGT が組まれなかった。KMU（このコマンドを使う人）は、まだ組まれていない
+    const ngt = await createTeam(seeded.db, { guildId: GUILD_ID, roleId: "400000000000000003", createdAt: 1 });
+    const itf = await createTeam(seeded.db, { guildId: GUILD_ID, roleId: "400000000000000004", createdAt: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: ngt, pairs: [[seeded.utId, itf]], now: 1 });
+    const slot = (await findMatchSlot(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21 }))!;
+    await startWaiting(seeded.db, { id: slot.id, since: 2 });
+
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T20:56:00"));
+
+    expect(contentOf(response)).toContain("- 21時: 継続募集中（<@&400000000000000003> が待機中。21:00 までに、先着 1 チームが対戦できます）");
+    expect(contentOf(response)).not.toContain("21時: 未挙手・締切");
   });
 
   it("募集開始前は、未挙手と「受付前」が出る", async () => {

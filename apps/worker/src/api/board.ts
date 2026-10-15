@@ -1,5 +1,5 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
-import { cutoffJobKey, hostTeamOf, jstDateOf, matchNumberKey, matchNumbers, slotHoursOnDate, slotPhase } from "@uc/core";
+import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, slotHoursOnDate, slotPhase } from "@uc/core";
 import {
   addMatch,
   claimJob,
@@ -72,6 +72,11 @@ export function createBoardRoutes(deps: ApiDeps) {
             phase: slotPhase(now, date, slot.hour, settings),
             matched: matchSlot?.status === "matched",
             excluded: matchSlot?.excludedTeamId == null ? null : team(matchSlot.excludedTeamId),
+            // 継続募集中なら、待機しているチーム（組まれなかったチームが待機して、00 分まで、別のチームを募集している）。保存せず、計算する
+            waiting:
+              matchSlot && matchSlot.excludedTeamId !== null && isContinuedRecruit({ ...matchSlot, slotDate: date, slotHour: slot.hour }, now)
+                ? team(matchSlot.excludedTeamId)
+                : null,
             handups: handups
               .filter((handup) => handup.slotHour === slot.hour)
               .map((handup) => ({

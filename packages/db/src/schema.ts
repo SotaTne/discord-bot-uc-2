@@ -81,6 +81,13 @@ export const matchSlots = sqliteTable(
     matchedAt: integer("matched_at"),
     /** 奇数などで、組まれなかったチーム（処理済みのときだけ入りうる） */
     excludedTeamId: integer("excluded_team_id").references(() => teams.id),
+    /**
+     * 継続募集: 組まれなかったチームが、「待機する」を押した時刻。空なら、待機していない。
+     * 待機しているチームは、excluded_team_id。継続募集中かどうかは、これと時刻から、計算する（`isContinuedRecruit`）
+     */
+    waitingSince: integer("waiting_since"),
+    /** 継続募集の案内を投稿した、Discord のメッセージの ID（ボタンの編集に使う） */
+    waitingMessageId: text("waiting_message_id"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

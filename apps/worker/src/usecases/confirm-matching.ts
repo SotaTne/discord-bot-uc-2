@@ -7,10 +7,11 @@ import {
   listTeams,
   markMatchSlotMatched,
   saveMatchResult,
+  setWaitingMessage,
   type Db,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
-import { postMatchingResult } from "../messages";
+import { postMatchingResult, postWaitingOffer } from "../messages";
 
 /**
  * その対戦枠の挙手を打ち切って（マッチング済みにして）、マッチングを確定し、結果を保存して投稿する。
@@ -77,5 +78,21 @@ export async function confirmMatching(
     return found ? numbers.get(matchNumberKey(teamId, found.id)) : undefined;
   };
   await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, hostOf, numberOf, teams });
+
+  // 奇数で組まれなかったチームがいれば、「待機する」の案内を出す。結果の投稿のあとに出し、失敗しても、結果の投稿は、やり直さない
+  const excludedTeam = excludedTeamId === null ? undefined : teams.find((team) => team.id === excludedTeamId);
+  if (excludedTeam) {
+    try {
+      const messageId = await postWaitingOffer(deps.rest, {
+        channelId: input.channelId,
+        slotDate: input.slotDate,
+        hour: input.slotHour,
+        excluded: excludedTeam,
+      });
+      await setWaitingMessage(db, { id: slot.id, messageId });
+    } catch (error) {
+      console.error("待機の案内の投稿に失敗しました", error);
+    }
+  }
 }
 

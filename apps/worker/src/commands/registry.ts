@@ -7,6 +7,7 @@ import { adminStatus } from "./admin-status";
 import { handdown } from "./handdown";
 import { handup } from "./handup";
 import { status } from "./status";
+import { join, wait, waitCancel } from "./waiting";
 
 export type CommandContext = {
   interaction: Interaction;
@@ -37,4 +38,8 @@ export const commandHandlers: Record<string, CommandHandler> = {
 };
 
 /** ボタンなどのコンポーネントの処理。custom_id の「:」より前の部分が、キーになる */
-export const componentHandlers: Record<string, CommandHandler> = {};
+export const componentHandlers: Record<string, CommandHandler> = {
+  wait,
+  "wait-cancel": waitCancel,
+  join,
+};

@@ -1,4 +1,4 @@
-import { handupPhase, hostTeamOf, jstDateOf, matchNumberKey, matchNumbers } from "@uc/core";
+import { handupPhase, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers } from "@uc/core";
 import { getGuildSettings, listGuildMatches, listMatchSlots, listSlotHours, listTeamHandupsOnDate, listTeams } from "@uc/db";
 import { ephemeralMessage } from "@uc/discord";
 import { formatStatus, type SlotStatus } from "../messages/status";
@@ -47,6 +47,12 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
           matched: matchSlot?.status === "matched",
           ...(own && opponent && host ? { match: { opponent, number: numbers.get(matchNumberKey(team.id, own.id)) ?? 0, host } } : {}),
           ...(matchSlot?.excludedTeamId === team.id ? { excluded: true } : {}),
+          ...(matchSlot && isContinuedRecruit({ ...matchSlot, slotDate, slotHour: slot.hour }, now)
+            ? (() => {
+                const waiting = teamOf(matchSlot.excludedTeamId!);
+                return waiting ? { continued: { waiting, self: waiting.id === team.id } } : {};
+              })()
+            : {}),
         };
       }),
     }),

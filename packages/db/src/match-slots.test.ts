@@ -11,6 +11,9 @@ import {
   listMatchedSlots,
   markMatchSlotMatched,
   saveMatchResult,
+  setWaitingMessage,
+  startWaiting,
+  stopWaiting,
   withdrawHandup,
   withdrawHandupById,
 } from "./index";
@@ -86,6 +89,46 @@ describe("マッチング済みの対戦枠は、挙手を受け付けない（�
     expect(await withdrawHandup(db, { ...slot, teamId: kmu })).toBe("matched");
     expect(await withdrawHandupById(db, { guildId: GUILD, id })).toBe("matched");
     expect(await listHandupsForSlot(db, slot)).toHaveLength(1);
+  });
+});
+
+describe("継続募集（待機）", () => {
+  const matchedWithExcluded = async () => {
+    await saveMatchResult(db, { ...slot, excludedTeamId: ut, pairs: [], now: 10 });
+    return (await findMatchSlot(db, slot))!;
+  };
+
+  it("組まれなかったチームがいる、マッチング済みの対戦枠で、待機を始められる。二重には、始められない", async () => {
+    const fixture = await matchedWithExcluded();
+
+    expect(await startWaiting(db, { id: fixture.id, since: 100 })).toBe(true);
+    expect(await startWaiting(db, { id: fixture.id, since: 200 })).toBe(false);
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingSince: 100, excludedTeamId: ut });
+  });
+
+  it("組まれなかったチームがいない対戦枠・未マッチングの対戦枠では、始められない", async () => {
+    const open = await ensureMatchSlot(db, { ...slot, createdAt: 1 });
+    expect(await startWaiting(db, { id: open.id, since: 100 })).toBe(false);
+
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[kmu, ut]], now: 10 });
+    expect(await startWaiting(db, { id: open.id, since: 100 })).toBe(false);
+  });
+
+  it("待機をやめられる。待機中でなければ、何もしない。組まれなかったチームは、そのまま", async () => {
+    const fixture = await matchedWithExcluded();
+    await startWaiting(db, { id: fixture.id, since: 100 });
+
+    expect(await stopWaiting(db, fixture.id)).toBe(true);
+    expect(await stopWaiting(db, fixture.id)).toBe(false);
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingSince: null, excludedTeamId: ut });
+  });
+
+  it("案内のメッセージ ID を、保存できる", async () => {
+    const fixture = await matchedWithExcluded();
+
+    await setWaitingMessage(db, { id: fixture.id, messageId: "999" });
+
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingMessageId: "999" });
   });
 });
 

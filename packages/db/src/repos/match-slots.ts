@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "../client";
 import { matchSlots } from "../schema";
 
@@ -44,6 +44,41 @@ export async function markMatchSlotMatched(db: Db, input: { id: number; matchedA
     .update(matchSlots)
     .set({ status: "matched", matchedAt: input.matchedAt })
     .where(and(eq(matchSlots.id, input.id), eq(matchSlots.status, "open")));
+}
+
+/**
+ * 継続募集を始める（「待機する」が押された）。組まれなかったチームがいる、マッチング済みの対戦枠だけ。
+ * すでに待機中なら、何もしない（false）。始められたら true。
+ */
+export async function startWaiting(db: Db, input: { id: number; since: number }): Promise<boolean> {
+  const updated = await db
+    .update(matchSlots)
+    .set({ waitingSince: input.since })
+    .where(
+      and(
+        eq(matchSlots.id, input.id),
+        eq(matchSlots.status, "matched"),
+        isNotNull(matchSlots.excludedTeamId),
+        isNull(matchSlots.waitingSince),
+      ),
+    )
+    .returning({ id: matchSlots.id });
+  return updated.length > 0;
+}
+
+/** 継続募集をやめる（待機のキャンセル、または、対戦相手が決まった）。待機中でなければ、何もしない（false） */
+export async function stopWaiting(db: Db, id: number): Promise<boolean> {
+  const updated = await db
+    .update(matchSlots)
+    .set({ waitingSince: null })
+    .where(and(eq(matchSlots.id, id), isNotNull(matchSlots.waitingSince)))
+    .returning({ id: matchSlots.id });
+  return updated.length > 0;
+}
+
+/** 継続募集の案内を投稿した、メッセージの ID を保存する */
+export async function setWaitingMessage(db: Db, input: { id: number; messageId: string }): Promise<void> {
+  await db.update(matchSlots).set({ waitingMessageId: input.messageId }).where(eq(matchSlots.id, input.id));
 }
 
 /** 対戦枠の一覧。slotDate を指定するとその日だけ。日付・時刻の順 */
