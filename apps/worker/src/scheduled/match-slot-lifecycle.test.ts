@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { handdown } from "../commands/handdown";
 import { handup } from "../commands/handup";
 import { status } from "../commands/status";
-import { ALICE, CAROL, GUILD_ID, KMU_ROLE, UT_ROLE, commandContext, commandInteraction, contentOf, createSeededDb, jst, timeOption } from "../test-helpers";
+import { ALICE, CAROL, GUILD_ID, KMU_ROLE, UT_ROLE, channelNoops, commandContext, commandInteraction, contentOf, createSeededDb, jst, timeOption } from "../test-helpers";
 import { runScheduled } from "./run";
 
 let seeded: Awaited<ReturnType<typeof createSeededDb>>;
@@ -16,6 +16,7 @@ const rest = {
     posted.push(payload.content ?? "");
     return { id: String(posted.length) };
   },
+  ...channelNoops,
 };
 
 beforeEach(async () => {
@@ -92,7 +93,7 @@ describe("対戦枠の状態（時刻ではなく、状態で挙手の受付を�
 
   it("投稿に失敗してやり直しても、挙手は変わらない（失敗した時点で、すでに処理済みなので）", async () => {
     await raise(ALICE, "2026-10-07T15:00:00");
-    const failing = { async createMessage() { throw new Error("Discord が応答しません"); } };
+    const failing = { async createMessage() { throw new Error("Discord が応答しません"); }, ...channelNoops };
 
     const failed = await runScheduled({ db: seeded.db, rest: failing, clock: fixedClock(jst("2026-10-07T20:53:00")) });
     const late = await raise(CAROL, "2026-10-07T20:54:00");

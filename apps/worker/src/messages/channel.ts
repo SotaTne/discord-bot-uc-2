@@ -4,7 +4,7 @@ import type { DiscordRest } from "@uc/discord";
 import { matchingCancelledMessage, matchingMessage } from "./matching";
 import { NO_MENTION, recruitMessage, type RecruitMention } from "./recruit";
 import { settingsChangeMessage, type SettingsChange } from "./settings-change";
-import { waitingAnnounceMessage, waitingMessage } from "./waiting";
+import { waitingAnnounce, waitingMessage } from "./waiting";
 
 /**
  * 投稿先のチャンネルに、投稿する（Worker が、チャンネルへ投稿するのは、ここだけ）。
@@ -66,7 +66,7 @@ export async function postWaitingOffer(
   rest: ChannelPoster,
   input: { channelId: string; slotDate: string; hour: number; excluded: Team },
 ): Promise<string> {
-  const message = waitingMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, waiting: false });
+  const message = waitingMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate });
   const created = await rest.createMessage(input.channelId, {
     content: message.content,
     components: message.components,
@@ -75,16 +75,22 @@ export async function postWaitingOffer(
   return created.id;
 }
 
-/** 待機が始まったことを、募集開始と同じ通知先に知らせる（案内のメッセージの編集では、通知されないため） */
+/**
+ * 募集のメッセージ（「対戦する」「待機をキャンセル」つき）を投稿する。募集開始と同じ通知先に、通知する。
+ * 同じ対戦枠では、最初の待機のときだけ投稿し、あとは、編集する（編集では、通知されない）。投稿したメッセージの ID を返す。
+ */
 export async function postWaitingAnnounce(
   rest: ChannelPoster,
-  input: { channelId: string; hour: number; excluded: Team; mention?: RecruitMention },
-): Promise<void> {
+  input: { channelId: string; slotDate: string; hour: number; excluded: Team; mention?: RecruitMention },
+): Promise<string> {
   const mention = input.mention ?? NO_MENTION;
-  await rest.createMessage(input.channelId, {
-    content: waitingAnnounceMessage({ hour: input.hour, excluded: input.excluded, mentionText: mention.text }),
+  const message = waitingAnnounce({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, waiting: true, mentionText: mention.text });
+  const created = await rest.createMessage(input.channelId, {
+    content: message.content,
+    components: message.components,
     allowed_mentions: { parse: mention.here ? ["everyone"] : [], roles: mention.roleIds },
   });
+  return created.id;
 }
 
 /** 設定の変更（募集開始の時刻・締切）の知らせ。通知先は、募集開始の投稿と、同じ */

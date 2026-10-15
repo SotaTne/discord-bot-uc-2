@@ -98,6 +98,57 @@ export const adminInteraction = (input: InteractionInput): Interaction =>
 export const timeOption = (hour: number): CommandOptionValue => ({ name: "time", type: 4, value: hour });
 
 
+/**
+ * チャンネルのメッセージの、編集と削除の、何もしない代わり（投稿だけを確かめるテストで、投稿の偽物に、足して使う）。
+ * 編集・削除を確かめるテストは、`createFakeChannel` を使う。
+ */
+export const channelNoops = {
+  editMessage: async (_channelId: string, _messageId: string, _payload: unknown) => ({}),
+  deleteMessage: async (_channelId: string, _messageId: string) => ({}),
+};
+
+export type FakeChannel = ReturnType<typeof createFakeChannel>;
+
+/**
+ * チャンネルへの、投稿・編集・削除を、記録する Discord の偽物。
+ * failDelete / failEdit に、HTTP ステータスを渡すと、以降の削除・編集を、そのステータスで失敗させる（404 は「すでにない」、それ以外は「失敗」）。
+ */
+export function createFakeChannel() {
+  const posted: { id: string; channelId: string; content: string; components: unknown; allowedMentions: unknown }[] = [];
+  const edited: { channelId: string; messageId: string; content: string | undefined; components: unknown }[] = [];
+  const deleted: { channelId: string; messageId: string }[] = [];
+  const failures: { delete: number | null; edit: number | null } = { delete: null, edit: null };
+
+  const rest = {
+    async createMessage(channelId: string, payload: { content?: string; components?: unknown; allowed_mentions?: unknown }) {
+      const id = `m${posted.length + 1}`;
+      posted.push({ id, channelId, content: payload.content ?? "", components: payload.components, allowedMentions: payload.allowed_mentions });
+      return { id };
+    },
+    async editMessage(channelId: string, messageId: string, payload: { content?: string; components?: unknown }) {
+      if (failures.edit !== null) throw new DiscordApiError(failures.edit, "failed", `/channels/${channelId}/messages/${messageId}`);
+      edited.push({ channelId, messageId, content: payload.content, components: payload.components });
+      return {};
+    },
+    async deleteMessage(channelId: string, messageId: string) {
+      if (failures.delete !== null) throw new DiscordApiError(failures.delete, "failed", `/channels/${channelId}/messages/${messageId}`);
+      deleted.push({ channelId, messageId });
+      return {};
+    },
+  };
+
+  return {
+    rest,
+    posted,
+    edited,
+    deleted,
+    /** 以降の削除を、このステータスで失敗させる（null で、元に戻す） */
+    failDelete: (status: number | null) => void (failures.delete = status),
+    /** 以降の編集を、このステータスで失敗させる（null で、元に戻す） */
+    failEdit: (status: number | null) => void (failures.edit = status),
+  };
+}
+
 export type EditedResponse = { applicationId: string; token: string; content: string };
 
 /** ハンドラーを呼ぶための実行コンテキストと、そこで起きたことの記録 */
@@ -111,8 +162,8 @@ export function commandKit(
     origin?: string;
     /** 返信の編集を、この HTTP ステータスで順に失敗させる（例: [404, 404] なら、2回失敗して3回目に成功） */
     editFailures?: number[];
-    /** チャンネルへの投稿の記録先（指定すると、createMessage の内容が入る） */
-    posted?: { channelId: string; content: string; allowedMentions: unknown }[];
+    /** チャンネルへの投稿・編集・削除の、記録つきの偽物（指定すると、その rest を使う） */
+    channel?: FakeChannel;
   } = {},
 ) {
   const pending: Promise<unknown>[] = [];
@@ -121,10 +172,7 @@ export function commandKit(
   const failures = [...(overrides.editFailures ?? [])];
 
   const rest = {
-    createMessage: async (channelId: string, payload: { content?: string; allowed_mentions?: unknown }) => {
-      overrides.posted?.push({ channelId, content: payload.content ?? "", allowedMentions: payload.allowed_mentions });
-      return { id: String((overrides.posted?.length ?? 0) + 1000) };
-    },
+    ...(overrides.channel?.rest ?? {}),
     editOriginalResponse: async (applicationId: string, token: string, payload: { content?: string }) => {
       const status = failures.shift();
       if (status !== undefined) throw new DiscordApiError(status, "failed", "/webhooks/x/y/messages/@original");

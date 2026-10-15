@@ -83,6 +83,10 @@ export function createDiscordRest(options: DiscordRestOptions) {
     editMessage: (channelId: string, messageId: string, payload: MessagePayload) =>
       request<unknown>("PATCH", `${Routes.channelMessages(channelId)}/${messageId}`, payload),
 
+    /** チャンネルのメッセージを削除する（すでにない場合は 404） */
+    deleteMessage: (channelId: string, messageId: string) =>
+      request<unknown>("DELETE", `${Routes.channelMessages(channelId)}/${messageId}`),
+
     getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", Routes.guildRoles(guildId)),
 
     /** サーバーのメンバー1人（表示名を取るため。サーバーにいない人は 404） */

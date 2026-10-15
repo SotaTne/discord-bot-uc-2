@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import type { Db } from "../client";
 import { matchSlots } from "../schema";
 
@@ -79,6 +79,31 @@ export async function stopWaiting(db: Db, id: number): Promise<boolean> {
 /** 継続募集の案内を投稿した、メッセージの ID を保存する */
 export async function setWaitingMessage(db: Db, input: { id: number; messageId: string }): Promise<void> {
   await db.update(matchSlots).set({ waitingMessageId: input.messageId }).where(eq(matchSlots.id, input.id));
+}
+
+/**
+ * 継続募集のメッセージ（案内・募集）の ID を、空にする（メッセージを、削除・編集して、終わりにしたあと）。
+ * 空にすれば、あとの定期実行は、もう、そのメッセージを探さない。
+ */
+export async function clearWaitingMessages(db: Db, input: { id: number; offer?: boolean; announce?: boolean }): Promise<void> {
+  const set: { waitingMessageId?: null; waitingAnnounceMessageId?: null } = {};
+  if (input.offer) set.waitingMessageId = null;
+  if (input.announce) set.waitingAnnounceMessageId = null;
+  if (Object.keys(set).length > 0) await db.update(matchSlots).set(set).where(eq(matchSlots.id, input.id));
+}
+
+/** 継続募集のメッセージ（案内・募集）が、まだ残っている対戦枠。終わりにする（削除・ボタンを外す）対象を探すのに使う */
+export function listSlotsWithWaitingMessages(db: Db, guildId: string): Promise<MatchSlot[]> {
+  return db
+    .select()
+    .from(matchSlots)
+    .where(and(eq(matchSlots.guildId, guildId), or(isNotNull(matchSlots.waitingMessageId), isNotNull(matchSlots.waitingAnnounceMessageId))))
+    .orderBy(asc(matchSlots.slotDate), asc(matchSlots.slotHour));
+}
+
+/** 継続募集の、募集のメッセージの ID を保存する */
+export async function setWaitingAnnounceMessage(db: Db, input: { id: number; messageId: string }): Promise<void> {
+  await db.update(matchSlots).set({ waitingAnnounceMessageId: input.messageId }).where(eq(matchSlots.id, input.id));
 }
 
 /** 対戦枠の一覧。slotDate を指定するとその日だけ。日付・時刻の順 */

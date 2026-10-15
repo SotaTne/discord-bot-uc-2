@@ -84,6 +84,14 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
       return message;
     },
 
+    /** メッセージを削除する（Bot が、チャンネルのメッセージを削除したとき）。なければ false */
+    deleteMessage(id: string): boolean {
+      const index = messages.findIndex((m) => m.id === id);
+      if (index === -1) return false;
+      messages.splice(index, 1);
+      return true;
+    },
+
     /** メッセージの本文とボタンを置き換える（ボタンが押されたときの UpdateMessage） */
     replaceMessage(id: string, input: { content: string; components?: ActionRow[] | undefined }): boolean {
       const message = messages.find((m) => m.id === id);

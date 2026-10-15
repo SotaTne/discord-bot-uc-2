@@ -11,6 +11,7 @@ import {
   adminInteraction,
   commandContext,
   commandInteraction,
+  channelNoops,
   contentOf,
   createSeededDb,
   jst,
@@ -78,7 +79,7 @@ describe("/uc-admin-status", () => {
     await raise(seeded.utId, 21, CAROL, "2026-10-07T15:05:00");
     await runScheduled({
       db: seeded.db,
-      rest: { createMessage: async () => ({ id: "1" }) },
+      rest: { createMessage: async () => ({ id: "1" }), ...channelNoops },
       clock: fixedClock(jst("2026-10-07T20:53:00")),
     });
 
@@ -91,7 +92,7 @@ describe("/uc-admin-status", () => {
   it("挙手が足りずに組めなかった対戦枠は、その旨を出す", async () => {
     await runScheduled({
       db: seeded.db,
-      rest: { createMessage: async () => ({ id: "1" }) },
+      rest: { createMessage: async () => ({ id: "1" }), ...channelNoops },
       clock: fixedClock(jst("2026-10-07T20:53:00")),
     });
 

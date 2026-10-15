@@ -37,6 +37,15 @@ export function createDiscordRestRoutes(state: MockState) {
       return c.json({ id: current.id, channel_id: current.channelId, content: body.content ?? current.content });
     })
 
+    // チャンネルのメッセージの削除（Bot トークンが必要）。なければ 404
+    .delete("/channels/:channelId/messages/:messageId", (c) => {
+      if (!c.req.header("Authorization")?.startsWith("Bot ")) {
+        return c.json({ message: "401: Unauthorized", code: 0 }, 401);
+      }
+      if (!state.deleteMessage(c.req.param("messageId"))) return c.json({ message: "Unknown Message", code: 10008 }, 404);
+      return c.body(null, 204);
+    })
+
     // deferred で返した応答の編集（インタラクションのトークンで認証する）
     .patch("/webhooks/:appId/:token/messages/@original", async (c) => {
       const pending = state.getPending(c.req.param("token"));

@@ -86,8 +86,10 @@ export const matchSlots = sqliteTable(
      * 待機しているチームは、excluded_team_id。継続募集中かどうかは、これと時刻から、計算する（`isContinuedRecruit`）
      */
     waitingSince: integer("waiting_since"),
-    /** 継続募集の案内を投稿した、Discord のメッセージの ID（ボタンの編集に使う） */
+    /** 継続募集の案内（「待機する」のボタン）を投稿した、Discord のメッセージの ID（ボタンの編集に使う） */
     waitingMessageId: text("waiting_message_id"),
+    /** 継続募集の募集のメッセージ（「対戦する」「待機をキャンセル」のボタン）の ID。最初の待機のとき、1 回だけ投稿し、あとは、編集する */
+    waitingAnnounceMessageId: text("waiting_announce_message_id"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

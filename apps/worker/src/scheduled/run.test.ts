@@ -1,7 +1,7 @@
 import { fixedClock, matchNumberKey, matchNumbers } from "@uc/core";
 import { addMatch, createHandup, createTeam, defaultGuildSettings, ensureHandup, listGuildMatches, listMatchedSlots, saveGuildSettings, withdrawHandup } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { GUILD_ID, KMU_ROLE, UT_ROLE, createSeededDb, jst } from "../test-helpers";
+import { GUILD_ID, KMU_ROLE, UT_ROLE, channelNoops, createSeededDb, jst } from "../test-helpers";
 import { runScheduled } from "./run";
 
 type Seeded = Awaited<ReturnType<typeof createSeededDb>>;
@@ -35,6 +35,7 @@ const rest = {
     posted.push({ channelId, content: payload.content ?? "", allowedMentions: payload.allowed_mentions });
     return { id: String(posted.length) };
   },
+  ...channelNoops,
 };
 
 beforeEach(async () => {

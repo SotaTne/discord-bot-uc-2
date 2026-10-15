@@ -64,6 +64,17 @@ describe("Discord REST のモック", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("メッセージを削除できる。すでにない（知らない ID）なら 404。Bot トークンがなければ 401", async () => {
+    const app = createDiscordRestRoutes(state);
+    const created = await app.request("/channels/c1/messages", { method: "POST", headers: bot, body: JSON.stringify({ content: "募集" }) });
+    const { id } = (await created.json()) as { id: string };
+
+    expect((await app.request(`/channels/c1/messages/${id}`, { method: "DELETE" })).status).toBe(401);
+    expect((await app.request(`/channels/c1/messages/${id}`, { method: "DELETE", headers: bot })).status).toBe(204);
+    expect(state.messages).toEqual([]);
+    expect((await app.request(`/channels/c1/messages/${id}`, { method: "DELETE", headers: bot })).status).toBe(404);
+  });
+
   it("Bot トークンがなければ 401", async () => {
     const app = createDiscordRestRoutes(state);
     const response = await app.request("/channels/c1/messages", {

@@ -1,0 +1,1 @@
+ALTER TABLE `match_slots` ADD `waiting_announce_message_id` text;
