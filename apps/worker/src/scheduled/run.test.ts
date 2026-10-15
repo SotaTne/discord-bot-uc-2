@@ -162,7 +162,7 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
     expect(posted).toHaveLength(1);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
+      ["## 第1試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
     );
     expect(posted[0]?.allowedMentions).toEqual({ parse: ["roles"] });
 
@@ -201,7 +201,7 @@ describe("試合の K 分前の締切とマッチング", () => {
 
     await tick("2026-10-07T20:53:00");
 
-    expect(posted[0]?.content).toBe("## 試合 (時間:21時)\n試合に参加するチームが十分ではありません");
+    expect(posted[0]?.content).toBe("## 第1試合 (時間:21時)\n試合に参加するチームが十分ではありません");
     const [round] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID });
     expect(round).toMatchObject({ pairs: [], excludedTeamId: seeded.kmuId });
   });
@@ -221,8 +221,8 @@ describe("試合の K 分前の締切とマッチング", () => {
     await tick("2026-10-07T21:53:00");
 
     expect(posted.map((p) => p.content.split("\n")[0])).toEqual([
-      "## 試合 (時間:21時)",
-      "## 試合 (時間:22時) の組分け:",
+      "## 第1試合 (時間:21時)",
+      "## 第2試合 (時間:22時) の組分け:",
     ]);
   });
 
@@ -271,7 +271,7 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     expect(slot?.pairs.map((pair) => [pair.teamAId, pair.teamBId])).toEqual([[seeded.kmuId, seeded.utId], [ngt, itf]]);
     expect(posted[0]?.content).toBe(
       [
-        "## 試合 (時間:21時) の組分け:",
+        "## 第1試合 (時間:21時) の組分け:",
         await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE }),
         await pairLine({ id: ngt, role: "r-ngt" }, { id: itf, role: "r-itf" }),
       ].join("\n"),
@@ -297,7 +297,7 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     await tick("2026-10-07T20:53:00");
 
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
+      ["## 第1試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
     );
   });
 

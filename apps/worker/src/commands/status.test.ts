@@ -41,9 +41,9 @@ describe("/uc-status", () => {
     expect(contentOf(response)).toBe(
       [
         `<@&${KMU_ROLE}> の挙手状況（2026-10-07）`,
-        `- 21時: 挙手済み（by <@${ALICE}>, 14:05）・締切`,
-        "- 22時: 未挙手・受付中",
-        "- 23時: 未挙手・受付中",
+        `- 第1試合 21時: 挙手済み（by <@${ALICE}>, 14:05）・締切`,
+        "- 第2試合 22時: 未挙手・受付中",
+        "- 第3試合 23時: 未挙手・受付中",
       ].join("\n"),
     );
     expect(response.data?.flags).toBe(64);
@@ -52,7 +52,7 @@ describe("/uc-status", () => {
   it("募集開始前は、未挙手と「受付前」が出る", async () => {
     const response = await call(status, { name: "uc-status" }, jst("2026-10-07T09:00:00"));
 
-    expect(contentOf(response)).toContain("- 21時: 未挙手・受付前");
+    expect(contentOf(response)).toContain("- 第1試合 21時: 未挙手・受付前");
   });
 
   it("他のチームの挙手は、一切見せない", async () => {
@@ -61,7 +61,7 @@ describe("/uc-status", () => {
     const response = await call(status, { name: "uc-status" }, jst("2026-10-07T15:00:00"));
 
     const text = contentOf(response);
-    expect(text).toContain("- 21時: 未挙手・受付中");
+    expect(text).toContain("- 第1試合 21時: 未挙手・受付中");
     expect(text).not.toContain(CAROL);
     expect(text).not.toContain(UT_ROLE);
   });
@@ -78,7 +78,7 @@ describe("/uc-status", () => {
 
     const response = await call(status, { name: "uc-status" }, jst("2026-10-07T15:00:00"));
 
-    expect(contentOf(response)).toContain("- 21時: 未挙手・受付中");
+    expect(contentOf(response)).toContain("- 第1試合 21時: 未挙手・受付中");
   });
 
   it("チームのロールを持っていない人・複数持っている人には、理由を返す", async () => {

@@ -9,7 +9,7 @@ const STATUS_PHASE_LABEL: Record<HandupPhase, string> = {
 };
 
 /** matched: その日の対戦枠が、マッチング済み（時刻に関係なく、挙手を受け付けない） */
-export type SlotStatus = { hour: number; phase: HandupPhase; handups: Handup[]; matched?: boolean };
+export type SlotStatus = { hour: number; /** その日の何試合目か */ number: number; phase: HandupPhase; handups: Handup[]; matched?: boolean };
 
 /** 自チームの挙手状況の文面を作る（純粋な関数） */
 export function formatStatus(input: {
@@ -22,11 +22,11 @@ export function formatStatus(input: {
     return `${header}\n試合時刻が登録されていません`;
   }
 
-  const lines = input.slots.map(({ hour, phase, handups, matched }) => {
+  const lines = input.slots.map(({ hour, number, phase, handups, matched }) => {
     const active = handups[0];
 
     const state = active ? `挙手済み（by <@${active.raisedBy}>, ${formatJstTime(new Date(active.createdAt))}）` : "未挙手";
-    return `- ${hour}時: ${state}・${matched ? "マッチング済み" : STATUS_PHASE_LABEL[phase]}`;
+    return `- 第${number}試合 ${hour}時: ${state}・${matched ? "マッチング済み" : STATUS_PHASE_LABEL[phase]}`;
   });
 
   return [header, ...lines].join("\n");

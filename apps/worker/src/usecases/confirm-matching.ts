@@ -1,8 +1,9 @@
-import { hostTeamOf, pairTeams, type MatchingResult } from "@uc/core";
+import { hostTeamOf, pairTeams, slotNumberOf, type MatchingResult } from "@uc/core";
 import {
   ensureMatchSlot,
   listHandupsForSlot,
   listMatchesOnDate,
+  listSlotHours,
   listTeams,
   markMatchSlotMatched,
   saveMatchResult,
@@ -69,6 +70,9 @@ export async function confirmMatching(
     const found = all.find((m) => (m.teamAId === teamAId && m.teamBId === teamBId) || (m.teamAId === teamBId && m.teamBId === teamAId));
     return found?.hostTeamId ?? hostTeamOf({ slotDate: input.slotDate, slotHour: input.slotHour, teamAId, teamBId });
   };
-  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, hostOf, teams });
+  // その日の何試合目か。削除した試合時刻も、削除した日までは数える（ダッシュボードの対戦枠と同じ数え方）
+  const slotEntries = await listSlotHours(db, input.guildId, { includeDeleted: true });
+  const number = slotNumberOf(slotEntries, input.slotDate, input.slotHour) ?? 1;
+  await postMatchingResult(deps.rest, { channelId: input.channelId, number, hour: input.slotHour, result: announced, hostOf, teams });
 }
 

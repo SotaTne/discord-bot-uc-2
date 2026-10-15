@@ -33,12 +33,12 @@ describe("confirmMatching: 主催（乱数で決まる）", () => {
   it("乱数が小さければ、1 チーム目（先に挙手したチーム）が主催", async () => {
     await confirm(() => 0.1);
 
-    expect(posted[0]).toBe(["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>（主催: <@&${KMU_ROLE}>）`].join("\n"));
+    expect(posted[0]).toBe(["## 第1試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>（主催: <@&${KMU_ROLE}>）`].join("\n"));
   });
 
   it("乱数が大きければ、2 チーム目が主催", async () => {
     await confirm(() => 0.9);
 
-    expect(posted[0]).toBe(["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>（主催: <@&${UT_ROLE}>）`].join("\n"));
+    expect(posted[0]).toBe(["## 第1試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>（主催: <@&${UT_ROLE}>）`].join("\n"));
   });
 });

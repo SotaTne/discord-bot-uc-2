@@ -17,9 +17,9 @@ describe("formatStatus", () => {
       { id: 2, guildId: GUILD_ID, matchSlotId: 1, slotDate: "2026-10-07", slotHour: 21, teamId: 1, raisedBy: BOB, createdAt: jst("2026-10-07T14:00:00").getTime() },
     ];
 
-    const text = formatStatus({ team, slotDate: "2026-10-07", slots: [{ hour: 21, phase: "open", handups }] });
+    const text = formatStatus({ team, slotDate: "2026-10-07", slots: [{ hour: 21, number: 1, phase: "open", handups }] });
 
-    expect(text).toContain(`- 21時: 挙手済み（by <@${BOB}>, 14:00）・受付中`);
-    expect(formatStatus({ team, slotDate: "2026-10-07", slots: [{ hour: 21, phase: "open", handups: [] }] })).toContain("- 21時: 未挙手・受付中");
+    expect(text).toContain(`- 第1試合 21時: 挙手済み（by <@${BOB}>, 14:00）・受付中`);
+    expect(formatStatus({ team, slotDate: "2026-10-07", slots: [{ hour: 21, number: 1, phase: "open", handups: [] }] })).toContain("- 第1試合 21時: 未挙手・受付中");
   });
 });

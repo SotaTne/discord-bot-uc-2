@@ -31,6 +31,8 @@ export async function postMatchingResult(
   rest: ChannelPoster,
   input: {
     channelId: string;
+    /** その日の何試合目か */
+    number: number;
     hour: number;
     result: MatchingResult;
     /** 組分けの主催（2 チームのうちの 1 チームの ID）を返す */
@@ -39,7 +41,7 @@ export async function postMatchingResult(
   },
 ): Promise<void> {
   await rest.createMessage(input.channelId, {
-    content: matchingMessage({ hour: input.hour, hostOf: input.hostOf, result: input.result, teamById: teamsById(input.teams) }),
+    content: matchingMessage({ number: input.number, hour: input.hour, hostOf: input.hostOf, result: input.result, teamById: teamsById(input.teams) }),
     allowed_mentions: { parse: ["roles"] },
   });
 }
