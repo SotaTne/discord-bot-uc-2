@@ -73,9 +73,6 @@ button, a, summary, [role="button"] { touch-action: manipulation; }
 }
 
 /* 並び替えができる見出し: 押せることが分かるように、触れたときに背景を付ける */
-.sortable { cursor: pointer; border-radius: 4px; padding: 2px 6px; margin: -2px -6px; }
-.sortable:hover { background: var(--mantine-color-default-hover); }
-.sortable:focus-visible { outline: 2px solid var(--mantine-color-primary-filled); outline-offset: 2px; }
 
 /* 設定の 1 項目: 左に、名前と説明。右に、入力欄 */
 .setting-row { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px 32px; padding: 16px 0; align-items: start; }

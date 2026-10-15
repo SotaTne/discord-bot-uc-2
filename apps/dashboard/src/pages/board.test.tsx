@@ -25,11 +25,6 @@ const apis = (slots: unknown[] = [slot()]) => ({
   "GET /api/teams": { body: TEAMS },
   "GET /api/slot-hours": { body: SLOT_HOURS },
 });
-/** 行の「操作」メニューを開いて、項目を選ぶ */
-const choose = async (menuName: string, item: string) => {
-  fireEvent.click(await screen.findByRole("button", { name: menuName }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
-};
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
 describe("対戦枠の画面: 削除した試合時刻の対戦枠（状態は、未マッチング / マッチング済み / 削除済みの 3 つ）", () => {
@@ -79,7 +74,7 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠（状態は�
 
     const deleted = await card("21:00の対戦枠");
     expect(deleted.getByRole("button", { name: "KMUの21:00の挙手を取り消す" })).toBeTruthy();
-    expect(deleted.getByRole("button", { name: "KMU vs UTの操作" })).toBeTruthy();
+    expect(deleted.getByRole("button", { name: "KMU vs UTを削除" })).toBeTruthy();
   });
 });
 
@@ -271,7 +266,7 @@ describe("対戦枠の画面: 組分け", () => {
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
 
-    await choose("KMU vs UTの操作", "組分けを削除");
+    fireEvent.click(await screen.findByRole("button", { name: "KMU vs UTを削除" }));
     expect(backend.count("DELETE", "/api/matches/7")).toBe(0);
     fireEvent.click(screen.getByRole("button", { name: "削除を実行する" }));
 

@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Button, Checkbox, CloseButton, Group, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Async, ConfirmButton, ConfirmDialog, ErrorNote, RowMenu, type RowMenuItem } from "../components/ui";
+import { Async, ConfirmButton, ConfirmDialog, ErrorNote } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatDateWithWeekday, formatHour, formatJstDateTime, shiftDate } from "../lib/format";
@@ -334,7 +334,7 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
   );
 }
 
-/** 組分けの 1 行（表の行）。操作は、行の右端の「操作 ▾」メニューに、項目の名前で入れる */
+/** 組分けの 1 行（表の行）。右端に「削除」のボタンを置く */
 function MatchRow({ match }: { match: Match }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
   const [removing, setRemoving] = useState(false);
@@ -342,7 +342,6 @@ function MatchRow({ match }: { match: Match }) {
     (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),
     REFRESH,
   );
-  const removeMatchItem: RowMenuItem = { label: "組分けを削除", danger: true, onClick: () => setRemoving(true) };
 
   return (
     <>
@@ -350,7 +349,9 @@ function MatchRow({ match }: { match: Match }) {
         <Table.Td>{label}</Table.Td>
         <Table.Td>
           <Group justify="flex-end" wrap="nowrap">
-            <RowMenu label={`${label}の操作`} items={[removeMatchItem]} />
+            <Button variant="default" color="red" size="xs" onClick={() => setRemoving(true)} aria-label={`${label}を削除`}>
+              削除
+            </Button>
           </Group>
         </Table.Td>
       </Table.Tr>

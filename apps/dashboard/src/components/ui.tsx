@@ -1,4 +1,4 @@
-import { Alert, Box, Button, CloseButton, Group, Loader, Menu, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
+import { Alert, Box, Button, CloseButton, Group, Loader, Modal, NativeSelect, Paper, Popover, Stack, Text, TextInput, Title } from "@mantine/core";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { api } from "../lib/api";
@@ -172,67 +172,4 @@ export function ConfirmDialog(props: {
       </Stack>
     </Modal>
   );
-}
-
-export type RowMenuItem = { label: string; onClick: () => void; danger?: boolean; disabled?: boolean };
-
-/**
- * 表の行の操作メニュー（「操作 ▾」を押すと開く。「⋯」ではなく、文字を付けて、押せるものだと分かるようにする）。行ごとに、いくつもボタンを並べず、操作は項目の名前で選ぶ。
- * 何を対象にした操作かは、項目の名前に書く（「勝利を削除」「組分けを削除」）。
- */
-export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] }) {
-  return (
-    <Menu position="bottom-end" withinPortal>
-      <Menu.Target>
-        <Button variant="default" size="xs" aria-label={label} rightSection={<span aria-hidden="true">▾</span>}>
-          操作
-        </Button>
-      </Menu.Target>
-      <Menu.Dropdown>
-        {items.map((item) => (
-          <Menu.Item key={item.label} {...(item.danger ? { color: "red" } : {})} disabled={item.disabled ?? false} onClick={item.onClick}>
-            {item.label}
-          </Menu.Item>
-        ))}
-      </Menu.Dropdown>
-    </Menu>
-  );
-}
-
-export type SortDirection = "asc" | "desc";
-
-/** 並び替えの印。上下の三角を並べ、今の向きだけを濃くする（並べていないときは、両方とも薄い） */
-function SortIcon({ direction }: { direction: SortDirection | null }) {
-  const active = "var(--mantine-color-indigo-filled)";
-  const idle = "var(--mantine-color-dimmed)";
-  return (
-    <svg width="10" height="14" viewBox="0 0 10 14" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path d="M5 1 9 6H1z" fill={direction === "asc" ? active : idle} opacity={direction === "asc" ? 1 : 0.45} />
-      <path d="M5 13 1 8h8z" fill={direction === "desc" ? active : idle} opacity={direction === "desc" ? 1 : 0.45} />
-    </svg>
-  );
-}
-
-/**
- * 並び替えができる、表の見出し。上下の三角の印が付き、押すと切り替わる（昇順 → 降順 → 元の並び）。
- * 今の並びは、印の濃い側と、見出しの `aria-sort` で伝える。
- */
-export function SortableTh(props: { label: string; direction: SortDirection | null; onSort: () => void; align?: "left" | "right" }) {
-  const ariaSort = props.direction === "asc" ? "ascending" : props.direction === "desc" ? "descending" : "none";
-  return (
-    <Table.Th ta={props.align ?? "left"} aria-sort={ariaSort}>
-      <UnstyledButton className="sortable" onClick={props.onSort} fw="inherit" fz="inherit" c="inherit">
-        <Group gap={6} wrap="nowrap" justify={props.align === "right" ? "flex-end" : "flex-start"}>
-          {props.label}
-          <SortIcon direction={props.direction} />
-        </Group>
-      </UnstyledButton>
-    </Table.Th>
-  );
-}
-
-/** 押すたびに、昇順 → 降順 → 元の並び、と切り替える（別の列を押したら、その列の昇順から） */
-export function nextSort<K extends string>(current: { key: K; direction: SortDirection } | null, key: K): { key: K; direction: SortDirection } | null {
-  if (current?.key !== key) return { key, direction: "asc" };
-  return current.direction === "asc" ? { key, direction: "desc" } : null;
 }
