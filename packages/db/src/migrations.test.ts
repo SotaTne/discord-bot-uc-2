@@ -1,15 +1,13 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 // マイグレーションの規則を、テストで守らせる。
 // - いちど出した（適用した）マイグレーションは、書き換えない。DB を変えるときは、差分（0001、0002…）を足す
 // - 差分を足しても、すでにあるデータが、失われない
-// - schema.ts と、マイグレーションが、合っている（schema.ts だけを変えて、マイグレーションを作り忘れない）
+// （schema.ts と、マイグレーションが合っているかの確認は、drizzle-kit を使うので、テストではなく、`pnpm --filter @uc/db check:schema` で行う）
 
 const packageDir = join(import.meta.dirname, "..");
 const migrationsDir = join(packageDir, "migrations");
@@ -57,19 +55,4 @@ describe("マイグレーションは、差分で積む", () => {
     expect(() => db.prepare("INSERT INTO slot_hours (guild_id, hour, created_at) VALUES ('g1', 21, 3)").run()).toThrow(/UNIQUE/);
     expect(() => db.prepare("INSERT INTO slot_hours (guild_id, hour, created_at) VALUES ('g1', 24, 3)").run()).toThrow(/CHECK/);
   });
-
-  it("schema.ts と、マイグレーションが、合っている（schema.ts を変えたら、`pnpm --filter @uc/db exec drizzle-kit generate` で、差分を作る）", () => {
-    // マイグレーションのコピーに対して、差分を作らせる。差分があれば、新しいファイルができる（元は、変えない）
-    const work = mkdtempSync(join(tmpdir(), "uc-migrations-"));
-    const copy = join(work, "migrations");
-    cpSync(migrationsDir, copy, { recursive: true });
-    const config = join(work, "drizzle.config.mjs");
-    writeFileSync(config, `export default ${JSON.stringify({ dialect: "sqlite", schema: "./src/schema.ts", out: relative(packageDir, copy) })};`);
-    const before = readdirSync(copy).filter((name) => name.endsWith(".sql"));
-
-    const output = execFileSync("pnpm", ["exec", "drizzle-kit", "generate", "--config", config], { cwd: packageDir, encoding: "utf8", stdio: "pipe" });
-
-    expect(readdirSync(copy).filter((name) => name.endsWith(".sql"))).toEqual(before);
-    expect(output).toContain("No schema changes");
-  }, 60_000);
 });
