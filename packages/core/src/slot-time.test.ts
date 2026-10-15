@@ -6,7 +6,6 @@ import {
   isAcceptingHandups,
   jstDateOf,
   slotHoursOnDate,
-  slotNumberOf,
   slotPhase,
   slotStart,
 } from "./slot-time";
@@ -107,30 +106,6 @@ describe("formatJstTime", () => {
   it("JST の HH:MM で表す（UTC の日付をまたぐ場合も）", () => {
     expect(formatJstTime(jst("2026-10-07T14:05:30"))).toBe("14:05");
     expect(formatJstTime(new Date("2026-10-07T15:30:00Z"))).toBe("00:30");
-  });
-});
-
-describe("slotNumberOf（その日の何試合目か）", () => {
-  const entries = [
-    { hour: 23, deletedAt: null },
-    { hour: 21, deletedAt: null },
-    { hour: 22, deletedAt: new Date("2026-10-07T03:00:00Z").getTime() },
-  ];
-
-  it("その日の対戦枠を、時刻順に並べた順番（1 から）", () => {
-    expect(slotNumberOf(entries, "2026-10-06", 21)).toBe(1);
-    expect(slotNumberOf(entries, "2026-10-06", 22)).toBe(2);
-    expect(slotNumberOf(entries, "2026-10-06", 23)).toBe(3);
-  });
-
-  it("削除した試合時刻は、削除した日までは数に入る。翌日からは、入らない（番号が詰まる）", () => {
-    expect(slotNumberOf(entries, "2026-10-07", 23)).toBe(3);
-    expect(slotNumberOf(entries, "2026-10-08", 23)).toBe(2);
-    expect(slotNumberOf(entries, "2026-10-08", 22)).toBeNull();
-  });
-
-  it("その日の対戦枠にない時刻は null", () => {
-    expect(slotNumberOf(entries, "2026-10-06", 20)).toBeNull();
   });
 });
 

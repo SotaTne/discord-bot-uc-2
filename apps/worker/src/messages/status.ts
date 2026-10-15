@@ -9,24 +9,35 @@ const STATUS_PHASE_LABEL: Record<HandupPhase, string> = {
 };
 
 /** matched: その日の対戦枠が、マッチング済み（時刻に関係なく、挙手を受け付けない） */
-export type SlotStatus = { hour: number; /** その日の何試合目か */ number: number; phase: HandupPhase; handups: Handup[]; matched?: boolean };
+export type SlotStatus = {
+  hour: number;
+  phase: HandupPhase;
+  handups: Handup[];
+  matched?: boolean;
+  /** 自チームが組まれていれば、その組分けは、何試合目か */
+  matchNumber?: number;
+};
 
 /** 自チームの挙手状況の文面を作る（純粋な関数） */
 export function formatStatus(input: {
   team: Team;
   slotDate: string;
   slots: SlotStatus[];
+  /** 自チームが、これまでに入った組分けの数（組まれた試合数） */
+  matchCount?: number;
 }): string {
-  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）`;
+  const count = input.matchCount === undefined ? "" : `\nこれまで ${input.matchCount} 試合（次の試合は ${input.matchCount + 1} 試合目）`;
+  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${count}`;
   if (input.slots.length === 0) {
     return `${header}\n試合時刻が登録されていません`;
   }
 
-  const lines = input.slots.map(({ hour, number, phase, handups, matched }) => {
+  const lines = input.slots.map(({ hour, phase, handups, matched, matchNumber }) => {
     const active = handups[0];
 
     const state = active ? `挙手済み（by <@${active.raisedBy}>, ${formatJstTime(new Date(active.createdAt))}）` : "未挙手";
-    return `- 第${number}試合 ${hour}時: ${state}・${matched ? "マッチング済み" : STATUS_PHASE_LABEL[phase]}`;
+    const numbered = matchNumber === undefined ? "" : `・${matchNumber}試合目`;
+    return `- ${hour}時: ${state}・${matched ? "マッチング済み" : STATUS_PHASE_LABEL[phase]}${numbered}`;
   });
 
   return [header, ...lines].join("\n");

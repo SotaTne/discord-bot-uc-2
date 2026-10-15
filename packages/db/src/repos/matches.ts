@@ -188,6 +188,19 @@ export async function findMatchForTeam(
   return rows.find((row) => row.teamAId === input.teamId || row.teamBId === input.teamId);
 }
 
+/** サーバーの、すべての組分け（対戦枠の日付・時刻つき）。何試合目かを数えるのに使う。日付・時刻・ID の順 */
+export function listGuildMatches(
+  db: Db,
+  guildId: string,
+): Promise<{ id: number; slotDate: string; slotHour: number; teamAId: number; teamBId: number }[]> {
+  return db
+    .select({ id: matches.id, slotDate: matchSlots.slotDate, slotHour: matchSlots.slotHour, teamAId: matches.teamAId, teamBId: matches.teamBId })
+    .from(matches)
+    .innerJoin(matchSlots, eq(matches.matchSlotId, matchSlots.id))
+    .where(eq(matchSlots.guildId, guildId))
+    .orderBy(asc(matchSlots.slotDate), asc(matchSlots.slotHour), asc(matches.id));
+}
+
 /**
  * マッチング済みの対戦枠を、未マッチングに戻す（挙手は、そのまま残す）。
  * その対戦枠の組分けを、すべて削除する。除外チームも外す。

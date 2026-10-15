@@ -149,10 +149,6 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
       {/* 左: 時刻（目印）・状態・この対戦枠への操作 */}
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
-        {/* その日の何試合目か（その日の対戦枠を、時刻順に並べた順番） */}
-        <Text size="sm" c="dimmed">
-          第{slot.number}試合
-        </Text>
         {/* 状態は、3 つ: 未マッチング（受付の段階つき）/ マッチング済み / 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
         {slot.deleted ? (
           <Badge color="gray" variant="filled" tt="none" title="設定で削除した試合時刻です。削除した日までの対戦枠が、残っています">
@@ -337,6 +333,8 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
 /** 組分けの 1 行（表の行）。右端に「削除」のボタンを置く */
 function MatchRow({ match }: { match: Match }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
+  // 表示は、各チームが何試合目かを添える（そのチームが入った組分けの数。サーバーが、組分けから数える）
+  const shown = `${match.teamA.name}（${match.matchNumberA}試合目） vs ${match.teamB.name}（${match.matchNumberB}試合目）`;
   const [removing, setRemoving] = useState(false);
   const removeMatch = useInvalidatingMutation(
     (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),
@@ -347,8 +345,8 @@ function MatchRow({ match }: { match: Match }) {
     <>
       <Table.Tr>
         <Table.Td>
-          {label}
-          {/* 主催（部屋を立てる側）。保存せず、サーバーが、組分けから計算する */}
+          {shown}
+          {/* 主催（部屋を立てる側）。組分けを作るときに、無作為に決めて保存した値 */}
           <Text span c="dimmed" size="sm" ml="xs">
             主催: {match.host.name}
           </Text>

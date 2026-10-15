@@ -1,5 +1,5 @@
-import { handupPhase, jstDateOf, slotHoursOnDate } from "@uc/core";
-import { getGuildSettings, listMatchSlots, listSlotHours, listTeamHandupsOnDate } from "@uc/db";
+import { handupPhase, jstDateOf, matchNumberKey, matchNumbers } from "@uc/core";
+import { getGuildSettings, listGuildMatches, listMatchSlots, listSlotHours, listTeamHandupsOnDate } from "@uc/db";
 import { ephemeralMessage } from "@uc/discord";
 import { formatStatus, type SlotStatus } from "../messages/status";
 import { resolveCaller } from "./caller";
@@ -17,28 +17,32 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
   const now = clock.now();
   const slotDate = jstDateOf(now);
   const settings = await getGuildSettings(db, guildId);
-  const [slots, matchSlots, handups] = await Promise.all([
-    // 削除した試合時刻も、削除した日までは数に入れる（ダッシュボードの対戦枠と、同じ数え方）
-    listSlotHours(db, guildId, { includeDeleted: true }),
+  const [slots, matchSlots, handups, guildMatches] = await Promise.all([
+    listSlotHours(db, guildId),
     listMatchSlots(db, { guildId, slotDate }),
     listTeamHandupsOnDate(db, { guildId, slotDate, teamId: team.id }),
+    listGuildMatches(db, guildId),
   ]);
+  // 何試合目か: 自チームが入った組分けを、日付・時刻の順に数える（保存せず、毎回、数える）
+  const numbers = matchNumbers(guildMatches);
+  const mine = guildMatches.filter((match) => match.teamAId === team.id || match.teamBId === team.id);
 
   return ephemeralMessage(
     formatStatus({
       team,
       slotDate,
-      slots: slotHoursOnDate(slots, slotDate)
-        .map((slot, index) => ({ ...slot, number: index + 1 }))
-        // 見せるのは、いま登録されている試合時刻だけ（削除済みは、番号だけ数に入る）
-        .filter((slot) => !slot.deleted)
-        .map((slot) => ({
+      matchCount: mine.length,
+      slots: slots.map((slot) => {
+        const own = mine.find((match) => match.slotDate === slotDate && match.slotHour === slot.hour);
+        const matchNumber = own ? numbers.get(matchNumberKey(team.id, own.id)) : undefined;
+        return {
           hour: slot.hour,
-          number: slot.number,
           phase: handupPhase(now, slot.hour, settings),
           handups: handups.filter((h) => h.slotHour === slot.hour),
           matched: matchSlots.some((matchSlot) => matchSlot.slotHour === slot.hour && matchSlot.status === "matched"),
-        })),
+          ...(matchNumber === undefined ? {} : { matchNumber }),
+        };
+      }),
     }),
   );
 };

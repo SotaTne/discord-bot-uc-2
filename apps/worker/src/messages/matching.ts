@@ -23,30 +23,34 @@ export function matchingCancelledMessage(input: {
 
 /**
  * マッチング結果の投稿。チームは、ロールのメンションで表す（組まれたチームと除外されたチームに、通知される）。
- * 見出しに、その日の何試合目か（`number`）を出す。組分けごとに、主催（部屋を立てる側）を添える。主催は、組分けを作るときに、無作為に決めて保存したもの（`hostOf` で渡す）。
+ * 組分けごとに、各チームが何試合目か（そのチームが入った組分けの数）と、主催（部屋を立てる側）を添える。主催は、組分けを作るときに、無作為に決めて保存したもの（`hostOf` で渡す）。
  * （挙手が足りないときは、メンションなし）
  */
 export function matchingMessage(input: {
-  /** その日の何試合目か（1 から。その日の対戦枠を、時刻順に並べた順番） */
-  number: number;
   hour: number;
+  /** そのチームの、その組分けは、何試合目か（分からなければ undefined） */
+  numberOf: (teamId: number, teamAId: number, teamBId: number) => number | undefined;
   /** 組分けの主催（2 チームのうちの 1 チームの ID）を返す */
   hostOf: (teamAId: number, teamBId: number) => number;
   result: MatchingResult;
   teamById: Map<number, Team>;
 }): string {
-  const { number, hour, hostOf, result, teamById } = input;
+  const { hour, hostOf, numberOf, result, teamById } = input;
   if (result.kind === "insufficient") {
-    return `## 第${number}試合 (時間:${hour}時)\n試合に参加するチームが十分ではありません`;
+    return `## 試合 (時間:${hour}時)\n試合に参加するチームが十分ではありません`;
   }
 
   const mention = (id: number) => {
     const team = teamById.get(id);
     return team ? `<@&${team.roleId}>` : String(id);
   };
-  const lines = [`## 第${number}試合 (時間:${hour}時) の組分け:`];
+  const lines = [`## 試合 (時間:${hour}時) の組分け:`];
+  const withNumber = (id: number, a: number, b: number) => {
+    const n = numberOf(id, a, b);
+    return n === undefined ? mention(id) : `${mention(id)}（${n}試合目）`;
+  };
   for (const [a, b] of result.pairs) {
-    lines.push(`- ${mention(a)} vs ${mention(b)}（主催: ${mention(hostOf(a, b))}）`);
+    lines.push(`- ${withNumber(a, a, b)} vs ${withNumber(b, a, b)}・主催: ${mention(hostOf(a, b))}`);
   }
   if (result.excluded) {
     lines.push(`- ${mention(result.excluded)} は参加チーム数が奇数だったためマッチングしませんでした`);

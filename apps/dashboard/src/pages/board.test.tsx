@@ -8,7 +8,6 @@ const UT = { id: 2, name: "UT" };
 
 const slot = (over: Record<string, unknown> = {}) => ({
   hour: 21,
-  number: 1,
   phase: "open",
   matched: false,
   excluded: null,
@@ -17,7 +16,7 @@ const slot = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const handup = (over: Record<string, unknown> = {}) => ({ id: 1, team: KMU, raisedByName: "alice", createdAt: at("2026-10-07T15:00:00"), ...over });
-const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, host: UT, ...over });
+const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 3, matchNumberB: 5, host: UT, ...over });
 const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, slots } });
 const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
@@ -173,7 +172,7 @@ describe("対戦枠の画面: 挙手", () => {
     const within21 = await card("21:00の対戦枠");
     expect(within21.getAllByText("KMU").length).toBeGreaterThan(0);
     // 挙手を追加する欄は、チームの一覧を取るまで出ない。取れたあとも、出さない
-    await screen.findAllByText("KMU vs UT");
+    await screen.findAllByText("KMU（3試合目） vs UT（5試合目）");
     expect(within21.queryByRole("button", { name: /挙手を取り消す/ })).toBeNull();
     expect(within21.queryByLabelText("挙手するチーム")).toBeNull();
   });
@@ -244,20 +243,12 @@ describe("対戦枠の画面: 組分けの追加", () => {
 });
 
 describe("対戦枠の画面: 組分け", () => {
-  it("対戦枠に、その日の何試合目かを出す", async () => {
-    installFakeBackend(apis([slot({ hour: 21, number: 1 }), slot({ hour: 22, number: 2 })]));
-    renderApp("/");
-
-    expect((await card("22:00の対戦枠")).getByText("第2試合")).toBeTruthy();
-    expect((await card("21:00の対戦枠")).getByText("第1試合")).toBeTruthy();
-  });
-
   it("組分け（AA vs BB）を出し、組まれなかったチームも出す", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match()], excluded: { id: 3, name: "NGT" } })]));
     renderApp("/");
 
     const within21 = await card("21:00の対戦枠");
-    expect(within21.getByText("KMU vs UT")).toBeTruthy();
+    expect(within21.getByText("KMU（3試合目） vs UT（5試合目）")).toBeTruthy();
     expect(within21.getByText("主催: UT")).toBeTruthy();
     expect(within21.getByText("組まれなかったチーム: NGT")).toBeTruthy();
   });

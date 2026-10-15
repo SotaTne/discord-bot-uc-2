@@ -24,15 +24,6 @@ export function slotHoursOnDate(entries: readonly SlotHourEntry[], date: string)
     .sort((a, b) => a.hour - b.hour);
 }
 
-/**
- * その日の、その試合時刻が、何試合目か（1 から）。その日の対戦枠（`slotHoursOnDate`）を、時刻順に並べた順番。
- * 保存せず、毎回、計算する。その日の対戦枠にない時刻は null。
- */
-export function slotNumberOf(entries: readonly SlotHourEntry[], date: string, hour: number): number | null {
-  const index = slotHoursOnDate(entries, date).findIndex((slot) => slot.hour === hour);
-  return index === -1 ? null : index + 1;
-}
-
 /** JST の「日付 + 時」の開始時刻 */
 export function slotStart(slotDate: string, slotHour: number): Date {
   assertHour(slotHour);

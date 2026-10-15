@@ -12,7 +12,6 @@ beforeEach(async () => {
 type Team = { id: number; name: string };
 type Slot = {
   hour: number;
-  number: number;
   phase: string;
   matched: boolean;
   excluded: Team | null;
@@ -21,6 +20,8 @@ type Slot = {
     id: number;
     teamA: Team;
     teamB: Team;
+    matchNumberA: number;
+    matchNumberB: number;
   }[];
 };
 type Board = { date: string; today: string; slots: Slot[] };
@@ -62,13 +63,15 @@ describe("GET /api/board（対戦枠の画面）", () => {
     expect((await slotOf(21)).handups).toMatchObject([{ team: { name: "KMU" }, raisedByName: "管理者さん" }]);
   });
 
-  it("組分けを返す。対戦枠には、その日の何試合目かが付く（時刻順。保存せず、毎回、計算する）", async () => {
+  it("組分けごとに、各チームが何試合目かを返す（そのチームが入った組分けを、日付・時刻の順に数える。保存せず、毎回、数える）", async () => {
+    await h.json("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21, slotDate: "2026-10-05" } });
     const matchId = await kmuVsUt(22);
 
     const { slots } = await board();
 
-    expect(slots.map((slot) => [slot.hour, slot.number])).toEqual([[21, 1], [22, 2], [23, 3]]);
-    expect(slots.find((slot) => slot.hour === 22)?.matches).toMatchObject([{ id: matchId, teamA: { name: "KMU" }, teamB: { name: "UT" } }]);
+    expect(slots.find((slot) => slot.hour === 22)?.matches).toMatchObject([
+      { id: matchId, teamA: { name: "KMU" }, teamB: { name: "UT" }, matchNumberA: 2, matchNumberB: 2 },
+    ]);
   });
 
   it("別の日の組分け・別のサーバーのデータは、出ない。日付が不正なら 400", async () => {

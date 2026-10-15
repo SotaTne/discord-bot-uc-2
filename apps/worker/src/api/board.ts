@@ -1,5 +1,5 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
-import { cutoffJobKey, hostTeamOf, jstDateOf, slotHoursOnDate, slotPhase } from "@uc/core";
+import { cutoffJobKey, hostTeamOf, jstDateOf, matchNumberKey, matchNumbers, slotHoursOnDate, slotPhase } from "@uc/core";
 import {
   addMatch,
   claimJob,
@@ -11,6 +11,7 @@ import {
   findSlotHour,
   findTeamById,
   getGuildSettings,
+  listGuildMatches,
   listHandupsOnDate,
   listMatchesOnDate,
   listMatchSlots,
@@ -34,21 +35,24 @@ import { parseId, type ApiDeps, type ApiEnv } from "./types";
  */
 export function createBoardRoutes(deps: ApiDeps) {
   return new Hono<ApiEnv>()
-    // その日の、対戦枠ごとの状態: 試合番号・受付の段階・挙手したチーム・組分け・組まれなかったチーム
+    // その日の、対戦枠ごとの状態: 受付の段階・挙手したチーム・組分け・組まれなかったチーム
     .get("/board", zValidator("query", dateQuerySchema), async (c) => {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");
       const now = deps.clock.now();
       const date = c.req.valid("query").date ?? jstDateOf(now);
 
-      const [settings, slots, teams, matchSlots, handups, matches] = await Promise.all([
+      const [settings, slots, teams, matchSlots, handups, matches, guildMatches] = await Promise.all([
         getGuildSettings(db, guildId),
         listSlotHours(db, guildId, { includeDeleted: true }),
         listTeams(db, guildId, { includeDeleted: true }),
         listMatchSlots(db, { guildId, slotDate: date }),
         listHandupsOnDate(db, { guildId, slotDate: date }),
         listMatchesOnDate(db, { guildId, slotDate: date }),
+        listGuildMatches(db, guildId),
       ]);
+      // チームごとの「その組分けは、何試合目か」。そのチームが入った組分けを、日付・時刻の順に数える（保存しない）
+      const numbers = matchNumbers(guildMatches);
       // 削除した試合時刻は、削除した日までの対戦枠を、出す（deleted: true）。記録の有無には、よらない
       const boardHours = slotHoursOnDate(slots, date);
 
@@ -60,12 +64,10 @@ export function createBoardRoutes(deps: ApiDeps) {
       return c.json({
         date,
         today: jstDateOf(now),
-        slots: boardHours.map((slot, index) => {
+        slots: boardHours.map((slot) => {
           const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
           return {
             hour: slot.hour,
-            /** その日の何試合目か（その日の対戦枠を、時刻順に並べた順番。保存せず、毎回、計算する） */
-            number: index + 1,
             deleted: slot.deleted,
             phase: slotPhase(now, date, slot.hour, settings),
             matched: matchSlot?.status === "matched",
@@ -84,6 +86,9 @@ export function createBoardRoutes(deps: ApiDeps) {
                 id: match.id,
                 teamA: team(match.teamAId),
                 teamB: team(match.teamBId),
+                // 各チームの、その組分けは、何試合目か
+                matchNumberA: numbers.get(matchNumberKey(match.teamAId, match.id)) ?? 0,
+                matchNumberB: numbers.get(matchNumberKey(match.teamBId, match.id)) ?? 0,
                 // 主催（部屋を立てる側）。組分けを作るときに、無作為に決めて保存した値。古い行（空）だけ、計算で補う
                 host: team(match.hostTeamId ?? hostTeamOf({ slotDate: date, slotHour: slot.hour, teamAId: match.teamAId, teamBId: match.teamBId })),
               })),
