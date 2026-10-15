@@ -12,10 +12,6 @@ export const guildSettings = sqliteTable("guild_settings", {
   recruitHour: integer("recruit_hour").notNull().default(12),
   /** 試合開始の何分前に打ち切るか */
   cutoffMinutes: integer("cutoff_minutes").notNull().default(7),
-  /** そのチームの、この試合数目までは、勝つと、記録した点数（生点）を使う。それを超えた試合（N+1 試合目から）は、勝つと、固定点 */
-  fixedAfterMatches: integer("fixed_after_matches").notNull().default(5),
-  /** N 試合を超えた試合で、勝ったときの固定点 */
-  fixedPoints: integer("fixed_points").notNull().default(100),
   /** 募集開始の投稿で、誰に通知するか。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: recruit_mention_targets で選んだもの */
   recruitMentionMode: text("recruit_mention_mode", { enum: ["none", "teams", "roles"] }).notNull().default("none"),
   /** recruit_mention_mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here）の配列（JSON） */
@@ -119,8 +115,8 @@ export const handups = sqliteTable(
 );
 
 /**
- * 組分け（試合）: 対戦枠で組まれた2チーム。勝利は、これに紐づく。
- * 対戦枠のマッチングを処理すると作られる（作り直さない。勝利が紐づくため）。
+ * 組分け: 対戦枠で組まれた2チーム。
+ * 対戦枠のマッチングを処理すると作られる。
  */
 export const matches = sqliteTable(
   "matches",
@@ -140,37 +136,6 @@ export const matches = sqliteTable(
     index("matches_match_slot").on(t.matchSlotId),
     check("matches_distinct_teams", sql`${t.teamAId} <> ${t.teamBId}`),
   ],
-);
-
-/**
- * 勝利の記録。どの試合（組分け）の、どのチームの勝利かを持つ。
- * 間違えた記録は、削除せずに「無効」にする（`active = false`。あとで有効に戻せる）。無効な記録は、得点に数えない。
- * 「得点のクリア」は、このテーブルの行をすべて削除する（履歴も 0 になる）。
- */
-export const wins = sqliteTable(
-  "wins",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    guildId: text("guild_id").notNull(),
-    /** 勝った試合（組分け） */
-    matchId: integer("match_id")
-      .notNull()
-      .references(() => matches.id),
-    /** 勝ったチーム。その試合の2チームのどちらか（記録のときに確かめる） */
-    teamId: integer("team_id")
-      .notNull()
-      .references(() => teams.id),
-    /** 入力された生の点数（N 試合を超えた試合の固定点は、集計時に適用する） */
-    points: integer("points").notNull(),
-    /** 有効か。false の記録は、得点にも、勝数にも数えない */
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    /** 画像の R2 キー */
-    screenshotKey: text("screenshot_key"),
-    /** 記録した人（Discord のユーザー ID など） */
-    recordedBy: text("recorded_by").notNull(),
-    createdAt: integer("created_at").notNull(),
-  },
-  (t) => [index("wins_guild").on(t.guildId, t.id), index("wins_match").on(t.matchId)],
 );
 
 export const dashboardLinks = sqliteTable("dashboard_links", {

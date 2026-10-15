@@ -1,7 +1,6 @@
 /** Worker に渡されるバインディングと環境変数 */
 export type AppEnv = {
   DB: D1Database;
-  SCREENSHOTS: R2Bucket;
   /** Discord アプリの公開鍵（Interactions の署名検証に使う） */
   DISCORD_PUBLIC_KEY: string;
   DISCORD_BOT_TOKEN: string;

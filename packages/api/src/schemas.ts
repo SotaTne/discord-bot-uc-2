@@ -25,9 +25,6 @@ export const teamInputSchema = z.object({
   roleId: snowflakeSchema,
 });
 
-/** 点数の上限（勝利の点数・固定点）。桁あふれと、入力ミスを防ぐ。Discord のコマンドの max_value と同じ値 */
-export const MAX_POINTS = 100_000;
-
 /** 募集開始の通知先の選び方。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: 選んだもの */
 export const RECRUIT_MENTION_MODES = ["none", "teams", "roles"] as const;
 
@@ -44,8 +41,6 @@ export const settingsInputSchema = z.object({
   channelId: snowflakeSchema.nullable(),
   recruitHour: hourSchema,
   cutoffMinutes: z.number().int().min(1).max(180),
-  fixedAfterMatches: z.number().int().min(0).max(100),
-  fixedPoints: z.number().int().min(0).max(MAX_POINTS),
   recruitMentionMode: z.enum(RECRUIT_MENTION_MODES),
   recruitMentionTargets: mentionTargetsSchema,
   revokeSessionsOnReissue: z.boolean(),
@@ -88,22 +83,6 @@ export const matchSlotInputSchema = z.object({
 
 /** 対戦枠のやり直し。notify（省略は true）が true なら、Discord に、マッチングのキャンセルを投稿する */
 export const matchSlotReopenInputSchema = matchSlotInputSchema.extend({ notify: z.boolean().optional() });
-
-/**
- * 組分けへの、勝利の記録（multipart/form-data）。フォームの値はすべて文字列で届くので、数値に変換する。
- * どの組分けかは、URL で決まる。画像（image）は、ファイルなのでこのスキーマには含めない。
- */
-export const matchWinFormSchema = z.object({
-  /** 勝ったチーム。その組分けの、2チームのどちらか */
-  teamId: z.coerce.number().int().positive(),
-  points: z.coerce.number().int().min(0).max(MAX_POINTS),
-});
-
-/** 勝利の記録を、有効にする / 無効にする */
-export const winActiveInputSchema = z.object({ active: z.boolean() });
-
-/** 勝利の記録の、点数（生の点数）の修正 */
-export const winPointsInputSchema = z.object({ points: z.number().int().min(0).max(MAX_POINTS) });
 
 /** ログインリンクのトークン（フラグメントで渡される） */
 export const loginInputSchema = z.object({

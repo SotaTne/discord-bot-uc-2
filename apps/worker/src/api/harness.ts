@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { createApp } from "../app";
 import type { AppEnv } from "../env";
 import { generateToken, sha256Hex } from "../security/tokens";
-import { ADMIN_USER, GUILD_ID, ROLE_NAMES, USER_NAMES, createFakeR2, createSeededDb, jst } from "../test-helpers";
+import { ADMIN_USER, GUILD_ID, ROLE_NAMES, USER_NAMES, createSeededDb, jst } from "../test-helpers";
 
 export const BASE = "http://dash.test";
 
@@ -35,13 +35,11 @@ export async function createApiHarness(extraEnv: Partial<AppEnv> = {}) {
     return new Response(JSON.stringify(Object.entries(ROLE_NAMES).map(([id, name], position) => ({ id, name, position }))));
   });
   const seeded = await createSeededDb();
-  const r2 = createFakeR2();
   const time = { now: jst("2026-10-07T15:00:00") };
 
   const app = createApp({ clock: { now: () => new Date(time.now) } });
   const env = {
     DB: seeded.db.$client,
-    SCREENSHOTS: r2.bucket,
     DISCORD_BOT_TOKEN: "test-bot-token",
     DISCORD_API_BASE: "http://discord.mock/api/v10",
     ...extraEnv,
@@ -101,7 +99,7 @@ export async function createApiHarness(extraEnv: Partial<AppEnv> = {}) {
     return setCookie.split(";")[0] ?? "";
   }
 
-  return { seeded, r2, time, app, env, call, json, postForm, issueLink, login };
+  return { seeded, time, app, env, call, json, postForm, issueLink, login };
 }
 
 export type ApiHarness = Awaited<ReturnType<typeof createApiHarness>>;

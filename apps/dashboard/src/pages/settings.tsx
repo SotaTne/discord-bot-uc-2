@@ -6,11 +6,11 @@ import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from 
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
-import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
+import { validateChannelId, validateCutoffMinutes, validateRecruitHour } from "../lib/settings-validation";
 import { useBoard, useInvalidatingMutation, useRoles, useSettings, useSlotHours } from "../lib/queries";
 import { Sessions } from "./sessions";
 
-/** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 得点の集計 / 試合時刻 / ログイン） */
+/** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 試合時刻 / ログイン） */
 export function SettingsPage() {
   const settings = useSettings();
   return (
@@ -20,7 +20,6 @@ export function SettingsPage() {
         {(data) => (
           <>
             <PostSettings initial={data} />
-            <ScoreRule initial={data} />
           </>
         )}
       </Async>
@@ -37,7 +36,7 @@ type SettingsValues = SettingsInput;
 function useSaveSettings(initial: SettingsValues) {
   const save = useInvalidatingMutation(
     (values: Partial<SettingsUpdate>) => unwrap(api.settings.$put({ json: { ...initial, ...values } })),
-    [["settings"], ["scores"]],
+    [["settings"]],
   );
   return save;
 }
@@ -321,67 +320,6 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
               設定は保存しましたが、チャンネルへの通知に失敗しました
             </Text>
           )}
-        </Stack>
-      </form>
-    </Section>
-  );
-}
-
-/** 得点の集計の規則（N と固定点） */
-function ScoreRule({ initial }: { initial: SettingsValues }) {
-  const [fixedAfterMatches, setFixedAfterMatches] = useState(String(initial.fixedAfterMatches));
-  const [fixedPoints, setFixedPoints] = useState(String(initial.fixedPoints));
-  const save = useSaveSettings(initial);
-
-  const errors = { fixedAfterMatches: validateFixedAfterMatches(fixedAfterMatches), fixedPoints: validateFixedPoints(fixedPoints) };
-  const valid = !errors.fixedAfterMatches && !errors.fixedPoints;
-  const dirty = fixedAfterMatches.trim() !== String(initial.fixedAfterMatches) || fixedPoints.trim() !== String(initial.fixedPoints);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!valid) return;
-    save.mutate({ fixedAfterMatches: Number(fixedAfterMatches), fixedPoints: Number(fixedPoints) });
-  }
-
-  return (
-    <Section title="得点の集計">
-      <form onSubmit={submit}>
-        <Stack gap={0}>
-          <SettingRow title="N（記録した点数で集計する試合数）" description="勝ったとき、N 試合目までは、記録した点数で集計します">
-            <TextInput aria-label="N（記録した点数で集計する試合数）" name="fixedAfterMatches" type="number" min={0} max={100} w={120} value={fixedAfterMatches} error={errors.fixedAfterMatches ?? false} onChange={(event) => setFixedAfterMatches(event.target.value)} />
-          </SettingRow>
-          <SettingRow title="固定点" description="N 試合を超えた試合（N+1 試合目から）で勝ったときの点数">
-            <TextInput aria-label="固定点" name="fixedPoints" type="number" min={0} w={120} value={fixedPoints} error={errors.fixedPoints ?? false} onChange={(event) => setFixedPoints(event.target.value)} />
-          </SettingRow>
-          <SettingRow title="集計の例" description="いまの入力で計算します">
-            {valid ? (
-              <Stack gap={2}>
-                <Text size="sm">
-                  {Number(fixedAfterMatches) === 0 ? "すべての試合で" : `1〜${fixedAfterMatches} 試合目で勝つと`}、{Number(fixedAfterMatches) === 0 ? "勝つと" : ""}記録した点数
-                </Text>
-                <Text size="sm">
-                  {Number(fixedAfterMatches) + 1} 試合目からは、勝つと {fixedPoints}pt 固定
-                </Text>
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">
-                入力を直すと、例が出ます
-              </Text>
-            )}
-          </SettingRow>
-        </Stack>
-        <Stack mt="md">
-          <SaveRow
-            pending={save.isPending}
-            saved={save.isSuccess}
-            dirty={dirty}
-            valid={valid}
-            error={save.error}
-            onCancel={() => {
-              setFixedAfterMatches(String(initial.fixedAfterMatches));
-              setFixedPoints(String(initial.fixedPoints));
-            }}
-          />
         </Stack>
       </form>
     </Section>

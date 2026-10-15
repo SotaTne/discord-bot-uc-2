@@ -16,17 +16,8 @@ export function formatStatus(input: {
   team: Team;
   slotDate: string;
   slots: SlotStatus[];
-  /** 自チームの得点（順位・試合数・勝利数）。あれば、見出しの下に出す */
-  score?: { total: number; rank: number; matches: number; wins: number; fixedAfterMatches: number; fixedPoints: number };
 }): string {
-  // 得点は、数字を太字にして、順位・試合数・勝利数を、短く並べる。N を超えたときは、別の行（小さな字）で、その意味を伝える
-  const scoreLine = input.score
-    ? `\n**${input.score.total}pt**（${input.score.rank}位）・${input.score.matches}試合・${input.score.wins}勝` +
-      (input.score.matches > input.score.fixedAfterMatches
-        ? `\n-# 試合数${input.score.fixedAfterMatches}を超えました。以降の試合は、勝つと${input.score.fixedPoints}pt固定です`
-        : "")
-    : "";
-  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${scoreLine}`;
+  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）`;
   if (input.slots.length === 0) {
     return `${header}\n試合時刻が登録されていません`;
   }

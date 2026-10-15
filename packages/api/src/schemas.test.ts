@@ -9,7 +9,6 @@ import {
   snowflakeSchema,
   teamInputSchema,
   matchInputSchema,
-  matchWinFormSchema,
 } from "./schemas";
 
 describe("hourSchema", () => {
@@ -80,8 +79,6 @@ describe("settingsInputSchema", () => {
     channelId: "1234567890123456789",
     recruitHour: 12,
     cutoffMinutes: 7,
-    fixedAfterMatches: 5,
-    fixedPoints: 100,
     recruitMentionMode: "none",
     recruitMentionTargets: [],
     revokeSessionsOnReissue: false,
@@ -129,18 +126,5 @@ describe("dateQuerySchema", () => {
     expect(dateQuerySchema.safeParse({}).success).toBe(true);
     expect(dateQuerySchema.safeParse({ date: "2026-10-07" }).success).toBe(true);
     expect(dateQuerySchema.safeParse({ date: "10/07" }).success).toBe(false);
-  });
-});
-
-describe("matchWinFormSchema", () => {
-  it("フォームの文字列を、数値にする", () => {
-    expect(matchWinFormSchema.parse({ teamId: "3", points: "80" })).toEqual({ teamId: 3, points: 80 });
-  });
-
-  it("不正なチーム・点数は拒否する", () => {
-    expect(matchWinFormSchema.safeParse({ teamId: "abc", points: "80" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3", points: "-1" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3", points: "1.5" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3" }).success).toBe(false);
   });
 });

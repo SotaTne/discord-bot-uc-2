@@ -9,14 +9,14 @@ const stateRoute = (state = sampleState()) => ({ "GET /mock-api/state": { body: 
 const message = (over: Record<string, unknown> = {}) => ({ id: "m1", channelId: "c", content: "こんにちは", createdAt: jst("2026-10-07T12:00:00"), visibleTo: null, ...over });
 
 describe("画面の構成", () => {
-  it("時計・実行者・コマンド・Discord・状態（対戦枠・チーム・マッチングログ・勝利記録）が出る", async () => {
+  it("時計・実行者・コマンド・Discord・状態（対戦枠・チーム・マッチングログ）が出る", async () => {
     installFakeApi(stateRoute());
     renderApp();
 
     expect(await screen.findByLabelText("いまの時刻")).toBeTruthy();
     expect((screen.getByLabelText("いまの時刻") as HTMLInputElement).value).toBe("20:53");
     expect(screen.getByRole("heading", { name: "実行者" })).toBeTruthy();
-    for (const name of ["対戦枠（今日）", "チーム", "マッチングログ", "勝利記録"]) expect(screen.getByRole("region", { name })).toBeTruthy();
+    for (const name of ["対戦枠（今日）", "チーム", "マッチングログ"]) expect(screen.getByRole("region", { name })).toBeTruthy();
     // メッセージがなければ、その旨だけ出す
     expect(screen.getByText("まだ何もありません")).toBeTruthy();
   });
@@ -43,26 +43,21 @@ describe("画面の構成", () => {
     const tabs = await screen.findAllByRole("tab");
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("form", { name: "/uc-handup" })).toBeTruthy();
-    expect(screen.queryByRole("form", { name: "/uc-admin-win" })).toBeNull();
-    expect(screen.getByRole("tab", { name: /uc-admin-win/ }).textContent).toContain("管理者");
+    expect(screen.queryByRole("form", { name: "/uc-admin-status" })).toBeNull();
+    expect(screen.getByRole("tab", { name: /uc-admin-status/ }).textContent).toContain("管理者");
 
-    fireEvent.click(screen.getByRole("tab", { name: /uc-admin-win/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /uc-admin-status/ }));
 
-    expect(screen.getByRole("form", { name: "/uc-admin-win" })).toBeTruthy();
+    expect(screen.getByRole("form", { name: "/uc-admin-status" })).toBeTruthy();
     expect(screen.queryByRole("form", { name: "/uc-handup" })).toBeNull();
   });
 
-  it("入力欄は、オプションの型に合わせる: 時刻は対戦枠の選択（登録された試合時刻から）、チームはロールの選択、点数は数値、画像はファイル", async () => {
+  it("入力欄は、オプションの型に合わせる: 時刻は対戦枠の選択（登録された試合時刻から）", async () => {
     installFakeApi(stateRoute());
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: /uc-admin-win/ }));
-    const form = within(screen.getByRole("form", { name: "/uc-admin-win" }));
+    const form = within(await screen.findByRole("form", { name: "/uc-handup" }));
 
     expect(within(form.getByLabelText(/^試合の開始時刻（時）/)).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択", "21:00", "22:00"]);
-    expect(within(form.getByLabelText(/^勝ったチームのロール/)).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択", "KMU", "UT"]);
-    expect((form.getByLabelText(/^点数/) as HTMLInputElement).type).toBe("number");
-    expect((form.getByLabelText(/^結果の画像/) as HTMLInputElement).type).toBe("file");
-    expect((form.getByLabelText(/試合の日付/) as HTMLInputElement).type).toBe("date");
   });
 
   it("worker の状態を取れないときは、理由を出す。時計・実行者・コマンドは、使える", async () => {
@@ -93,14 +88,14 @@ describe("状態", () => {
     expect(panel.getByText("22:00").parentElement?.textContent).toContain("マッチング済み");
   });
 
-  it("チームごとに、挙手中（対戦枠と挙手した人）・対戦数・勝利数・得点を出す", async () => {
+  it("チームごとに、挙手中（対戦枠と挙手した人）・対戦数を出す", async () => {
     installFakeApi(stateRoute());
     renderApp();
 
     const rows = within(await screen.findByRole("region", { name: "チーム" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      ["KMU", "21:00 alice (KMU)", "2", "1", "80"],
-      ["UT", "", "3", "4", "310"],
+      ["KMU", "21:00 alice (KMU)", "2"],
+      ["UT", "", "3"],
     ]);
   });
 
@@ -114,37 +109,13 @@ describe("状態", () => {
     expect(log.getByText("組めず")).toBeTruthy();
   });
 
-  it("勝利記録は、組分け・勝ったチーム・点数（入力 → 集計）・何試合目を出す。削除した記録は、（削除済み）と出す", async () => {
-    installFakeApi(stateRoute());
-    renderApp();
-
-    const wins = within(await screen.findByRole("region", { name: "勝利記録" }));
-    const [first, second] = wins.getAllByText(/の勝利/);
-    expect(first?.parentElement?.textContent).toContain("UT の勝利 30 → 100pt · 6試合目");
-    expect(second?.parentElement?.textContent).toContain("KMU の勝利 80pt（削除済み）");
-  });
-
-  it("勝利記録の「画像」は、青いリンク。押すと、別のページには移らず、ポップアップで画像を出す", async () => {
-    installFakeApi(stateRoute());
-    renderApp();
-
-    const link = await screen.findByRole("link", { name: "画像" });
-    expect(link.getAttribute("href")).toBe("/mock-api/screenshots/2");
-    fireEvent.click(link);
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("img").getAttribute("src")).toBe("/mock-api/screenshots/2");
-  });
-
   it("まだ何もないときは、「まだありません」とだけ出す", async () => {
     const empty = sampleState();
     empty.snapshot!.rounds = [];
-    empty.snapshot!.wins = [];
     installFakeApi(stateRoute(empty));
     renderApp();
 
     expect(within(await screen.findByRole("region", { name: "マッチングログ" })).getByText("まだありません")).toBeTruthy();
-    expect(within(screen.getByRole("region", { name: "勝利記録" })).getByText("まだありません")).toBeTruthy();
   });
 });
 
@@ -182,17 +153,17 @@ describe("Discord の画面", () => {
     const api = installFakeApi({
       ...stateRoute(
         sampleState({
-          messages: [message({ visibleTo: USER_IDS.admin, components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }] })] as never,
+          messages: [message({ visibleTo: USER_IDS.admin, components: [{ type: 1, components: [{ type: 2, style: 4, label: "確認", custom_id: "sample:confirm" }] }] })] as never,
         }),
       ),
       "POST /mock-api/click": ok,
     });
     renderApp();
 
-    fireEvent.click(await screen.findByRole("button", { name: "全てクリア" }));
+    fireEvent.click(await screen.findByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(api.callsTo("POST", "/mock-api/click")).toHaveLength(1));
-    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toEqual({ custom_id: "score-clear:confirm", message_id: "m1" });
+    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toEqual({ custom_id: "sample:confirm", message_id: "m1" });
   });
 });
 

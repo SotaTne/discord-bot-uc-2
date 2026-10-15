@@ -26,12 +26,6 @@ describe("ログインが必要", () => {
     ["DELETE", "/api/handups/1"],
     ["POST", "/api/matches"],
     ["DELETE", "/api/matches/1"],
-    ["POST", "/api/matches/1/wins"],
-    ["GET", "/api/scores"],
-    ["GET", "/api/wins"],
-    ["PUT", "/api/wins/1/active"],
-    ["DELETE", "/api/wins"],
-    ["GET", "/api/screenshots/1"],
     ["GET", "/api/sessions"],
     ["DELETE", "/api/sessions/1"],
     ["POST", "/api/sessions/revoke-all"],
@@ -48,8 +42,6 @@ describe("サーバーの設定", () => {
     channelId: "300000000000000001",
     recruitHour: 10,
     cutoffMinutes: 15,
-    fixedAfterMatches: 4,
-    fixedPoints: 90,
     recruitMentionMode: "roles" as const,
     recruitMentionTargets: ["200000000000000099", "here"],
     revokeSessionsOnReissue: true,
@@ -140,7 +132,7 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${created.body.id}`, { method: "DELETE", cookie })).status).toBe(404);
   });
 
-  it("使われているチームも削除できる（論理削除）。一覧と得点表から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
+  it("使われているチームも削除できる（論理削除）。一覧から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
     const { db, kmuId, utId } = h.seeded;
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: kmuId, raisedBy: "u", createdAt: 1 });
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: "u", createdAt: 1 });
@@ -149,7 +141,6 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${kmuId}`, { method: "DELETE", cookie })).status).toBe(200);
 
     expect((await h.json<{ teams: { name: string }[] }>("/api/teams", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
-    expect((await h.json<{ teams: { name: string }[] }>("/api/scores", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
     const board = (await h.json<{ slots: { hour: number; handups: unknown[]; matches: { teamA: { name: string } }[] }[] }>("/api/board", { cookie })).body.slots;
     expect(board.map((slot) => slot.handups.length)).toEqual([0, 0, 1]);
     expect(board.find((slot) => slot.hour === 23)?.matches[0]?.teamA.name).toBe("KMU");

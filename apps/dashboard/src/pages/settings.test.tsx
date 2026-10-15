@@ -6,8 +6,6 @@ const SETTINGS = {
   channelId: "300000000000000001",
   recruitHour: 12,
   cutoffMinutes: 7,
-  fixedAfterMatches: 5,
-  fixedPoints: 100,
   recruitMentionMode: "none" as const,
   recruitMentionTargets: [] as string[],
   revokeSessionsOnReissue: false,
@@ -21,7 +19,7 @@ const apis = () => ({
   "GET /api/teams": { body: TEAMS },
   "GET /api/roles": { body: ROLES },
   "GET /api/sessions": { body: { sessions: [] } },
-  "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", rule: { fixedAfterMatches: 5, fixedPoints: 100 }, slots: [] } },
+  "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", slots: [] } },
 });
 
 const region = (name: string) => within(screen.getByRole("region", { name }));
@@ -34,8 +32,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(((await screen.findByLabelText(/投稿先のチャンネル ID/)) as HTMLInputElement).value).toBe("300000000000000001");
     expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
     expect((screen.getByLabelText("締切（試合の何分前）") as HTMLInputElement).value).toBe("7");
-    expect((screen.getByLabelText("N（記録した点数で集計する試合数）") as HTMLInputElement).value).toBe("5");
-    expect((screen.getByLabelText("固定点") as HTMLInputElement).value).toBe("100");
     expect((screen.getByLabelText(/これまでのログインをすべて失効させる/) as HTMLInputElement).checked).toBe(false);
   });
 
@@ -61,8 +57,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       channelId: null,
       recruitHour: 10,
       cutoffMinutes: 15,
-      fixedAfterMatches: 5,
-      fixedPoints: 100,
       recruitMentionMode: "none",
       recruitMentionTargets: [],
       revokeSessionsOnReissue: false,
@@ -75,7 +69,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       body: {
         date: "2026-10-07",
         today: "2026-10-07",
-        rule: { fixedAfterMatches: 5, fixedPoints: 100 },
         slots: [{ hour: 21, matched: false, handups: Array.from({ length: handups }, (_, id) => ({ id })) }],
       },
     });
@@ -219,17 +212,17 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
   it("変更がないときは、保存できない。変更すると、「保存していない変更があります」と出て、保存できる", async () => {
     installFakeBackend(apis());
     renderApp("/settings");
-    await screen.findByRole("region", { name: "得点の集計" });
-    const save = async () => (await region("得点の集計").findByRole("button", { name: "保存する" })) as HTMLButtonElement;
+    await screen.findByRole("region", { name: "投稿と募集" });
+    const save = async () => (await region("投稿と募集").findByRole("button", { name: "保存する" })) as HTMLButtonElement;
 
     expect((await save()).disabled).toBe(true);
-    expect(region("得点の集計").queryByText("保存していない変更があります")).toBeNull();
+    expect(region("投稿と募集").queryByText("保存していない変更があります")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "10" } });
     expect((await save()).disabled).toBe(false);
-    expect(region("得点の集計").getByText("保存していない変更があります")).toBeTruthy();
+    expect(region("投稿と募集").getByText("保存していない変更があります")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "7" } });
     expect((await save()).disabled).toBe(true);
   });
 
@@ -247,8 +240,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
     expect(region("投稿と募集").queryByRole("button", { name: "キャンセル" })).toBeNull();
     expect(backend.count("PUT", "/api/settings")).toBe(0);
-    // 得点の集計には、触れていない
-    expect(region("得点の集計").queryByRole("button", { name: "キャンセル" })).toBeNull();
   });
 
   it("範囲を外れた入力は、その場で理由を出して、保存できない（API には送らない）", async () => {
@@ -284,25 +275,13 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(screen.queryByLabelText("今日の予定")).toBeNull();
   });
 
-  it("「得点の集計」を保存すると、N と固定点だけが変わる", async () => {
-    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
-    renderApp("/settings");
-    fireEvent.change(await screen.findByLabelText("N（記録した点数で集計する試合数）"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
-
-    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
-
-    await waitFor(() => expect(backend.count("PUT", "/api/settings")).toBe(1));
-    expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ channelId: "300000000000000001", fixedAfterMatches: 3, fixedPoints: 80 });
-  });
-
   it("ログインの設定は、切り替えると、その場で保存する（保存ボタンはない）", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
     renderApp("/settings");
 
     fireEvent.click(await screen.findByLabelText(/これまでのログインをすべて失効させる/));
 
-    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ revokeSessionsOnReissue: true, fixedPoints: 100 }));
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ revokeSessionsOnReissue: true, cutoffMinutes: 7 }));
     expect(region("ログイン").queryByRole("button", { name: "保存する" })).toBeNull();
   });
 
@@ -310,10 +289,10 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     installFakeBackend({ ...apis(), "PUT /api/settings": { status: 400, body: { success: false, error: { name: "ZodError" } } } });
     renderApp("/settings");
 
-    fireEvent.change(await screen.findByLabelText("固定点"), { target: { value: "80" } });
-    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
+    fireEvent.change(await screen.findByLabelText(/投稿先のチャンネル ID/), { target: { value: "300000000000000002" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
 
-    expect((await region("得点の集計").findByRole("alert")).textContent).toContain("入力内容を確認してください");
+    expect((await region("投稿と募集").findByRole("alert")).textContent).toContain("入力内容を確認してください");
   });
 
 });
@@ -367,7 +346,6 @@ describe("設定の画面: 試合時刻", () => {
       body: {
         date: "2026-10-07",
         today: "2026-10-07",
-        rule: { fixedAfterMatches: 5, fixedPoints: 100 },
         slots: [{ hour: 21, deleted: false, phase: "open", matched: false, excluded: null, handups: [handup(1), handup(2)], matches: [] }],
       },
     });

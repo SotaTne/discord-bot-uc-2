@@ -6,7 +6,7 @@ export type MockAppDeps = MockApiDeps & { discord: Pick<DiscordServer, "routes">
 
 /**
  * 疑似 Discord のサーバー全体。2 つの役を、別々の入口に、つなぐだけ。
- * - /api/v10/* と /attachments/*: Discord のサーバー役（worker が呼ぶ）
+ * - /api/v10/*: Discord のサーバー役（worker が呼ぶ）
  * - /mock-api/*: 画面用の API（ブラウザの画面が呼ぶ）
  */
 export function createMockApp(deps: MockAppDeps) {

@@ -3,7 +3,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import type { MockEnv } from "./index";
 
 /** サーバーを担当するパス。それ以外（画面）は、Vite がそのまま返す */
-const SERVER_PATHS = /^\/(api\/v10|attachments|mock-api)(\/|\?|$)/;
+const SERVER_PATHS = /^\/(api\/v10|mock-api)(\/|\?|$)/;
 
 type Persisted = { state?: unknown; keys?: unknown };
 /** コードを変えて読み込み直されても、状態（メッセージなど）と鍵を保つための入れ物 */

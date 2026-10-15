@@ -33,13 +33,6 @@ const timeOption: CommandOption = {
   max_value: 23,
 };
 
-const teamRoleOption = (required: boolean, description: string): CommandOption => ({
-  name: "team-role",
-  description,
-  type: OptionType.Role,
-  required,
-});
-
 /** Discord に登録するコマンド。仕様は SPEC.md の「Discord コマンド」を参照 */
 export const commands: CommandDefinition[] = [
   {
@@ -60,51 +53,8 @@ export const commands: CommandDefinition[] = [
     dm_permission: false,
   },
   {
-    name: "uc-teams",
-    description: "チームごとの得点を見る",
-    dm_permission: false,
-  },
-  {
     name: "uc-admin-status",
     description: "(管理者のみ) 今日の、すべてのチームの挙手状況とマッチング結果を見る",
-    default_member_permissions: ADMIN_ONLY,
-    dm_permission: false,
-  },
-  {
-    name: "uc-admin-win",
-    description: "(管理者のみ) 勝利を追加する",
-    // 必須のオプションは、任意のオプションより前に並べる（Discord の決まり）
-    options: [
-      timeOption,
-      teamRoleOption(true, "勝ったチームのロール"),
-      {
-        name: "point",
-        description: "点数",
-        type: OptionType.Integer,
-        required: true,
-        min_value: 0,
-        // @uc/api の MAX_POINTS と同じ値（worker のテストで、そろっていることを確かめる）
-        max_value: 100000,
-      },
-      {
-        name: "image",
-        description: "結果の画像",
-        type: OptionType.Attachment,
-        required: true,
-      },
-      {
-        name: "date",
-        description: "試合の日付（YYYY-MM-DD）。省略すると直近のその時刻の試合",
-        type: OptionType.String,
-        required: false,
-      },
-    ],
-    default_member_permissions: ADMIN_ONLY,
-    dm_permission: false,
-  },
-  {
-    name: "uc-admin-score-clear",
-    description: "(管理者のみ) すべてのチームの得点をクリアする",
     default_member_permissions: ADMIN_ONLY,
     dm_permission: false,
   },

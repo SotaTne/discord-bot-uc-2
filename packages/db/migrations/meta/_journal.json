@@ -22,6 +22,13 @@
       "when": 1791567165077,
       "tag": "0002_add_recruit_mention",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792046324586,
+      "tag": "0003_remove_scoring",
+      "breakpoints": true
     }
   ]
 }

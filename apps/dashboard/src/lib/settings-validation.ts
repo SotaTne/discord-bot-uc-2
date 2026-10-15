@@ -3,8 +3,6 @@
  * 値は、入力欄の文字のまま受け取る。問題がなければ undefined、あれば、理由（画面に出す文言）を返す。
  */
 
-import { MAX_POINTS } from "@uc/api";
-
 const isInteger = (value: string) => /^\d+$/.test(value.trim());
 
 const integerInRange = (value: string, min: number, max: number | null): string | undefined => {
@@ -25,12 +23,3 @@ export const validateRecruitHour = (value: string) => integerInRange(value, 0, 2
 
 /** 締切（試合の何分前, 1〜180） */
 export const validateCutoffMinutes = (value: string) => integerInRange(value, 1, 180);
-
-/** N（記録した点数で集計する試合数, 0〜100） */
-export const validateFixedAfterMatches = (value: string) => integerInRange(value, 0, 100);
-
-/** 勝利の点数（0〜MAX_POINTS）。入力欄の下に、押せない理由として出す */
-export const validatePoints = (value: string) => integerInRange(value, 0, MAX_POINTS);
-
-/** 固定点（0〜MAX_POINTS） */
-export const validateFixedPoints = (value: string) => integerInRange(value, 0, MAX_POINTS);

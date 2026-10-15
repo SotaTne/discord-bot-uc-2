@@ -11,21 +11,18 @@ import {
   listJobRuns,
   listMatchedSlots,
   listMatchSlots,
-  listWins,
   listSlotHours,
   listTeams,
   type Db,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
-import { loadScores } from "../usecases/scores";
 import { teamNames } from "../usecases/team-names";
 
 const MAX_ROUNDS = 30;
-const MAX_WINS = 50;
 
 /**
  * 開発専用: worker の「いまの状態」を、まとめて返す（疑似 Discord の画面が、常に状態を見せるため）。
- * 挙手・対戦・勝利・得点・cron の予定と履歴・照合・ログインの状況を含む。
+ * 挙手・対戦・cron の予定と履歴・照合・ログインの状況を含む。
  */
 export async function buildDevSnapshot(input: {
   db: Db;
@@ -39,7 +36,7 @@ export async function buildDevSnapshot(input: {
   const now = input.clock.now();
   const today = jstDateOf(now);
 
-  const [settings, slots, teams, matchSlotsToday, handupsToday, rounds, scoreRows, jobRuns, jobKeys, links, sessions] =
+  const [settings, slots, teams, matchSlotsToday, handupsToday, rounds, jobRuns, jobKeys, links, sessions] =
     await Promise.all([
       getGuildSettings(db, guildId),
       listSlotHours(db, guildId),
@@ -47,7 +44,6 @@ export async function buildDevSnapshot(input: {
       listMatchSlots(db, { guildId, slotDate: today }),
       listHandupsOnDate(db, { guildId, slotDate: today }),
       listMatchedSlots(db, { guildId }),
-      listWins(db, guildId),
       listJobRuns(db, guildId, 30),
       listJobKeys(db, guildId),
       listDashboardLinks(db, guildId, 20),
@@ -56,13 +52,6 @@ export async function buildDevSnapshot(input: {
 
   const nameOf = await teamNames(input.rest, guildId, teams);
   const name = (id: number) => nameOf.get(id) ?? String(id);
-
-  // 得点: 有効な勝利が、そのチームの何試合目で、集計は何 pt か
-  const { scores, matchCounts } = await loadScores(db, guildId);
-  const counted = new Map<number, { matchNumber: number; points: number }>();
-  for (const score of scores.values()) {
-    for (const win of score.wins) counted.set(win.id, { matchNumber: win.matchNumber, points: win.points });
-  }
 
   // 締切のジョブは、対戦枠がマッチング済みなら、済んでいる
   const matchedKeys = new Set(
@@ -93,8 +82,6 @@ export async function buildDevSnapshot(input: {
       channelId: settings.channelId,
       recruitHour: settings.recruitHour,
       cutoffMinutes: settings.cutoffMinutes,
-      fixedAfterMatches: settings.fixedAfterMatches,
-      fixedPoints: settings.fixedPoints,
     },
     slotHours: slots.map((slot) => slot.hour),
     matchSlots: matchSlotsToday.map((slot) => ({ slotHour: slot.slotHour, status: slot.status })),
@@ -108,19 +95,19 @@ export async function buildDevSnapshot(input: {
       createdAt: handup.createdAt,
     })),
     teamStats: teams.map((team) => {
-      const score = scores.get(team.id);
       return {
         teamId: team.id,
         name: name(team.id),
         activeHandups: handupsToday
           .filter((handup) => handup.teamId === team.id)
           .map((handup) => handup.slotHour),
-        // 試合数: 対戦した組分けの数（管理者が追加した、マッチング前の組分けも含む）
-        matches: matchCounts.get(team.id) ?? 0,
+        // 試合数: マッチング済みの対戦枠で、組まれた組分けの数
+        matches: rounds.reduce(
+          (count, round) => count + round.pairs.filter((pair) => pair.teamAId === team.id || pair.teamBId === team.id).length,
+          0,
+        ),
         // 奇数のために除外された回数（挙手が1チームだけで、組めなかった対戦枠は、数えない）
         excluded: rounds.filter((round) => round.excludedTeamId === team.id && round.pairs.length > 0).length,
-        wins: score?.wins.length ?? 0,
-        total: score?.total ?? 0,
       };
     }),
     rounds: [...rounds]
@@ -133,27 +120,8 @@ export async function buildDevSnapshot(input: {
         pairs: round.pairs.map((pair) => ({ a: name(pair.teamAId), b: name(pair.teamBId) })),
         excluded: round.excludedTeamId === null ? null : name(round.excludedTeamId),
       })),
-    wins: [...scoreRows]
-      .reverse()
-      .slice(0, MAX_WINS)
-      .map((row) => ({
-        id: row.id,
-        teamName: name(row.teamId),
-        /** 組分け（試合）の2チーム */
-        match: { a: name(row.teamAId), b: name(row.teamBId) },
-        slotDate: row.slotDate,
-        slotHour: row.slotHour,
-        points: row.points,
-        countedPoints: counted.get(row.id)?.points ?? null,
-        matchNumber: counted.get(row.id)?.matchNumber ?? null,
-        active: row.active,
-        recordedBy: row.recordedBy,
-        createdAt: row.createdAt,
-        hasScreenshot: row.screenshotKey !== null,
-      })),
     jobs: jobRuns.map((job) => ({ key: job.jobKey, createdAt: job.createdAt })),
     schedule,
     dashboard: { links, sessions: sessions.length },
-    screenshots: scoreRows.filter((row) => row.screenshotKey !== null).length,
   };
 }

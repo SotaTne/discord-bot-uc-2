@@ -22,33 +22,8 @@ describe("ログイン済みの画面の枠（レイアウト）", () => {
     renderApp("/");
 
     const nav = await screen.findByRole("navigation", { name: "メニュー" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "勝利記録", "設定", "ガイド"]);
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["対戦枠", "チーム", "設定", "ガイド"]);
     expect(await screen.findByRole("heading", { name: "10/07（水）" })).toBeTruthy();
-  });
-
-  it("勝利が未記録の組分けがあれば、メニューの「勝利記録」の右上に、赤い点が付く（数字は、出さない）。読み上げ用の文には、件数が入る", async () => {
-    const unrecorded = (count: number) => ({
-      body: { matches: Array.from({ length: count }, (_, index) => ({ id: index + 1, slotDate: "2026-10-06", slotHour: 23, teamA: { id: 1, name: "KMU" }, teamB: { id: 2, name: "UT" }, matchNumberA: 1, matchNumberB: 1, deletedWins: 0 })) },
-    });
-    installFakeBackend({ ...loggedIn, ...homeApis, "GET /api/unrecorded-matches": unrecorded(3) });
-    renderApp("/");
-
-    const link = (await screen.findByRole("link", { name: /^勝利記録/ })) as HTMLAnchorElement;
-    await waitFor(() => expect(link.querySelector(".nav-dot")).not.toBeNull());
-    // 数字は、画面に出さない（点だけ）。件数は、読み上げ用の文にだけある
-    expect(link.querySelector(".nav-dot")?.textContent).toBe("");
-    expect(link.querySelector(".nav-label")?.textContent).toBe("勝利記録");
-    expect(link.textContent).toContain("勝利が未記録の組分け 3件");
-    // ほかのメニューには、付かない
-    expect(screen.getAllByRole("link").filter((a) => a.querySelector(".nav-dot"))).toHaveLength(1);
-  });
-
-  it("勝利が未記録の組分けがなければ、「勝利記録」に、赤い点は付かない", async () => {
-    installFakeBackend({ ...loggedIn, ...homeApis, "GET /api/unrecorded-matches": { body: { matches: [] } } });
-    renderApp("/");
-
-    const link = await screen.findByRole("link", { name: "勝利記録" });
-    expect(link.querySelector(".nav-dot")).toBeNull();
   });
 
   it("ヘッダーに、いまの日付・曜日・時刻（JST）を出す。サーバーの時計に従う", async () => {
@@ -60,16 +35,12 @@ describe("ログイン済みの画面の枠（レイアウト）", () => {
   });
 
   it("メニューから、ほかのページへ移れる", async () => {
-    installFakeBackend({
-      ...loggedIn,
-      ...homeApis,
-      "GET /api/scores": { body: { rule: { fixedAfterMatches: 5, fixedPoints: 100 }, teams: [] } },
-    });
+    installFakeBackend({ ...loggedIn, ...homeApis });
     renderApp("/");
 
     fireEvent.click(await screen.findByRole("link", { name: "チーム" }));
 
-    expect(await screen.findByRole("heading", { name: "得点" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "チームの管理" })).toBeTruthy();
   });
 
   it("ログアウトすると、サーバーに伝えて、ログイン画面へ移る（取得済みのデータも捨てる）", async () => {

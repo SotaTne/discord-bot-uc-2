@@ -1,7 +1,6 @@
 import { Badge, Stack, Table, Text, Title } from "@mantine/core";
 import { userName, type MockStateData, type Snapshot } from "../mockState";
 import { hourLabel } from "../time";
-import { ImageLink } from "./ImageLink";
 
 const slotText = (date: string | null, hour: number | null) => (date ? `${date.slice(5).replace("-", "/")} ${hourLabel(hour ?? 0)}` : "");
 
@@ -16,7 +15,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-/** 状態。overview: 対戦枠（今日）・チームごとの 挙手中・対戦数・勝利数・得点 / history: マッチングログ・勝利記録 */
+/** 状態。overview: 対戦枠（今日）・チームごとの 挙手中・対戦数 / history: マッチングログ */
 export function StatePanel({ state, part }: { state: MockStateData; part: "overview" | "history" }) {
   const { snapshot, snapshotError } = state;
   if (!snapshot) {
@@ -36,10 +35,7 @@ export function StatePanel({ state, part }: { state: MockStateData; part: "overv
           <Teams state={state} snapshot={snapshot} />
         </>
       ) : (
-        <>
-          <Rounds snapshot={snapshot} />
-          <Wins snapshot={snapshot} />
-        </>
+        <Rounds snapshot={snapshot} />
       )}
     </Stack>
   );
@@ -74,8 +70,6 @@ function Teams({ state, snapshot }: { state: MockStateData; snapshot: Snapshot }
               <Table.Th>チーム</Table.Th>
               <Table.Th>挙手中</Table.Th>
               <Table.Th ta="right">対戦</Table.Th>
-              <Table.Th ta="right">勝利</Table.Th>
-              <Table.Th ta="right">得点</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -90,8 +84,6 @@ function Teams({ state, snapshot }: { state: MockStateData; snapshot: Snapshot }
                   ))}
                 </Table.Td>
                 <Table.Td ta="right">{team.matches}</Table.Td>
-                <Table.Td ta="right">{team.wins}</Table.Td>
-                <Table.Td ta="right">{team.total}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -122,36 +114,6 @@ function Rounds({ snapshot }: { snapshot: Snapshot }) {
                   <Text c="dimmed" span>組めず</Text>
                 )}
                 {round.excluded && <Text c="dimmed" size="sm">除外 {round.excluded}</Text>}
-              </div>
-            </div>
-          ))}
-        </Stack>
-      )}
-    </Panel>
-  );
-}
-
-function Wins({ snapshot }: { snapshot: Snapshot }) {
-  return (
-    <Panel title="勝利記録">
-      {snapshot.wins.length === 0 ? (
-        <div className="empty surface">まだありません</div>
-      ) : (
-        <Stack gap={0} className="surface">
-          {snapshot.wins.map((win) => (
-            <div key={win.id} className="row" data-active={win.active}>
-              <span className="log-when">{slotText(win.slotDate, win.slotHour)}</span>
-              <div className={win.active ? "" : "struck-text"}>
-                <div>
-                  {win.match.a} vs {win.match.b}
-                </div>
-                <div>
-                  <b>{win.teamName}</b> の勝利 {win.points}
-                  {win.countedPoints !== null && win.countedPoints !== win.points ? <> → <b>{win.countedPoints}</b></> : null}pt
-                  {win.matchNumber !== null ? ` · ${win.matchNumber}試合目` : ""}
-                  {win.active ? "" : "（削除済み）"}{" "}
-                  {win.hasScreenshot && <ImageLink seq={win.id} />}
-                </div>
               </div>
             </div>
           ))}

@@ -1,11 +1,9 @@
-import { Alert, Anchor, Box, Button, CloseButton, Group, Image, Loader, Menu, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
+import { Alert, Box, Button, CloseButton, Group, Loader, Menu, Modal, NativeSelect, Paper, Popover, Stack, Table, Text, TextInput, Title, UnstyledButton } from "@mantine/core";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { MAX_POINTS } from "@uc/api";
 import { api } from "../lib/api";
 import { errorMessage, unwrap } from "../lib/errors";
 import { useInvalidatingMutation } from "../lib/queries";
-import { validatePoints } from "../lib/settings-validation";
 
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
@@ -137,68 +135,6 @@ export function HourSelect(props: { value: number | ""; hours: number[]; onChang
 }
 
 /**
- * 勝利の点数を、その場で編集する。
- * - points: 点数の列に置くもの（普段は点数。編集している間は、入力欄）
- * - controls: 編集している間だけ出る「保存」「キャンセル」（操作の列に置く）。編集していなければ null
- * - start: 編集を始める（行のメニューの「点数を編集」から呼ぶ）
- * 勝ったチームと組分けは変わらない。
- */
-export function usePointsEditor(input: { winId: number; points: number; label: string }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const save = useInvalidatingMutation(
-    (value: number) => unwrap(api.wins[":id"].points.$put({ param: { id: String(input.winId) }, json: { points: value } })),
-    [["board"], ["wins"], ["scores"]],
-  );
-  const error = draft === null ? undefined : validatePoints(draft);
-  const valid = draft !== null && error === undefined;
-  const submit = () => {
-    if (valid) save.mutate(Number(draft), { onSuccess: () => setDraft(null) });
-  };
-
-  return {
-    editing: draft !== null,
-    start: () => setDraft(String(input.points)),
-    points: (
-      <Box w={100}>
-        {draft === null ? (
-          <Text span>{input.points}pt</Text>
-        ) : (
-          <TextInput
-            type="number"
-            min={0}
-            max={MAX_POINTS}
-            step={1}
-            size="xs"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && submit()}
-            aria-label={`${input.label}の点数`}
-          />
-        )}
-      </Box>
-    ),
-    controls:
-      draft === null ? null : (
-        <Group gap="xs" wrap="nowrap" justify="flex-end">
-          {/* 保存できない理由 */}
-          {error && (
-            <Text size="xs" c="red" role="alert">
-              {error}
-            </Text>
-          )}
-          <Button size="xs" disabled={!valid || save.isPending} onClick={submit}>
-            保存
-          </Button>
-          <Button variant="default" size="xs" onClick={() => setDraft(null)}>
-            キャンセル
-          </Button>
-        </Group>
-      ),
-    error: save.error,
-  };
-}
-
-/**
  * 確認のダイアログ（開き閉じは、呼ぶ側が持つ）。メニューの項目から開く確認に使う。
  * 「実行する」を押して初めて実行される。
  */
@@ -260,21 +196,6 @@ export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] 
         ))}
       </Menu.Dropdown>
     </Menu>
-  );
-}
-
-/** 画像。押すと、別のページに移らず、その場のポップアップで大きく表示する */
-export function ScreenshotLink({ winId, label }: { winId: number; label: string }) {
-  const [opened, setOpened] = useState(false);
-  return (
-    <>
-      <Anchor component="button" type="button" size="sm" onClick={() => setOpened(true)}>
-        {label}
-      </Anchor>
-      <Modal opened={opened} onClose={() => setOpened(false)} title="画像" size="auto" centered>
-        <Image src={`/api/screenshots/${winId}`} alt={`勝利#${winId}の画像`} mah="80vh" fit="contain" />
-      </Modal>
-    </>
   );
 }
 

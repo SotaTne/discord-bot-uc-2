@@ -1,12 +1,6 @@
 import {
   createSlotHour,
   createTeam,
-  ensureMatchSlot,
-  findMatchForTeam,
-  insertWin,
-  listTeams,
-  markMatchSlotMatched,
-  matches,
   type Db,
 } from "@uc/db";
 import { createTestDb } from "@uc/db/testing";
@@ -62,39 +56,6 @@ export async function createSeededDb() {
   return { db, kmuId, utId };
 }
 
-/**
- * テスト用: 勝利を追加する。その日・対戦枠にそのチームの試合がなければ、（マッチング済みの対戦枠として）作る。
- * 相手は、ほかのチームのうち、先頭のもの。
- */
-export async function insertWinInSlot(
-  db: Db,
-  input: {
-    guildId: string;
-    teamId: number;
-    slotDate: string;
-    slotHour: number;
-    points: number;
-    screenshotKey: string | null;
-    recordedBy: string;
-    createdAt: number;
-  },
-): Promise<number> {
-  const { slotDate, slotHour, ...rest } = input;
-  let match = await findMatchForTeam(db, { guildId: input.guildId, slotDate, slotHour, teamId: input.teamId });
-  if (!match) {
-    const slot = await ensureMatchSlot(db, { guildId: input.guildId, slotDate, slotHour, createdAt: input.createdAt });
-    await markMatchSlotMatched(db, { id: slot.id, matchedAt: input.createdAt });
-    const opponent = (await listTeams(db, input.guildId)).find((team) => team.id !== input.teamId);
-    if (!opponent) throw new Error("相手のチームがありません");
-    const [row] = await db
-      .insert(matches)
-      .values({ matchSlotId: slot.id, teamAId: input.teamId, teamBId: opponent.id })
-      .returning({ matchId: matches.id });
-    match = { matchId: row!.matchId, teamAId: input.teamId, teamBId: opponent.id };
-  }
-  return insertWin(db, { ...rest, matchId: match.matchId });
-}
-
 type InteractionInput = {
   name?: string;
   /** ボタンなどが押されたときの ID（指定すると、コンポーネントの Interaction になる） */
@@ -136,34 +97,6 @@ export const adminInteraction = (input: InteractionInput): Interaction =>
 
 export const timeOption = (hour: number): CommandOptionValue => ({ name: "time", type: 4, value: hour });
 
-export type FakeR2Object = { contentType: string | undefined; bytes: number };
-
-/** R2 の代わり。put / get / delete だけを真似る */
-export function createFakeR2() {
-  const objects = new Map<string, FakeR2Object>();
-  const blobs = new Map<string, { contentType: string | undefined; data: ArrayBuffer }>();
-
-  const bucket = {
-    put: async (key: string, value: ArrayBuffer, options?: { httpMetadata?: { contentType?: string } }) => {
-      const contentType = options?.httpMetadata?.contentType;
-      objects.set(key, { contentType, bytes: value.byteLength });
-      blobs.set(key, { contentType, data: value });
-    },
-    get: async (key: string) => {
-      const blob = blobs.get(key);
-      if (!blob) return null;
-      return { body: new Blob([blob.data]).stream(), httpMetadata: { contentType: blob.contentType } };
-    },
-    // R2 の delete は、キー1つでも、キーの配列でも受け取る
-    delete: async (keys: string | string[]) => {
-      for (const key of [keys].flat()) {
-        objects.delete(key);
-        blobs.delete(key);
-      }
-    },
-  } as unknown as R2Bucket;
-  return { bucket, objects };
-}
 
 export type EditedResponse = { applicationId: string; token: string; content: string };
 
@@ -184,7 +117,6 @@ export function commandKit(
   const edits: EditedResponse[] = [];
   const sleeps: number[] = [];
   const failures = [...(overrides.editFailures ?? [])];
-  const r2 = createFakeR2();
 
   const rest = {
     editOriginalResponse: async (applicationId: string, token: string, payload: { content?: string }) => {
@@ -197,7 +129,7 @@ export function commandKit(
 
   const context: CommandContext = {
     interaction,
-    env: { SCREENSHOTS: r2.bucket, ...overrides.env } as AppEnv,
+    env: { ...overrides.env } as AppEnv,
     db,
     clock: { now: () => new Date(now) },
     rest,
@@ -212,7 +144,6 @@ export function commandKit(
     edits,
     /** 待った時間（ミリ秒）の記録 */
     sleeps,
-    r2,
     /** waitUntil で登録された処理（deferred の後始末）がすべて終わるのを待つ */
     flush: async () => {
       await Promise.all(pending);
@@ -228,4 +159,3 @@ export const commandContext = (db: Db, interaction: Interaction, now: Date): Com
 export const contentOf = (response: { data?: { content?: string } }) => response.data?.content ?? "";
 
 /** PNG の先頭の 8 バイト。画像の中身の確認（sniffImageType）を通る、最小の「画像」 */
-export const PNG_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

@@ -30,9 +30,6 @@ function Field({ option, state }: { option: Option; state: MockStateData }) {
   if (option.type === ApplicationCommandOptionType.Integer) {
     return <TextInput label={label} name={option.name} type="number" step={1} required={required} {...(option.min_value !== undefined ? { min: option.min_value } : {})} {...(option.max_value !== undefined ? { max: option.max_value } : {})} />;
   }
-  if (option.type === ApplicationCommandOptionType.Attachment) {
-    return <TextInput label={label} name={option.name} type="file" accept="image/png,image/jpeg,image/webp" required={required} />;
-  }
   return option.name === "date" ? <TextInput label={label} name="date" type="date" /> : <TextInput label={label} name={option.name} required={required} />;
 }
 

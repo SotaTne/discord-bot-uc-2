@@ -10,14 +10,14 @@ beforeEach(async () => {
   cookie = await h.login();
 });
 
-type Slot = { hour: number; matched: boolean; handups: unknown[]; matches: { id: number; win: unknown }[]; excluded: unknown };
+type Slot = { hour: number; matched: boolean; handups: unknown[]; matches: { id: number }[]; excluded: unknown };
 const slotOf = async (hour: number) =>
   (await h.json<{ slots: Slot[] }>("/api/board", { cookie })).body.slots.find((slot) => slot.hour === hour)!;
 
 const confirm = (slotHour = 21, extra: Record<string, unknown> = {}) =>
   h.json<{ error?: string }>("/api/match-slots/confirm", { method: "POST", cookie, body: { slotHour, ...extra } });
 const reopen = (slotHour = 21) =>
-  h.json<{ error?: string; deletedMatches?: number; deletedWins?: number }>("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour } });
+  h.json<{ error?: string; deletedMatches?: number }>("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour } });
 
 const raise = (teamId: number, slotHour = 21) => createHandup(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour, teamId, raisedBy: ALICE, createdAt: 10 });
 
@@ -37,16 +37,10 @@ async function withChannel() {
   return posted;
 }
 
-async function matchedWithWin() {
+async function matchedOnce() {
   await raise(h.seeded.kmuId);
   await raise(h.seeded.utId);
   await confirm();
-  const match = (await slotOf(21)).matches[0]!;
-  const form = new FormData();
-  form.set("teamId", String(h.seeded.kmuId));
-  form.set("points", "7");
-  form.set("image", new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "s.png", { type: "image/png" }));
-  await h.postForm(`/api/matches/${match.id}/wins`, form, { cookie });
 }
 
 describe("POST /api/match-slots/confirm（マッチングの確定）", () => {
@@ -88,16 +82,14 @@ describe("POST /api/match-slots/confirm（マッチングの確定）", () => {
 });
 
 describe("POST /api/match-slots/reopen（やり直し）", () => {
-  it("組分けと勝利（と画像）を消して、未マッチングに戻す。挙手は残り、もう一度確定できる", async () => {
-    await matchedWithWin();
-    expect([...h.r2.objects.keys()]).toHaveLength(1);
+  it("組分けを消して、未マッチングに戻す。挙手は残り、もう一度確定できる", async () => {
+    await matchedOnce();
 
     const result = await reopen();
 
-    expect(result).toMatchObject({ status: 200, body: { deletedMatches: 1, deletedWins: 1 } });
+    expect(result).toMatchObject({ status: 200, body: { deletedMatches: 1 } });
     expect(await slotOf(21)).toMatchObject({ matched: false, matches: [], excluded: null });
     expect((await slotOf(21)).handups).toHaveLength(2);
-    expect([...h.r2.objects.keys()]).toHaveLength(0);
     expect((await confirm()).status).toBe(200);
     expect((await slotOf(21)).matches).toHaveLength(1);
   });
