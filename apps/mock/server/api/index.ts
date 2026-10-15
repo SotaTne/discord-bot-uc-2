@@ -126,9 +126,16 @@ export function createMockApi(deps: MockApiDeps) {
       perform(c, async (form) => {
         const messageId = String(form.message_id ?? "");
         const message = state.messages.find((m) => m.id === messageId);
-        const userId = message?.visibleTo ?? state.users[0]?.id ?? "";
-        const result = await deps.interactions.sendComponent({ userId, customId: String(form.custom_id ?? ""), messageId });
-        return result.status === 200 ? { ok: true, notice: "" } : { ok: false, notice: `worker が ${result.status} を返しました` };
+        // 本人にだけ見える返信は、その本人として押す。公開メッセージは、選んでいる実行者として押す（複数なら、順に 1 人ずつ）
+        const chosen = String(form.users ?? "").split(",").filter(Boolean);
+        const userIds = message?.visibleTo ? [message.visibleTo] : chosen.length > 0 ? chosen : [state.users[0]?.id ?? ""];
+
+        const failures: string[] = [];
+        for (const userId of userIds) {
+          const result = await deps.interactions.sendComponent({ userId, customId: String(form.custom_id ?? ""), messageId });
+          if (result.status !== 200) failures.push(`${state.userById(userId)?.username ?? userId}: worker が ${result.status} を返しました`);
+        }
+        return failures.length === 0 ? { ok: true, notice: "" } : { ok: false, notice: failures.join(" / ") };
       }),
     )
 

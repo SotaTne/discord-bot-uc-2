@@ -163,7 +163,9 @@ describe("Discord の画面", () => {
     fireEvent.click(await screen.findByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(api.callsTo("POST", "/mock-api/click")).toHaveLength(1));
-    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toEqual({ custom_id: "sample:confirm", message_id: "m1" });
+    // 押した人（選んでいる実行者）も、送る。本人にだけ見える返信は、サーバーが、その本人として押す
+    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toMatchObject({ custom_id: "sample:confirm", message_id: "m1" });
+    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toHaveProperty("users");
   });
 });
 

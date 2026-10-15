@@ -25,6 +25,45 @@ describe("Discord REST のモック", () => {
     expect(state.messages).toMatchObject([{ channelId: "c1", content: "募集を開始します", visibleTo: null }]);
   });
 
+  it("ボタン（components）つきの投稿は、ボタンも一緒に保存される。画面の「確認」と同じように、押せる", async () => {
+    const app = createDiscordRestRoutes(state);
+    const components = [{ type: 1, components: [{ type: 2, style: 3, label: "待機する", custom_id: "wait:2026-10-07:21" }] }];
+
+    const response = await app.request("/channels/c1/messages", {
+      method: "POST",
+      headers: bot,
+      body: JSON.stringify({ content: "案内", components }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.messages[0]?.components).toEqual(components);
+  });
+
+  it("メッセージの編集で、本文とボタンを置き換えられる（ボタンは、空の配列で消える）。知らないメッセージは 404", async () => {
+    const app = createDiscordRestRoutes(state);
+    const created = await app.request("/channels/c1/messages", {
+      method: "POST",
+      headers: bot,
+      body: JSON.stringify({
+        content: "案内",
+        components: [{ type: 1, components: [{ type: 2, style: 3, label: "待機する", custom_id: "wait:2026-10-07:21" }] }],
+      }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const edited = await app.request(`/channels/c1/messages/${id}`, {
+      method: "PATCH",
+      headers: bot,
+      body: JSON.stringify({ content: "終わりました", components: [] }),
+    });
+
+    expect(edited.status).toBe(200);
+    expect(state.messages[0]).toMatchObject({ content: "終わりました" });
+    expect(state.messages[0]?.components).toBeUndefined();
+    const missing = await app.request("/channels/c1/messages/nope", { method: "PATCH", headers: bot, body: JSON.stringify({ content: "x" }) });
+    expect(missing.status).toBe(404);
+  });
+
   it("Bot トークンがなければ 401", async () => {
     const app = createDiscordRestRoutes(state);
     const response = await app.request("/channels/c1/messages", {

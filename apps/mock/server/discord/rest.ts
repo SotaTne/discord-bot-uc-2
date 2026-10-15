@@ -1,3 +1,4 @@
+import type { ActionRow } from "@uc/discord";
 import { Hono } from "hono";
 import type { MockState } from "./state";
 
@@ -12,12 +13,28 @@ export function createDiscordRestRoutes(state: MockState) {
       if (!c.req.header("Authorization")?.startsWith("Bot ")) {
         return c.json({ message: "401: Unauthorized", code: 0 }, 401);
       }
-      const body = (await c.req.json()) as { content?: string };
+      const body = (await c.req.json()) as { content?: string; components?: ActionRow[] };
       const message = state.addMessage({
         channelId: c.req.param("channelId"),
         content: body.content ?? "",
+        components: body.components,
       });
       return c.json({ id: message.id, channel_id: message.channelId, content: message.content });
+    })
+
+    // チャンネルのメッセージの編集（Bot トークンが必要）。ボタンは、空の配列を渡すと消える
+    .patch("/channels/:channelId/messages/:messageId", async (c) => {
+      if (!c.req.header("Authorization")?.startsWith("Bot ")) {
+        return c.json({ message: "401: Unauthorized", code: 0 }, 401);
+      }
+      const body = (await c.req.json()) as { content?: string; components?: ActionRow[] };
+      const current = state.messages.find((m) => m.id === c.req.param("messageId"));
+      if (!current) return c.json({ message: "Unknown Message", code: 10008 }, 404);
+      state.replaceMessage(current.id, {
+        content: body.content ?? current.content,
+        components: body.components ?? current.components,
+      });
+      return c.json({ id: current.id, channel_id: current.channelId, content: body.content ?? current.content });
     })
 
     // deferred で返した応答の編集（インタラクションのトークンで認証する）

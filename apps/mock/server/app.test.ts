@@ -209,6 +209,38 @@ describe("ボタンを押す（POST /mock-api/click）", () => {
   });
 });
 
+describe("公開メッセージのボタンを押す（選んでいる実行者として）", () => {
+  const publicButton = (mock: Awaited<ReturnType<typeof createTestMock>>) =>
+    mock.state.addMessage({
+      channelId: mock.state.channelId,
+      content: "待機の案内",
+      components: [{ type: 1, components: [{ type: 2, style: 3, label: "待機する", custom_id: "wait:2026-10-07:21" }] }],
+    });
+
+  it("選んでいる実行者として押す（複数なら、順に 1 人ずつ）。選んでいなければ、最初のユーザー", async () => {
+    const mock = await createTestMock({ interaction: { type: 4, data: { content: "ok", flags: 64 } } });
+    const message = publicButton(mock);
+
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id, users: `${CAROL},${ALICE}` }));
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id }));
+
+    const pressedBy = mock.worker
+      .callsTo("/interactions")
+      .map((call) => (JSON.parse(call.body) as Interaction).member?.user.id);
+    expect(pressedBy).toEqual([CAROL, ALICE, mock.state.users[0]!.id]);
+  });
+
+  it("押した人の、どれかで worker が失敗したら、だれの操作が失敗したかを返す", async () => {
+    const mock = await createTestMock({ interactionStatus: 401 });
+    const message = publicButton(mock);
+
+    const result = await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id, users: ALICE }));
+
+    expect(result.ok).toBe(false);
+    expect(result.notice).toContain("worker が 401 を返しました");
+  });
+});
+
 describe("時計の操作（POST /mock-api/clock）", () => {
   it("日時を指定すると、その時刻になり、cron が自動で1回動く", async () => {
     const mock = await createTestMock({ tick: { ran: ["cutoff:2026-10-07:21"], errors: [] } });

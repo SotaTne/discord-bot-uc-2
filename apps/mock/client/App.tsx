@@ -74,7 +74,7 @@ function Screen() {
           <StatePanel state={state} part="history" />
         </div>
         <div className="cell">
-          <Feed state={state} />
+          <Feed state={state} selectedUsers={selected} />
         </div>
       </div>
     </main>

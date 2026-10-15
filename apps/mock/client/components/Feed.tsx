@@ -5,8 +5,11 @@ import { userName, type MockMessage, type MockStateData } from "../mockState";
 import { jstHm } from "../time";
 import { DiscordText } from "./DiscordText";
 
-/** Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る */
-export function Feed({ state }: { state: MockStateData }) {
+/**
+ * Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る。
+ * ボタンは、本人にだけ見える返信なら、その本人として、公開メッセージなら、選んでいる実行者として押す（チームごとに、押せるかが変わるため）。
+ */
+export function Feed({ state, selectedUsers }: { state: MockStateData; selectedUsers: string[] }) {
   const click = useAction((form) => mockApi.click.$post({}, { init: { body: form } }));
   const scroller = useRef<HTMLDivElement>(null);
   const count = state.messages.length;
@@ -16,7 +19,8 @@ export function Feed({ state }: { state: MockStateData }) {
     if (element) element.scrollTop = element.scrollHeight;
   }, [count]);
 
-  const press = (message: MockMessage, customId: string) => click.mutate(formOf({ custom_id: customId, message_id: message.id }));
+  const press = (message: MockMessage, customId: string) =>
+    click.mutate(formOf({ custom_id: customId, message_id: message.id, users: selectedUsers.join(",") }));
 
   return (
     <div className="discord">
