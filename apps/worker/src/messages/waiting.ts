@@ -44,9 +44,17 @@ export function waitingStartedMessage(input: { hour: number; excluded: Team; slo
   };
 }
 
-/** 待機が取り消されたときの、案内の本文（ボタンなし） */
-export const waitingCancelledMessage = (input: { hour: number; excluded: Team }) =>
-  `${teamMention(input.excluded)} の待機は取り消されました（${input.hour}時）。`;
+/**
+ * 待機が取り消されたときの、案内の本文。最初の案内（「待機する」ボタンつき）に戻す。
+ * 試合の開始までは、何度でも、待機し直せるように、ボタンを残す。
+ */
+export function waitingCancelledMessage(input: { hour: number; excluded: Team; slotDate: string }) {
+  const offer = waitingOfferMessage(input);
+  return {
+    content: [`${teamMention(input.excluded)} の待機は取り消されました（${input.hour}時）。`, offer.content].join("\n"),
+    components: offer.components,
+  };
+}
 
 /** 対戦相手が決まったときの、案内の本文（ボタンなし） */
 export const waitingJoinedMessage = (input: { hour: number; excluded: Team; joined: Team }) =>

@@ -114,9 +114,27 @@ describe("継続募集: ボタン", () => {
 
     const response = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
 
-    expect(contentOf(response)).toBe(`<@&${NGT_ROLE}> の待機は取り消されました（21時）。`);
-    expect(response.data?.components).toEqual([]);
+    expect(contentOf(response)).toContain(`<@&${NGT_ROLE}> の待機は取り消されました（21時）。`);
     expect(await slotOf()).toMatchObject({ waitingSince: null, excludedTeamId: ngtId });
+  });
+
+  it("「待機をキャンセル」: 案内は消えず、「待機する」のボタンに戻る。何度でも、待機し直せる", async () => {
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+
+    const cancelled = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+
+    // 案内が「待機する」のボタンに戻っている（ボタンがなくなると、待機し直せない）
+    expect(cancelled.data?.components?.[0]?.components.map((b) => [b.label, b.custom_id])).toEqual([["待機する", WAIT]]);
+
+    // 戻った案内の「待機する」を押して、もう一度、待機できる。もう一度キャンセルして、また待機もできる
+    const again = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
+    expect(contentOf(again)).toContain("が待機中です（21時）");
+    expect((await slotOf()).waitingSince).toBe(jst("2026-10-07T20:57:00").getTime());
+
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    const third = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:58:00");
+    expect(contentOf(third)).toContain("が待機中です（21時）");
+    expect((await slotOf()).waitingSince).toBe(jst("2026-10-07T20:58:00").getTime());
   });
 
   it("「対戦する」: 待機中に、別のチームが押すと、組分けになる。結果は、何試合目か・主催つきで投稿される", async () => {

@@ -96,12 +96,14 @@ export const wait: CommandHandler = async (context) => {
 export const waitCancel: CommandHandler = async (context) => {
   const resolved = await resolveTarget(context, "wait-cancel");
   if (!resolved.ok) return resolved.response;
-  const { slot, slotHour, team, excluded } = resolved.target;
+  const { slot, slotDate, slotHour, team, excluded } = resolved.target;
 
   if (team.id !== excluded.id) return ephemeralMessage("待機をキャンセルできるのは、待機しているチームだけです");
   if (!(await stopWaiting(context.db, slot.id))) return ephemeralMessage("待機していません（すでに、対戦相手が決まったか、取り消されています）");
 
-  return updateMessage(waitingCancelledMessage({ hour: slotHour, excluded }));
+  // 案内を、最初の「待機する」の状態に戻す（試合の開始までは、待機し直せる）
+  const message = waitingCancelledMessage({ hour: slotHour, excluded, slotDate });
+  return updateMessage(message.content, message.components);
 };
 
 /** 「対戦する」: 待機しているチーム以外の、組まれていないチームが押せる。先着 1 チームだけが、組分けになる */
