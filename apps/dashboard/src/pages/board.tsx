@@ -346,7 +346,13 @@ function MatchRow({ match }: { match: Match }) {
   return (
     <>
       <Table.Tr>
-        <Table.Td>{label}</Table.Td>
+        <Table.Td>
+          {label}
+          {/* 主催（部屋を立てる側）。保存せず、サーバーが、組分けから計算する */}
+          <Text span c="dimmed" size="sm" ml="xs">
+            主催: {match.host.name}
+          </Text>
+        </Table.Td>
         <Table.Td>
           <Group justify="flex-end" wrap="nowrap">
             <Button variant="default" color="red" size="xs" onClick={() => setRemoving(true)} aria-label={`${label}を削除`}>

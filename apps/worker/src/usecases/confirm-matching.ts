@@ -63,6 +63,6 @@ export async function confirmMatching(
   // 投稿先のチャンネルが設定されていなければ、結果の保存だけを行う
   if (input.channelId === null) return;
   const teams = await listTeams(db, input.guildId, { includeDeleted: true });
-  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, teams });
+  await postMatchingResult(deps.rest, { channelId: input.channelId, slotDate: input.slotDate, hour: input.slotHour, result: announced, teams });
 }
 

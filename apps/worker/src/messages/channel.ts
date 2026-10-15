@@ -29,10 +29,10 @@ export async function postRecruit(
 /** マッチング結果。組まれたチームと、組まれなかったチームのロールに、通知する */
 export async function postMatchingResult(
   rest: ChannelPoster,
-  input: { channelId: string; hour: number; result: MatchingResult; teams: readonly Team[] },
+  input: { channelId: string; slotDate: string; hour: number; result: MatchingResult; teams: readonly Team[] },
 ): Promise<void> {
   await rest.createMessage(input.channelId, {
-    content: matchingMessage({ hour: input.hour, result: input.result, teamById: teamsById(input.teams) }),
+    content: matchingMessage({ slotDate: input.slotDate, hour: input.hour, result: input.result, teamById: teamsById(input.teams) }),
     allowed_mentions: { parse: ["roles"] },
   });
 }

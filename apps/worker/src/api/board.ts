@@ -1,5 +1,5 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
-import { cutoffJobKey, jstDateOf, slotHoursOnDate, slotPhase } from "@uc/core";
+import { cutoffJobKey, hostTeamOf, jstDateOf, slotHoursOnDate, slotPhase } from "@uc/core";
 import {
   addMatch,
   claimJob,
@@ -84,6 +84,8 @@ export function createBoardRoutes(deps: ApiDeps) {
                 id: match.id,
                 teamA: team(match.teamAId),
                 teamB: team(match.teamBId),
+                // 主催（部屋を立てる側）。保存せず、日付・時刻・2 チームから、毎回、計算する
+                host: team(hostTeamOf({ slotDate: date, slotHour: slot.hour, teamAId: match.teamAId, teamBId: match.teamBId })),
               })),
           };
         }),

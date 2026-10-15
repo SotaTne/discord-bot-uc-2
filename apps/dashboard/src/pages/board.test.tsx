@@ -17,7 +17,7 @@ const slot = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const handup = (over: Record<string, unknown> = {}) => ({ id: 1, team: KMU, raisedByName: "alice", createdAt: at("2026-10-07T15:00:00"), ...over });
-const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, ...over });
+const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, host: UT, ...over });
 const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, slots } });
 const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
@@ -258,6 +258,7 @@ describe("対戦枠の画面: 組分け", () => {
 
     const within21 = await card("21:00の対戦枠");
     expect(within21.getByText("KMU vs UT")).toBeTruthy();
+    expect(within21.getByText("主催: UT")).toBeTruthy();
     expect(within21.getByText("組まれなかったチーム: NGT")).toBeTruthy();
   });
 
