@@ -11,10 +11,12 @@ export type MessagePayload = {
    * parse に "roles" を入れると、本文中のロールのメンションが、すべて通知される。roles に ID を渡すと、そのロールだけが通知される（どちらか一方）。
    * @here・@everyone は、parse に "everyone" を入れたときだけ通知される
    */
-  allowed_mentions?: { parse?: string[]; roles?: string[] };
+  allowed_mentions?: { parse?: string[]; roles?: string[]; replied_user?: boolean };
   flags?: number;
   /** ボタン。空の配列を渡すと、メッセージのボタンが消える（編集のとき） */
   components?: ActionRow[];
+  /** 別のメッセージへの返信にする（投稿のとき）。元のメッセージが消えていても、投稿できるようにする（fail_if_not_exists: false） */
+  message_reference?: { message_id: string; fail_if_not_exists?: boolean };
 };
 
 export class DiscordApiError extends Error {

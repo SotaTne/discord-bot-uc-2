@@ -27,8 +27,8 @@ import { join, wait, waitCancel } from "./waiting";
 /**
  * 継続募集のテストは、「フック」（きっかけ → 起きること）ごとに、独立して書く。
  *   1. 締切のマッチング        → 案内（「待機する」）を投稿する
- *   2. 「待機する」を押す      → 募集のメッセージを、最初の 1 回だけ投稿する（2 回目以降は、編集）
- *   3. 「待機をキャンセル」    → 募集のメッセージを、取り消しの表示にして、ボタンを外す（削除しない）
+ *   2. 「待機する」を押す      → 募集のメッセージを、新しいメッセージとして、案内への返信で投稿する（通知は、最初の 1 回だけ）
+ *   3. 「待機をキャンセル」    → 募集のメッセージを削除する（案内の「待機する」は、残る）
  *   4. 「対戦する」を押す      → 組分けを作り、結果を投稿し、募集のメッセージを削除し、案内のボタンを外す
  *   5. 試合開始の時刻になる    → 募集のメッセージを削除し、案内のボタンを外す（毎分の cron。1 度だけ）
  *   6. 対象でない人が押す      → 何も変わらない
@@ -38,6 +38,8 @@ import { join, wait, waitCancel } from "./waiting";
 const CHANNEL = "300000000000000001";
 const NGT_ROLE = "400000000000000003";
 const ITF_ROLE = "400000000000000004";
+/** 募集の通知先（設定のロール）。最初の募集のメッセージだけが、これに通知する */
+const NOTIFY_ROLE = "400000000000000099";
 const DATE = "2026-10-07";
 const WAIT = `wait:${DATE}:21`;
 const CANCEL = `wait-cancel:${DATE}:21`;
@@ -115,10 +117,20 @@ describe("フック 1: 締切のマッチング → 案内（「待機する」�
   });
 });
 
-describe("フック 2: 「待機する」→ 募集のメッセージ（最初の 1 回だけ投稿し、あとは編集）", () => {
-  beforeEach(runCutoff);
+describe("フック 2: 「待機する」→ 募集のメッセージを、新しいメッセージとして、案内への返信で投稿する", () => {
+  beforeEach(async () => {
+    // 募集の通知先を、ロール 1 つにする（最初の 1 回だけ通知されることを、確かめるため）
+    await saveGuildSettings(
+      seeded.db,
+      GUILD_ID,
+      { ...defaultGuildSettings, channelId: CHANNEL, recruitMentionMode: "roles", recruitMentionTargets: [NOTIFY_ROLE] },
+      1,
+    );
+    await runCutoff();
+  });
 
-  it("最初の待機で、「対戦する」「待機をキャンセル」つきの募集のメッセージを、募集の通知先に投稿し、その ID を保存する。押した人には、本人にだけ見える返信を返す", async () => {
+  it("「対戦する」「待機をキャンセル」つきの募集のメッセージを、案内への返信として、チャンネルに新しく投稿し、その ID を保存する。押した人には、本人にだけ見える返信を返す", async () => {
+    const offer = offers()[0]!;
     const before = channel.posted.length;
 
     const response = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
@@ -128,6 +140,7 @@ describe("フック 2: 「待機する」→ 募集のメッセージ（最初�
     expect(announce?.content).toContain(`# 21時の対戦相手を募集しています（<@&${NGT_ROLE}> が待機中）`);
     expect(labels(announce?.components)).toEqual([["対戦する", "待機をキャンセル"]]);
     expect(announce?.channelId).toBe(CHANNEL);
+    expect(announce?.replyTo).toBe(offer.id);
     expect(await slotOf()).toMatchObject({
       waitingSince: jst("2026-10-07T20:56:00").getTime(),
       waitingAnnounceMessageId: announce?.id,
@@ -140,18 +153,34 @@ describe("フック 2: 「待機する」→ 募集のメッセージ（最初�
     expect((response.data?.flags ?? 0) & 64).toBe(64);
   });
 
-  it("待機 → キャンセル → 待機 を繰り返しても、募集のメッセージは、1 通のまま。2 回目以降は、そのメッセージを編集して、ボタンを戻す", async () => {
+  it("通知先への通知は、同じ対戦枠の最初の 1 回だけ。2 回目以降の投稿は、通知先を呼び出さない", async () => {
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
-    const [announce] = announces();
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:30");
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:58:00");
+
+    const [first, second, third] = announces();
+    expect(first?.content.startsWith(`<@&${NOTIFY_ROLE}>`)).toBe(true);
+    expect(first?.allowedMentions).toMatchObject({ roles: [NOTIFY_ROLE] });
+    for (const later of [second, third]) {
+      expect(later?.content).not.toContain(NOTIFY_ROLE);
+      expect(later?.allowedMentions).toMatchObject({ roles: [] });
+    }
+  });
+
+  it("待機 → キャンセル → 待機 を繰り返すたびに、新しいメッセージ（いつも、いちばん下）として投稿する。編集はしない。どれも、案内への返信", async () => {
+    const offer = offers()[0]!;
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
     await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
 
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
 
-    expect(announces()).toHaveLength(1);
-    expect(channel.edited).toHaveLength(1);
-    expect(channel.edited[0]).toMatchObject({ channelId: CHANNEL, messageId: announce?.id });
-    expect(labels(channel.edited[0]?.components)).toEqual([["対戦する", "待機をキャンセル"]]);
-    expect(channel.edited[0]?.content).toContain("# 21時の対戦相手を募集しています");
+    expect(announces()).toHaveLength(2);
+    expect(announces().map((message) => message.replyTo)).toEqual([offer.id, offer.id]);
+    expect(channel.posted.at(-1)).toBe(announces()[1]);
+    expect(channel.edited).toEqual([]);
+    expect((await slotOf()).waitingAnnounceMessageId).toBe(announces()[1]?.id);
   });
 
   it("すでに待機中のとき、もう一度押しても、何も増えない（投稿も編集も、ない）", async () => {
@@ -165,35 +194,65 @@ describe("フック 2: 「待機する」→ 募集のメッセージ（最初�
     expect(channel.edited).toEqual([]);
   });
 
-  it("募集のメッセージの投稿に失敗しても、待機は始まる（次の待機で、もう一度、投稿を試す）", async () => {
+  it("前の募集のメッセージが、キャンセルのとき削除できずに残っていれば、待機し直すとき、先に削除してから、新しく投稿する", async () => {
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+    const stale = (await slotOf()).waitingAnnounceMessageId;
+    channel.failDelete(500);
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    expect((await slotOf()).waitingAnnounceMessageId).toBe(stale);
+    channel.failDelete(null);
+
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
+
+    expect(channel.deleted).toEqual([{ channelId: CHANNEL, messageId: stale }]);
+    expect(announces()).toHaveLength(2);
+    expect((await slotOf()).waitingAnnounceMessageId).toBe(announces()[1]?.id);
+  });
+
+  it("募集のメッセージの投稿に失敗しても、待機は始まる。通知の権利は返すので、次の待機で、通知も、もう一度、試せる", async () => {
     const failing = { ...channel.rest, createMessage: async () => { throw new Error("Discord が応答しません"); } };
-    const response = await wait(
+    await wait(
       commandKit(seeded.db, commandInteraction({ customId: WAIT, roleIds: [NGT_ROLE] }), jst("2026-10-07T20:56:00"), {
         channel: { ...channel, rest: failing },
       }).context,
     );
-
-    expect(response.type).toBe(4);
     expect(await slotOf()).toMatchObject({ waitingSince: jst("2026-10-07T20:56:00").getTime(), waitingAnnounceMessageId: null });
+
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] }, "2026-10-07T20:57:00");
+
+    expect(announces()).toHaveLength(1);
+    expect(announces()[0]?.content.startsWith(`<@&${NOTIFY_ROLE}>`)).toBe(true);
   });
 });
 
-describe("フック 3: 「待機をキャンセル」→ 募集のメッセージを、取り消しの表示にする（削除しない）", () => {
+describe("フック 3: 「待機をキャンセル」→ 募集のメッセージを削除する（案内の「待機する」は、残る）", () => {
   beforeEach(async () => {
     await runCutoff();
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
   });
 
-  it("押されたメッセージ（募集のメッセージ）を、取り消しの表示に置き換えて、ボタンを外す。待機は終わるが、組まれなかったチームは、そのまま", async () => {
+  it("募集のメッセージを削除し、ID を空にする。待機は終わるが、組まれなかったチームは、そのまま。押した人には、本人にだけ見える返信を返す", async () => {
+    const announce = (await slotOf()).waitingAnnounceMessageId;
+
     const response = await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
 
-    expect(response.type).toBe(7);
-    expect(contentOf(response)).toContain(`# 21時の対戦相手の募集は、取り消されました（<@&${NGT_ROLE}> が待機をキャンセル）`);
-    expect(response.data?.components).toEqual([]);
-    expect(await slotOf()).toMatchObject({ waitingSince: null, excludedTeamId: ngtId });
-    // 募集のメッセージは、削除しない（待機し直したとき、同じメッセージを編集して、使う）
-    expect(channel.deleted).toEqual([]);
-    expect((await slotOf()).waitingAnnounceMessageId).not.toBeNull();
+    expect(channel.deleted).toEqual([{ channelId: CHANNEL, messageId: announce }]);
+    expect(await slotOf()).toMatchObject({ waitingSince: null, excludedTeamId: ngtId, waitingAnnounceMessageId: null });
+    expect(response.type).toBe(4);
+    expect((response.data?.flags ?? 0) & 64).toBe(64);
+    expect(contentOf(response)).toContain("待機をキャンセルしました（21時）");
+    // 案内（「待機する」）のメッセージは、そのまま（待機し直せる）
+    expect(channel.edited).toEqual([]);
+    expect((await slotOf()).waitingMessageId).not.toBeNull();
+  });
+
+  it("募集のメッセージが、すでにない（404）なら、終わっているものとして扱い、ID を空にする", async () => {
+    channel.failDelete(404);
+
+    await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
+
+    expect((await slotOf()).waitingAnnounceMessageId).toBeNull();
   });
 });
 
@@ -317,14 +376,15 @@ describe("フック 5: 試合開始の時刻になる → 募集のメッセー�
     expect((await slotOf()).waitingMessageId).toBeNull();
   });
 
-  it("キャンセルして待機が終わっていても、残っている募集のメッセージを、試合開始で削除する", async () => {
+  it("キャンセルしたとき、すでに削除している。試合開始で、もう一度、削除しない（案内のボタンを外すだけ）", async () => {
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
     await press(waitCancel, { customId: CANCEL, roleIds: [NGT_ROLE] });
-    const slot = await slotOf();
+    const deletedByCancel = channel.deleted.length;
 
     await tick("2026-10-07T21:00:00");
 
-    expect(channel.deleted).toEqual([{ channelId: CHANNEL, messageId: slot.waitingAnnounceMessageId }]);
+    expect(channel.deleted).toHaveLength(deletedByCancel);
+    expect(channel.edited).toHaveLength(1);
   });
 
   it("削除に失敗した（404 以外）ときは、ID を残して、次の分に、やり直す", async () => {

@@ -15,10 +15,10 @@ import {
   type MatchSlot,
   type Team,
 } from "@uc/db";
-import { ephemeralMessage, updateMessage, type InteractionResponse } from "@uc/discord";
+import { ephemeralMessage, type InteractionResponse } from "@uc/discord";
 import { postMatchingResult, postWaitingAnnounce, recruitMention } from "../messages";
-import { parseWaitingCustomId, waitingAnnounce, waitingJoinedMessage } from "../messages/waiting";
-import { closeWaitingMessages } from "../usecases/close-waiting-messages";
+import { parseWaitingCustomId, waitingJoinedMessage } from "../messages/waiting";
+import { closeWaitingMessages, deleteWaitingAnnounce } from "../usecases/close-waiting-messages";
 import { resolveCaller } from "./caller";
 import type { CommandContext, CommandHandler } from "./registry";
 
@@ -69,31 +69,29 @@ export const wait: CommandHandler = async (context) => {
     return ephemeralMessage("すでに待機中です");
   }
 
-  // 募集のメッセージ（「対戦する」「待機をキャンセル」つき）を出す。
-  // 同じ対戦枠では、最初の待機のときだけ投稿し（募集開始と同じ通知先に通知する）、待機し直したときは、そのメッセージを編集して、ボタンを戻す
-  // （編集では、通知されない。待機し直すたびに、通知を重ねない）。失敗しても、待機は、そのまま
+  // 募集のメッセージ（「対戦する」「待機をキャンセル」つき）を、新しいメッセージとして投稿する（上に戻らなくても、押せるように）。
+  // 案内のメッセージへの返信にする。通知先への通知は、同じ対戦枠の最初の 1 回だけ（待機し直すたびに、通知を重ねない）。
+  // 失敗しても、待機は、そのまま（通知の権利は、返す。次の待機で、もう一度、試す）
   const settings = await getGuildSettings(context.db, guildId);
   if (settings.channelId) {
+    // 前の募集のメッセージが、削除できずに残っていれば、先に削除する（古い募集が、残らない）
+    await deleteWaitingAnnounce({ db: context.db, rest: context.rest }, { slot, channelId: settings.channelId });
+    const noticeKey = `wait-notice:${slotDate}:${slotHour}`;
+    const notify = await claimJob(context.db, guildId, noticeKey, context.clock.now().getTime());
     try {
-      if (slot.waitingAnnounceMessageId) {
-        const message = waitingAnnounce({ hour: slotHour, excluded, slotDate, waiting: true });
-        await context.rest.editMessage(settings.channelId, slot.waitingAnnounceMessageId, {
-          content: message.content,
-          components: message.components,
-        });
-      } else {
-        const teams = settings.recruitMentionMode === "teams" ? await listTeams(context.db, guildId) : [];
-        const messageId = await postWaitingAnnounce(context.rest, {
-          channelId: settings.channelId,
-          slotDate,
-          hour: slotHour,
-          excluded,
-          mention: recruitMention(settings, teams),
-        });
-        await setWaitingAnnounceMessage(context.db, { id: slot.id, messageId });
-      }
+      const teams = notify && settings.recruitMentionMode === "teams" ? await listTeams(context.db, guildId) : [];
+      const messageId = await postWaitingAnnounce(context.rest, {
+        channelId: settings.channelId,
+        slotDate,
+        hour: slotHour,
+        excluded,
+        replyToMessageId: slot.waitingMessageId,
+        ...(notify ? { mention: recruitMention(settings, teams) } : {}),
+      });
+      await setWaitingAnnounceMessage(context.db, { id: slot.id, messageId });
     } catch (error) {
-      console.error("募集のメッセージの投稿・編集に失敗しました", error);
+      if (notify) await releaseJob(context.db, guildId, noticeKey);
+      console.error("募集のメッセージの投稿に失敗しました", error);
     }
   }
 
@@ -107,14 +105,18 @@ export const wait: CommandHandler = async (context) => {
 export const waitCancel: CommandHandler = async (context) => {
   const resolved = await resolveTarget(context, "wait-cancel");
   if (!resolved.ok) return resolved.response;
-  const { slot, slotDate, slotHour, team, excluded } = resolved.target;
+  const { slot, slotHour, team, excluded, guildId } = resolved.target;
 
   if (team.id !== excluded.id) return ephemeralMessage("待機をキャンセルできるのは、待機しているチームだけです");
   if (!(await stopWaiting(context.db, slot.id))) return ephemeralMessage("待機していません（すでに、対戦相手が決まったか、取り消されています）");
 
-  // 募集のメッセージ（このボタンがあるメッセージ）を、取り消しの表示にして、ボタンを外す。案内の「待機する」は、そのまま残る（待機し直せる）
-  const message = waitingAnnounce({ hour: slotHour, excluded, slotDate, waiting: false });
-  return updateMessage(message.content, message.components);
+  // 募集のメッセージ（このボタンがあるメッセージ）を、削除する（古い募集が、残らない）。案内の「待機する」は、そのまま残る（待機し直せる）。
+  // 押されたメッセージを削除したので、編集ではなく、押した人にだけ見える返信を返す
+  const settings = await getGuildSettings(context.db, guildId);
+  if (settings.channelId) {
+    await deleteWaitingAnnounce({ db: context.db, rest: context.rest }, { slot, channelId: settings.channelId });
+  }
+  return ephemeralMessage(`待機をキャンセルしました（${slotHour}時）。${slotHour}:00 までは、案内の「待機する」から、待機し直せます。`);
 };
 
 /** 「対戦する」: 待機しているチーム以外の、組まれていないチームが押せる。先着 1 チームだけが、組分けになる */

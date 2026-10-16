@@ -39,6 +39,21 @@ describe("Discord REST のモック", () => {
     expect(state.messages[0]?.components).toEqual(components);
   });
 
+  it("message_reference つきの投稿は、そのメッセージへの返信として保存される", async () => {
+    const app = createDiscordRestRoutes(state);
+    const first = await app.request("/channels/c1/messages", { method: "POST", headers: bot, body: JSON.stringify({ content: "案内" }) });
+    const { id } = (await first.json()) as { id: string };
+
+    await app.request("/channels/c1/messages", {
+      method: "POST",
+      headers: bot,
+      body: JSON.stringify({ content: "募集", message_reference: { message_id: id, fail_if_not_exists: false } }),
+    });
+
+    expect(state.messages[0]?.replyTo).toBeUndefined();
+    expect(state.messages[1]).toMatchObject({ content: "募集", replyTo: id });
+  });
+
   it("メッセージの編集で、本文とボタンを置き換えられる（ボタンは、空の配列で消える）。知らないメッセージは 404", async () => {
     const app = createDiscordRestRoutes(state);
     const created = await app.request("/channels/c1/messages", {

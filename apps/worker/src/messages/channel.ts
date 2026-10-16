@@ -76,19 +76,22 @@ export async function postWaitingOffer(
 }
 
 /**
- * 募集のメッセージ（「対戦する」「待機をキャンセル」つき）を投稿する。募集開始と同じ通知先に、通知する。
- * 同じ対戦枠では、最初の待機のときだけ投稿し、あとは、編集する（編集では、通知されない）。投稿したメッセージの ID を返す。
+ * 募集のメッセージ（「対戦する」「待機をキャンセル」つき）を、新しいメッセージとして投稿する。
+ * replyToMessageId があれば、そのメッセージ（案内）への返信にする（返信の相手には、通知しない）。
+ * mention を渡したときだけ、募集開始と同じ通知先に通知する（同じ対戦枠の最初の 1 回だけ。2 回目以降は、渡さない）。
+ * 投稿したメッセージの ID を返す。
  */
 export async function postWaitingAnnounce(
   rest: ChannelPoster,
-  input: { channelId: string; slotDate: string; hour: number; excluded: Team; mention?: RecruitMention },
+  input: { channelId: string; slotDate: string; hour: number; excluded: Team; mention?: RecruitMention; replyToMessageId?: string | null },
 ): Promise<string> {
   const mention = input.mention ?? NO_MENTION;
-  const message = waitingAnnounce({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, waiting: true, mentionText: mention.text });
+  const message = waitingAnnounce({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, mentionText: mention.text });
   const created = await rest.createMessage(input.channelId, {
     content: message.content,
     components: message.components,
-    allowed_mentions: { parse: mention.here ? ["everyone"] : [], roles: mention.roleIds },
+    allowed_mentions: { parse: mention.here ? ["everyone"] : [], roles: mention.roleIds, replied_user: false },
+    ...(input.replyToMessageId ? { message_reference: { message_id: input.replyToMessageId, fail_if_not_exists: false } } : {}),
   });
   return created.id;
 }

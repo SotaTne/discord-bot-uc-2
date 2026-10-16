@@ -114,15 +114,25 @@ export type FakeChannel = ReturnType<typeof createFakeChannel>;
  * failDelete / failEdit に、HTTP ステータスを渡すと、以降の削除・編集を、そのステータスで失敗させる（404 は「すでにない」、それ以外は「失敗」）。
  */
 export function createFakeChannel() {
-  const posted: { id: string; channelId: string; content: string; components: unknown; allowedMentions: unknown }[] = [];
+  const posted: { id: string; channelId: string; content: string; components: unknown; allowedMentions: unknown; replyTo: string | undefined }[] = [];
   const edited: { channelId: string; messageId: string; content: string | undefined; components: unknown }[] = [];
   const deleted: { channelId: string; messageId: string }[] = [];
   const failures: { delete: number | null; edit: number | null } = { delete: null, edit: null };
 
   const rest = {
-    async createMessage(channelId: string, payload: { content?: string; components?: unknown; allowed_mentions?: unknown }) {
+    async createMessage(
+      channelId: string,
+      payload: { content?: string; components?: unknown; allowed_mentions?: unknown; message_reference?: { message_id: string } },
+    ) {
       const id = `m${posted.length + 1}`;
-      posted.push({ id, channelId, content: payload.content ?? "", components: payload.components, allowedMentions: payload.allowed_mentions });
+      posted.push({
+        id,
+        channelId,
+        content: payload.content ?? "",
+        components: payload.components,
+        allowedMentions: payload.allowed_mentions,
+        replyTo: payload.message_reference?.message_id,
+      });
       return { id };
     },
     async editMessage(channelId: string, messageId: string, payload: { content?: string; components?: unknown }) {

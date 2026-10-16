@@ -13,11 +13,12 @@ export function createDiscordRestRoutes(state: MockState) {
       if (!c.req.header("Authorization")?.startsWith("Bot ")) {
         return c.json({ message: "401: Unauthorized", code: 0 }, 401);
       }
-      const body = (await c.req.json()) as { content?: string; components?: ActionRow[] };
+      const body = (await c.req.json()) as { content?: string; components?: ActionRow[]; message_reference?: { message_id?: string } };
       const message = state.addMessage({
         channelId: c.req.param("channelId"),
         content: body.content ?? "",
         components: body.components,
+        replyTo: body.message_reference?.message_id,
       });
       return c.json({ id: message.id, channel_id: message.channelId, content: message.content });
     })

@@ -35,23 +35,22 @@ export function waitingMessage(input: { hour: number; excluded: Team; slotDate: 
 }
 
 /**
- * 募集のメッセージ（待機が始まったとき、同じ対戦枠で、最初の 1 回だけ投稿し、あとは、編集する）。
- * 待機中は、「対戦する」「待機をキャンセル」を出す。キャンセルすると、ボタンが消え、待機し直すと、戻る。
- * mentionText は、投稿のときだけ、先頭に付ける（編集では、通知されない）。
+ * 募集のメッセージ（待機が始まるたびに、新しいメッセージとして、案内のメッセージへの返信で、投稿する）。
+ * 「対戦する」「待機をキャンセル」を出す。キャンセルしたとき、対戦が決まったとき、試合が始まったときは、削除する。
+ * mentionText は、同じ対戦枠の最初の投稿のときだけ、先頭に付ける（通知先に、1 度だけ知らせる）。
  */
-export function waitingAnnounce(input: { hour: number; excluded: Team; slotDate: string; waiting: boolean; mentionText?: string }) {
+export function waitingAnnounce(input: { hour: number; excluded: Team; slotDate: string; mentionText?: string }) {
   const mention = teamMention(input.excluded);
-  const body = input.waiting
-    ? [`# ${input.hour}時の対戦相手を募集しています（${mention} が待機中）`, `${input.hour}:00 までに、「対戦する」を押してください（先着 1 チーム）。`]
-    : [`# ${input.hour}時の対戦相手の募集は、取り消されました（${mention} が待機をキャンセル）`, "待機し直すと、また募集します。"];
   return {
-    content: [...(input.mentionText ? [input.mentionText] : []), ...body].join("\n"),
-    components: input.waiting
-      ? row(
-          { type: 2, style: 1, label: "対戦する", custom_id: waitingCustomId("join", input.slotDate, input.hour) },
-          { type: 2, style: 2, label: "待機をキャンセル", custom_id: waitingCustomId("wait-cancel", input.slotDate, input.hour) },
-        )
-      : [],
+    content: [
+      ...(input.mentionText ? [input.mentionText] : []),
+      `# ${input.hour}時の対戦相手を募集しています（${mention} が待機中）`,
+      `${input.hour}:00 までに、「対戦する」を押してください（先着 1 チーム）。`,
+    ].join("\n"),
+    components: row(
+      { type: 2, style: 1, label: "対戦する", custom_id: waitingCustomId("join", input.slotDate, input.hour) },
+      { type: 2, style: 2, label: "待機をキャンセル", custom_id: waitingCustomId("wait-cancel", input.slotDate, input.hour) },
+    ),
   };
 }
 

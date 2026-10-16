@@ -131,6 +131,34 @@ describe("状態", () => {
   });
 });
 
+describe("Discord の画面: 返信", () => {
+  it("返信のメッセージは、返信の相手の 1 行目を、上に見せる。相手が削除されていれば、その旨", async () => {
+    installFakeApi(
+      stateRoute(
+        sampleState({
+          messages: [
+            message({ id: "m1", content: "案内の 1 行目\n案内の 2 行目" }),
+            message({ id: "m2", content: "募集です", replyTo: "m1" }),
+            message({ id: "m3", content: "消えた相手への返信", replyTo: "gone" }),
+          ] as never,
+        }),
+      ),
+    );
+    renderApp();
+
+    const log = within(await screen.findByRole("log", { name: "Discord のメッセージ" }));
+    const replies = log.getAllByLabelText("返信の相手");
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.textContent).toContain("案内の 1 行目");
+    expect(replies[0]?.textContent).not.toContain("案内の 2 行目");
+    expect(replies[1]?.textContent).toContain("元のメッセージは、削除されました");
+    // 返信でない、最初のメッセージには、返信の表示は、出ない
+    const messages = document.querySelectorAll(".msg");
+    expect(messages[0]?.querySelector(".reply")).toBeNull();
+    expect(messages[1]?.querySelector(".reply")).not.toBeNull();
+  });
+});
+
 describe("Discord の画面", () => {
   it("公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。だれに見えるかも出す", async () => {
     installFakeApi(

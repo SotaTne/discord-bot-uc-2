@@ -21,8 +21,9 @@ export type MockMessage = {
   visibleTo: string | null;
   /** ボタン（確認ボタンなど）。押すと、メッセージが置き換わって消える */
   components?: ActionRow[];
+  /** 返信の相手のメッセージの ID（別のメッセージへの返信として投稿されたとき） */
+  replyTo?: string;
 };
-
 
 export type Seed = {
   guildId: string;
@@ -71,6 +72,8 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
       content: string;
       visibleTo?: string | null;
       components?: ActionRow[] | undefined;
+      /** 返信の相手（別のメッセージの ID） */
+      replyTo?: string | undefined;
     }): MockMessage {
       const message: MockMessage = {
         id: newId(),
@@ -80,6 +83,7 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
         visibleTo: input.visibleTo ?? null,
       };
       if (input.components && input.components.length > 0) message.components = input.components;
+      if (input.replyTo) message.replyTo = input.replyTo;
       messages.push(message);
       return message;
     },
