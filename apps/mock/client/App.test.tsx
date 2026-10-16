@@ -36,6 +36,18 @@ describe("画面の構成", () => {
     expect((await run()).disabled).toBe(true);
   });
 
+  it("実行者が 3 人以上のときは、実行ボタンの文字を「alice (KMU) ほか 2 人」と短くする（長くすると、列が広がって、はみ出す）。全員の名前は、title に出す", async () => {
+    installFakeApi(stateRoute());
+    renderApp();
+    const run = async () => (await screen.findByRole("button", { name: /で実行/ })) as HTMLButtonElement;
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "carol (UT)" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "admin" }));
+
+    expect((await run()).textContent).toBe("alice (KMU) ほか 2 人 で実行");
+    expect((await run()).title).toBe("alice (KMU)・carol (UT)・admin");
+  });
+
   it("コマンドは、選ぶと、そのフォームだけが出る（はじめは /uc-handup）。管理者のコマンドには、印がある", async () => {
     installFakeApi(stateRoute());
     renderApp();

@@ -53,6 +53,9 @@ export function CommandForm({ state, selectedUsers }: { state: MockStateData; se
     send.mutate(form, { onSuccess: () => undefined });
   }
 
+  // 実行ボタンに出す実行者: 2 人までは、名前を並べる。3 人以上は、「最初の人 ほか n 人」
+  const executors = names.length <= 2 ? names.join("・") : `${names[0]} ほか ${names.length - 1} 人`;
+
   return (
     <div className="command-pane">
       <div className="command-list" role="tablist" aria-orientation="vertical" aria-label="コマンド">
@@ -71,8 +74,16 @@ export function CommandForm({ state, selectedUsers }: { state: MockStateData; se
             {(definition.options ?? []).map((option) => (
               <Field key={option.name} option={option} state={state} />
             ))}
-            <Button type="submit" fullWidth disabled={selectedUsers.length === 0 || send.isPending}>
-              {selectedUsers.length === 0 ? "実行者を選んでください" : `${names.join("・")} で実行`}
+            {/* 実行者が多いときは、「alice (KMU) ほか 3 人」と短くする（全員の名前は、title に出す）。入りきらないときは、…で省く */}
+            <Button
+              type="submit"
+              fullWidth
+              miw={0}
+              disabled={selectedUsers.length === 0 || send.isPending}
+              title={names.join("・")}
+              styles={{ label: { overflow: "hidden", textOverflow: "ellipsis" } }}
+            >
+              {selectedUsers.length === 0 ? "実行者を選んでください" : `${executors} で実行`}
             </Button>
           </Stack>
         </form>
