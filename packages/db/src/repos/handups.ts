@@ -139,11 +139,17 @@ export function listHandupsOnDate(db: Db, input: { guildId: string; slotDate: st
     .orderBy(asc(matchSlots.slotHour), asc(handups.createdAt), asc(handups.id));
 }
 
-/** ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング済みなら、取り消せない */
-export async function withdrawHandupById(db: Db, input: { guildId: string; id: number }): Promise<WithdrawResult> {
+/** ID で挙手を探す（そのサーバーのものだけ）。対戦枠の日付つき */
+export async function findHandupById(db: Db, input: { guildId: string; id: number }): Promise<Handup | undefined> {
   const [row] = await selectHandups(db)
     .where(and(eq(handups.guildId, input.guildId), eq(handups.id, input.id)))
     .limit(1);
+  return row;
+}
+
+/** ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング済みなら、取り消せない */
+export async function withdrawHandupById(db: Db, input: { guildId: string; id: number }): Promise<WithdrawResult> {
+  const row = await findHandupById(db, input);
   if (!row) return "not_found";
 
   const slot = await findMatchSlot(db, row);

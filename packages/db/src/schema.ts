@@ -25,6 +25,12 @@ export const guildSettings = sqliteTable("guild_settings", {
   roleMessageIds: text("role_message_id", { mode: "json" }).$type<string[] | null>(),
   /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。表示だけで、挙手・マッチングは止めない */
   matchLimit: integer("match_limit"),
+  /**
+   * 大会の期間（JST の日付。YYYY-MM-DD）。開始日と終了日は、どちらも含む。両方空なら、期間を設けない。
+   * 時刻は持たない（終了日の試合は、その日の試合開始まで行う）。
+   */
+  seasonStart: text("season_start"),
+  seasonEnd: text("season_end"),
   /** ダッシュボードのリンクを再発行したときに、古いセッションを失効させるか */
   revokeSessionsOnReissue: integer("revoke_sessions_on_reissue", { mode: "boolean" })
     .notNull()
