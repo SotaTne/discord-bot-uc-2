@@ -65,6 +65,7 @@ function Teams() {
                 <Table.Tr>
                   <Table.Th>チーム</Table.Th>
                   <Table.Th>挙手中（今日）</Table.Th>
+                  <Table.Th ta="right">試合数</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
@@ -98,6 +99,8 @@ function Teams() {
                         {handupsOf(team.id).length === 0 && <Text span c="dimmed">—</Text>}
                       </Group>
                     </Table.Td>
+                    {/* 試合数: そのチームが入った組分けの数（次は、試合数 + 1 試合目）。/uc-teams と同じ数 */}
+                    <Table.Td ta="right">{team.matchCount}</Table.Td>
                     <Table.Td ta="right">
                       <ConfirmButton
                         label="削除"

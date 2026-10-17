@@ -7,6 +7,7 @@ import { adminStatus } from "./admin-status";
 import { handdown } from "./handdown";
 import { handup } from "./handup";
 import { status } from "./status";
+import { teams } from "./teams";
 import { join, wait, waitCancel } from "./waiting";
 
 export type CommandContext = {
@@ -33,6 +34,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
   "uc-handup": handup,
   "uc-handdown": handdown,
   "uc-status": status,
+  "uc-teams": teams,
   "uc-admin-status": adminStatus,
   "uc-admin-dashboard": adminDashboard,
 };

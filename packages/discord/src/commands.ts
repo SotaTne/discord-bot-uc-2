@@ -53,6 +53,11 @@ export const commands: CommandDefinition[] = [
     dm_permission: false,
   },
   {
+    name: "uc-teams",
+    description: "チームごとの試合数を見る",
+    dm_permission: false,
+  },
+  {
     name: "uc-admin-status",
     description: "(管理者のみ) 今日の、すべてのチームの挙手状況とマッチング結果を見る",
     default_member_permissions: ADMIN_ONLY,

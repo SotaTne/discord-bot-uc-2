@@ -50,6 +50,7 @@ describe("commands（Discord のコマンド登録の決まり）", () => {
         "uc-handdown",
         "uc-handup",
         "uc-status",
+        "uc-teams",
       ].sort(),
     );
   });

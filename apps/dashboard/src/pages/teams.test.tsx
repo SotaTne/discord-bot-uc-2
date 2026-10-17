@@ -69,8 +69,20 @@ describe("チームの画面: チームの追加と削除", () => {
     renderApp("/teams");
 
     const row = (await screen.findAllByRole("button", { name: "削除" }))[0]!.closest("tr")!;
-    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["KMU", "21:00" + "22:00", "削除"]);
+    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["KMU", "21:0022:00", "4", "削除"]);
     expect(screen.queryByLabelText("チーム名")).toBeNull();
+  });
+
+  it("チームごとの試合数（そのチームが入った組分けの数）を出す。組まれていないチームは 0", async () => {
+    installFakeBackend(apis());
+    renderApp("/teams");
+
+    const rows = (await screen.findAllByRole("button", { name: "削除" })).map((button) => button.closest("tr")!);
+    expect(rows.map((row) => [within(row).getAllByRole("cell")[0]?.textContent, within(row).getAllByRole("cell")[2]?.textContent])).toEqual([
+      ["KMU", "4"],
+      ["UT", "0"],
+    ]);
+    expect(screen.getByRole("columnheader", { name: "試合数" })).toBeTruthy();
   });
 
   it("ロールを選んで、チームを追加できる（送るのは、ロールの ID だけ）", async () => {

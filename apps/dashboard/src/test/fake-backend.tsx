@@ -86,8 +86,8 @@ export const loggedIn = { "GET /api/me": { body: { guildId: "200000000000000001"
 /** 画面のテストで使う、共通のデータ */
 export const TEAMS = {
   teams: [
-    { id: 1, name: "KMU", roleId: "400000000000000001" },
-    { id: 2, name: "UT", roleId: "400000000000000002" },
+    { id: 1, name: "KMU", roleId: "400000000000000001", matchCount: 4 },
+    { id: 2, name: "UT", roleId: "400000000000000002", matchCount: 0 },
   ],
 };
 export const SLOT_HOURS = {

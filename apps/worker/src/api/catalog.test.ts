@@ -104,6 +104,17 @@ describe("試合時刻", () => {
 describe("チーム", () => {
   const team = { roleId: "400000000000000003" };
 
+  it("一覧に、各チームの試合数（そのチームが入った組分けの数）が付く。組まれていないチームは 0。/uc-teams と同じ数", async () => {
+    const { saveMatchResult } = await import("@uc/db");
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+
+    const { body } = await h.json<{ teams: { id: number; matchCount: number }[] }>("/api/teams", { cookie });
+
+    expect(body.teams.map((t) => [t.id, t.matchCount])).toEqual([[h.seeded.kmuId, 2], [h.seeded.utId, 2], [third.body.id, 0]]);
+  });
+
   it("一覧できる。表示名は、ロールの名前（シード: KMU・UT）", async () => {
     const { body } = await h.json<{ teams: { name: string; roleId: string }[] }>("/api/teams", { cookie });
     expect(body.teams.map((t) => [t.name, t.roleId])).toEqual([["KMU", "400000000000000001"], ["UT", "400000000000000002"]]);
