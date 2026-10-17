@@ -6,7 +6,7 @@ import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from 
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
-import { validateChannelId, validateCutoffMinutes, validateMatchLimit, validateRecruitHour } from "../lib/settings-validation";
+import { validateChannelId, validateCutoffMinutes, validateMatchLimit, validateRecruitHour, validateSeason } from "../lib/settings-validation";
 import { useBoard, useInvalidatingMutation, useRoles, useSettings, useSlotHours } from "../lib/queries";
 import { Sessions } from "./sessions";
 
@@ -180,6 +180,8 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
   const [matchLimit, setMatchLimit] = useState(initial.matchLimit === null ? "" : String(initial.matchLimit));
+  const [seasonStart, setSeasonStart] = useState(initial.seasonStart ?? "");
+  const [seasonEnd, setSeasonEnd] = useState(initial.seasonEnd ?? "");
   const [mentionMode, setMentionMode] = useState(initial.recruitMentionMode);
   const [mentionTargets, setMentionTargets] = useState(initial.recruitMentionTargets);
   const [confirming, setConfirming] = useState(false);
@@ -194,14 +196,17 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
     recruitHour: validateRecruitHour(recruitHour),
     cutoffMinutes: validateCutoffMinutes(cutoffMinutes),
     matchLimit: validateMatchLimit(matchLimit),
+    season: validateSeason(seasonStart, seasonEnd),
   };
-  const valid = !errors.channelId && !errors.roleChannelId && !errors.recruitHour && !errors.cutoffMinutes && !errors.matchLimit;
+  const valid = !errors.channelId && !errors.roleChannelId && !errors.recruitHour && !errors.cutoffMinutes && !errors.matchLimit && !errors.season;
   const dirty =
     channelId.trim() !== (initial.channelId ?? "") ||
     roleChannelId.trim() !== (initial.roleChannelId ?? "") ||
     recruitHour.trim() !== String(initial.recruitHour) ||
     cutoffMinutes.trim() !== String(initial.cutoffMinutes) ||
     matchLimit.trim() !== (initial.matchLimit === null ? "" : String(initial.matchLimit)) ||
+    seasonStart !== (initial.seasonStart ?? "") ||
+    seasonEnd !== (initial.seasonEnd ?? "") ||
     mentionMode !== initial.recruitMentionMode ||
     mentionTargets.join(",") !== initial.recruitMentionTargets.join(",");
 
@@ -216,6 +221,8 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
       recruitHour: Number(recruitHour),
       cutoffMinutes: Number(cutoffMinutes),
       matchLimit: matchLimit.trim() === "" ? null : Number(matchLimit),
+      seasonStart: seasonStart.trim() === "" ? null : seasonStart.trim(),
+      seasonEnd: seasonEnd.trim() === "" ? null : seasonEnd.trim(),
       recruitMentionMode: mentionMode,
       // 「ロールを選ぶ」以外のときは、選んだ通知先は、使われない（残しておくと、あとで戻したときに、選び直さなくてよい）
       recruitMentionTargets: mentionTargets,
@@ -278,6 +285,22 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
           <SettingRow title="試合数の規定数" description="チームの試合数がこれを超えると、/uc-teams と「チーム」の画面に「超過」と出ます（表示だけで、挙手やマッチングは止めません）。空にすると、規定数なしです">
             <TextInput aria-label="試合数の規定数" name="matchLimit" type="number" min={1} max={999} w={120} placeholder="なし" value={matchLimit} error={errors.matchLimit ?? false} onChange={(event) => setMatchLimit(event.target.value)} />
           </SettingRow>
+          <SettingRow title="大会の期間" description="この開始日から終了日まで（両方の日を含む。時刻は決めません）募集・挙手・マッチングを行います。両方空にすると、期間を設けません。期間のあとでも、組分けの削除と、やり直しはできます">
+            <Stack gap={4}>
+              <Group>
+                <TextInput aria-label="大会の開始日" name="seasonStart" type="date" w={160} value={seasonStart} error={Boolean(errors.season)} onChange={(event) => setSeasonStart(event.target.value)} />
+                <Text c="dimmed" size="sm">
+                  〜
+                </Text>
+                <TextInput aria-label="大会の終了日" name="seasonEnd" type="date" w={160} value={seasonEnd} error={Boolean(errors.season)} onChange={(event) => setSeasonEnd(event.target.value)} />
+              </Group>
+              {errors.season && (
+                <Text size="xs" c="red" role="alert">
+                  {errors.season}
+                </Text>
+              )}
+            </Stack>
+          </SettingRow>
           <SettingRow title="今日の予定" description="いまの入力で計算します（保存する前に確かめられます）">
             {schedule === null ? (
               <Text size="sm" c="dimmed">
@@ -322,6 +345,8 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
               setRecruitHour(String(initial.recruitHour));
               setCutoffMinutes(String(initial.cutoffMinutes));
               setMatchLimit(initial.matchLimit === null ? "" : String(initial.matchLimit));
+              setSeasonStart(initial.seasonStart ?? "");
+              setSeasonEnd(initial.seasonEnd ?? "");
               setMentionMode(initial.recruitMentionMode);
               setMentionTargets(initial.recruitMentionTargets);
             }}

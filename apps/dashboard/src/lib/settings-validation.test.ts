@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateChannelId, validateCutoffMinutes, validateRecruitHour } from "./settings-validation";
+import { validateChannelId, validateCutoffMinutes, validateRecruitHour, validateSeason } from "./settings-validation";
 
 describe("設定の入力の検証", () => {
   it("募集開始時刻は、0〜23 の整数", () => {
@@ -16,6 +16,15 @@ describe("設定の入力の検証", () => {
     expect(validateCutoffMinutes("180")).toBeUndefined();
     expect(validateCutoffMinutes("0")).toBe("1 以上にしてください");
     expect(validateCutoffMinutes("181")).toBe("180 以下にしてください");
+  });
+
+  it("大会の期間は、両方空か、開始が終了と同じか前", () => {
+    expect(validateSeason("", "")).toBeUndefined();
+    expect(validateSeason("2026-10-08", "2026-10-10")).toBeUndefined();
+    expect(validateSeason("2026-10-08", "2026-10-08")).toBeUndefined();
+    expect(validateSeason("2026-10-08", "")).toContain("両方");
+    expect(validateSeason("", "2026-10-10")).toContain("両方");
+    expect(validateSeason("2026-10-10", "2026-10-08")).toContain("前");
   });
 
   it("チャンネル ID は、空か、15〜25 桁の数字", () => {

@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Checkbox, CloseButton, Group, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Button, Checkbox, CloseButton, Group, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Async, ConfirmButton, ConfirmDialog, ErrorNote } from "../components/ui";
@@ -14,6 +14,17 @@ type Board = Awaited<ReturnType<typeof useBoard>["data"]> & object;
 type Slot = Board["slots"][number];
 type Match = Slot["matches"][number];
 type Team = { id: number; name: string };
+
+type SeasonAccess = "play" | "repair" | "closed";
+
+/** 期間外の案内。access が無い古い応答は、play（いままでどおり、操作できる） */
+function seasonNotice(data: { access?: SeasonAccess; seasonStart?: string | null; seasonEnd?: string | null }): string | null {
+  const access = data.access ?? "play";
+  if (access === "repair") return "大会は終わっています。組分けの削除と、やり直しだけができます";
+  if (access !== "closed") return null;
+  if (data.seasonStart && data.seasonEnd) return `いまは大会の期間外です（${data.seasonStart}〜${data.seasonEnd}）`;
+  return "いまは大会の期間外です";
+}
 
 const PHASE_LABEL: Record<string, string> = {
   "before-open": "募集開始前",
@@ -66,24 +77,33 @@ export function BoardPage() {
         </Group>
       )}
       <Async query={board}>
-        {(data) =>
-          data.slots.length === 0 ? (
-            <Text c="dimmed">試合時刻が登録されていません。設定で追加してください。</Text>
-          ) : (
-            // 進行表: 対戦枠を、時刻の順に、1 つの面に並べる（細い線で区切る）
-            <div className="surface">
-              {data.slots.map((slot) => (
-                <SlotCard key={slot.hour} date={data.date} slot={slot} />
-              ))}
-            </div>
-          )
-        }
+        {(data) => {
+          const access: SeasonAccess = data.access ?? "play";
+          const notice = seasonNotice(data);
+          return (
+            <>
+              {notice && <Alert>{notice}</Alert>}
+              {data.slots.length === 0 ? (
+                <Text c="dimmed">試合時刻が登録されていません。設定で追加してください。</Text>
+              ) : (
+                // 進行表: 対戦枠を、時刻の順に、1 つの面に並べる（細い線で区切る）
+                <div className="surface">
+                  {data.slots.map((slot) => (
+                    <SlotCard key={slot.hour} date={data.date} slot={slot} access={access} />
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        }}
       </Async>
     </>
   );
 }
 
-function SlotCard({ date, slot }: { date: string; slot: Slot }) {
+function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: SeasonAccess }) {
+  const canPlay = access === "play";
+  const canRepair = access === "play" || access === "repair";
   const teams = useTeams();
   const handedUp = new Set(slot.handups.map((handup) => handup.team.id));
   const matched = new Set(slot.matches.flatMap((match) => [match.teamA.id, match.teamB.id]));
@@ -116,7 +136,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
   // この対戦枠への操作（待機の解除 / マッチング処理の実行 / やり直し）。右の欄の上に置く
   const slotAction = (
     <>
-      {slot.waiting && (
+      {canPlay && slot.waiting && (
         <ConfirmButton
           label="待機を解除する"
           description={`${slot.waiting.name} の待機を解除します。募集のメッセージは削除されます。案内の「待機する」は残るので、チームは、待機し直せます。`}
@@ -124,36 +144,38 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
           onConfirm={() => cancelWaiting.mutate()}
         />
       )}
-      {slot.matched ? (
-        <ConfirmButton
-          label="やり直す"
-          confirmLabel={reopenLabel}
-          heavy
-          description="この対戦枠の組分けを削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
-          danger
-          extra={
-            (slot.matches.length > 0 || slot.excluded !== null) && (
-              <Checkbox
-                label="Discord に、マッチングのキャンセルを投稿する（組まれていたチームに通知します）"
-                checked={notifyCancel}
-                onChange={(event) => setNotifyCancel(event.currentTarget.checked)}
-              />
-            )
-          }
-          disabled={reopen.isPending}
-          onConfirm={() => reopen.mutate()}
-        />
-      ) : (
-        <ConfirmButton
-          label="マッチング処理を実行する"
-          confirmLabel="実行して、投稿する"
-          heavy
-          primary
-          description="挙手を組んで、結果を Discord に投稿します（組まれたチームのロールに、通知が飛びます）。"
-          disabled={confirm.isPending}
-          onConfirm={() => confirm.mutate()}
-        />
-      )}
+      {slot.matched
+        ? canRepair && (
+            <ConfirmButton
+              label="やり直す"
+              confirmLabel={reopenLabel}
+              heavy
+              description="この対戦枠の組分けを削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
+              danger
+              extra={
+                (slot.matches.length > 0 || slot.excluded !== null) && (
+                  <Checkbox
+                    label="Discord に、マッチングのキャンセルを投稿する（組まれていたチームに通知します）"
+                    checked={notifyCancel}
+                    onChange={(event) => setNotifyCancel(event.currentTarget.checked)}
+                  />
+                )
+              }
+              disabled={reopen.isPending}
+              onConfirm={() => reopen.mutate()}
+            />
+          )
+        : canPlay && (
+            <ConfirmButton
+              label="マッチング処理を実行する"
+              confirmLabel="実行して、投稿する"
+              heavy
+              primary
+              description="挙手を組んで、結果を Discord に投稿します（組まれたチームのロールに、通知が飛びます）。"
+              disabled={confirm.isPending}
+              onConfirm={() => confirm.mutate()}
+            />
+          )}
     </>
   );
 
@@ -218,7 +240,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
                         {handup.raisedByName}・{formatJstDateTime(handup.createdAt)}
                       </Text>
                     </Stack>
-                    {!slot.matched && (
+                    {canPlay && !slot.matched && (
                       <CloseButton
                         size="sm"
                         disabled={withdraw.isPending}
@@ -232,7 +254,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             </SimpleGrid>
           )}
           {/* 挙手の追加は、カードの下に、間をあけて置く。幅は、カード 1 枚分にそろえる（カードの格子と同じ列の幅） */}
-          {!slot.matched && !slot.deleted && (
+          {canPlay && !slot.matched && !slot.deleted && (
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs" mt="sm">
               <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />
             </SimpleGrid>
@@ -259,7 +281,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
                 </Table.Thead>
                 <Table.Tbody>
                   {slot.matches.map((match) => (
-                    <MatchRow key={match.id} match={match} />
+                    <MatchRow key={match.id} match={match} canDelete={canRepair} />
                   ))}
                 </Table.Tbody>
               </Table>
@@ -270,7 +292,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               組まれなかったチーム: {slot.excluded.name}
             </Text>
           )}
-          <AddMatch date={date} hour={slot.hour} candidates={free} />
+          {canPlay && <AddMatch date={date} hour={slot.hour} candidates={free} />}
         </Stack>
       </Stack>
     </section>
@@ -366,7 +388,7 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
 }
 
 /** 組分けの 1 行（表の行）。右端に「削除」のボタンを置く */
-function MatchRow({ match }: { match: Match }) {
+function MatchRow({ match, canDelete }: { match: Match; canDelete: boolean }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
   // 表示は、各チームが何試合目かを添える（そのチームが入った組分けの数。サーバーが、組分けから数える）
   // 規定数を超えた試合には、「超過」を添える
@@ -390,9 +412,11 @@ function MatchRow({ match }: { match: Match }) {
         </Table.Td>
         <Table.Td>
           <Group justify="flex-end" wrap="nowrap">
-            <Button variant="default" color="red" size="xs" onClick={() => setRemoving(true)} aria-label={`${label}を削除`}>
-              削除
-            </Button>
+            {canDelete && (
+              <Button variant="default" color="red" size="xs" onClick={() => setRemoving(true)} aria-label={`${label}を削除`}>
+                削除
+              </Button>
+            )}
           </Group>
         </Table.Td>
       </Table.Tr>

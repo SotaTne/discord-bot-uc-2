@@ -26,3 +26,16 @@ export const validateMatchLimit = (value: string) => (value.trim() === "" ? unde
 
 /** 締切（試合の何分前, 1〜180） */
 export const validateCutoffMinutes = (value: string) => integerInRange(value, 1, 180);
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 大会の期間。両方空なら期間なし。片方だけ、または開始が終了よりあとなら、理由を返す */
+export function validateSeason(start: string, end: string): string | undefined {
+  const from = start.trim();
+  const to = end.trim();
+  if (from === "" && to === "") return undefined;
+  if (from === "" || to === "") return "開始日と終了日は、両方入れるか、両方空にしてください";
+  if (!DATE.test(from) || !DATE.test(to)) return "YYYY-MM-DD の形式で入力してください";
+  if (from > to) return "開始日は、終了日と同じか、それより前にしてください";
+  return undefined;
+}
