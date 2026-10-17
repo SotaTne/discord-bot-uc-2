@@ -21,6 +21,39 @@ export function matchingCancelledMessage(input: {
   return lines.join("\n");
 }
 
+/** 組分けの変更（マッチング済みの対戦枠で、管理者が、組分けを追加・削除した）。added: 何試合目と主催も出す */
+export type MatchingChange =
+  | { kind: "added"; teamAId: number; teamBId: number; hostId: number; numberA: number | undefined; numberB: number | undefined }
+  | { kind: "removed"; teamAId: number; teamBId: number };
+
+/**
+ * 組分けの変更の投稿（確認で「知らせる」を選んだときだけ）。チームは、ロールのメンションで表す（変更された組分けのチームに、通知される）。
+ * matchLimit を渡すと、規定数を超える試合に、「規定数超過」を添える（マッチング結果と同じ）。
+ */
+export function matchingChangedMessage(input: {
+  hour: number;
+  change: MatchingChange;
+  matchLimit?: number | null;
+  teamById: Map<number, Team>;
+}): string {
+  const { hour, change, matchLimit, teamById } = input;
+  const mention = (id: number) => {
+    const team = teamById.get(id);
+    return team ? `<@&${team.roleId}>` : String(id);
+  };
+  const lines = [`## ${hour}時の組分けが変更されました`];
+  if (change.kind === "removed") {
+    lines.push(`- 削除: ${mention(change.teamAId)} vs ${mention(change.teamBId)}`);
+    return lines.join("\n");
+  }
+  const withNumber = (id: number, n: number | undefined) => {
+    if (n === undefined) return mention(id);
+    return matchLimit != null && n > matchLimit ? `${mention(id)}（${n}試合目・規定数超過）` : `${mention(id)}（${n}試合目）`;
+  };
+  lines.push(`- 追加: ${withNumber(change.teamAId, change.numberA)} vs ${withNumber(change.teamBId, change.numberB)}・主催: ${mention(change.hostId)}`);
+  return lines.join("\n");
+}
+
 /**
  * マッチング結果の投稿。チームは、ロールのメンションで表す（組まれたチームと除外されたチームに、通知される）。
  * 組分けごとに、各チームが何試合目か（そのチームが入った組分けの数。規定数を超えるなら「規定数超過」も）と、主催（部屋を立てる側）を添える。主催は、組分けを作るときに、無作為に決めて保存したもの（`hostOf` で渡す）。

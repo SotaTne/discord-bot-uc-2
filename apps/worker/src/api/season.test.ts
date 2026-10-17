@@ -1,4 +1,4 @@
-import { defaultGuildSettings, getGuildSettings, saveGuildSettings } from "@uc/db";
+import { defaultGuildSettings, getGuildSettings, saveGuildSettings, saveMatchResult } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import { GUILD_ID } from "../test-helpers";
 import { createApiHarness, type ApiHarness } from "./harness";
@@ -53,13 +53,14 @@ describe("大会の期間", () => {
     expect(await h.json(`/api/matches/${matchId}`, { method: "DELETE", cookie })).toMatchObject({ status: 409, body: { error: "outside_season" } });
   });
 
-  it("終わったあとは、期間内の日の組分けの削除とやり直しができる。追加や挙手は 409", async () => {
+  it("終わったあとは、期間内の日の組分けの削除ができる。追加・挙手・マッチング処理・やり直しは 409", async () => {
     const created = await h.json<{ id: number }>("/api/matches", {
       method: "POST",
       cookie,
       body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21, slotDate: "2026-10-06" },
     });
-    expect((await h.json("/api/match-slots/confirm", { method: "POST", cookie, body: { slotHour: 22, slotDate: "2026-10-06" } })).status).toBe(200);
+    // 過去の日の対戦枠は、マッチング済みの記録として、用意する（試合開始後は、マッチング処理を実行できない）
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 22, excludedTeamId: null, pairs: [], now: 1 });
     await season("2026-10-06", "2026-10-06");
 
     const board = await h.json<{ access: string }>("/api/board?date=2026-10-06", { cookie });
@@ -80,7 +81,11 @@ describe("大会の期間", () => {
     });
 
     expect((await h.json(`/api/matches/${created.body.id}`, { method: "DELETE", cookie })).status).toBe(200);
-    expect((await h.json("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour: 22, slotDate: "2026-10-06" } })).status).toBe(200);
+    // 試合が始まったあとは、期間のあとでも、やり直せない（組分けの削除で、記録を直す）
+    expect(await h.json("/api/match-slots/reopen", { method: "POST", cookie, body: { slotHour: 22, slotDate: "2026-10-06" } })).toMatchObject({
+      status: 409,
+      body: { error: "slot_started" },
+    });
   });
 
   it("大会の期間は、両方そろえて保存でき、読み返せる。片方だけ、開始が終了よりあとは、拒否する", async () => {

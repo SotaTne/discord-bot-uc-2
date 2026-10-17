@@ -143,6 +143,8 @@ export function ConfirmDialog(props: {
   onClose: () => void;
   title: string;
   description?: string;
+  /** 説明と「本当に実行しますか？」のあいだに置くもの（チェックボックスなど） */
+  extra?: ReactNode;
   confirmLabel?: string;
   onConfirm: () => void;
   disabled?: boolean;
@@ -151,6 +153,7 @@ export function ConfirmDialog(props: {
     <Modal opened={props.opened} onClose={props.onClose} title={props.title} centered>
       <Stack gap="md">
         {props.description && <Text size="sm">{props.description}</Text>}
+        {props.extra}
         <Text size="sm" fw={600}>
           本当に実行しますか？
         </Text>

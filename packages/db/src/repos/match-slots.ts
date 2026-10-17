@@ -66,6 +66,11 @@ export async function startWaiting(db: Db, input: { id: number; since: number })
   return updated.length > 0;
 }
 
+/** 組まれなかったチームの印を外す（そのチームの挙手を取り消した、など）。印がなければ、何もしない */
+export async function clearExcludedTeam(db: Db, id: number): Promise<void> {
+  await db.update(matchSlots).set({ excludedTeamId: null }).where(eq(matchSlots.id, id));
+}
+
 /** 継続募集をやめる（待機のキャンセル、または、対戦相手が決まった）。待機中でなければ、何もしない（false） */
 export async function stopWaiting(db: Db, id: number): Promise<boolean> {
   const updated = await db

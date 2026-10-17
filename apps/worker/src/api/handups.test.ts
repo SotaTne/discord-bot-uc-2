@@ -130,30 +130,62 @@ describe("DELETE /api/handups/:id（管理者による代理の取り消し）",
   });
 });
 
-describe("マッチング済みの対戦枠（ダッシュボードからも、挙手を受け付けない）", () => {
-  const markMatched = async () => {
-    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [], now: 2 });
+describe("マッチング済みの対戦枠の挙手（補正: 記録として、直せる。マッチングは、しない）", () => {
+  const markMatched = async (pairs: [number, number][] = [], excludedTeamId: number | null = null) => {
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId, pairs, now: 2 });
   };
+  const raise = (teamId: number, slotHour = 21) => h.json<{ id?: number; error?: string }>("/api/handups", { method: "POST", cookie, body: { teamId, slotHour } });
 
-  it("代理の挙手は 409（slot_matched）。ほかの対戦枠には、できる", async () => {
+  it("代理の挙手を、記録として付けられる。組分けは、増えない（マッチングしない）。すでに挙手していれば 409", async () => {
     await markMatched();
-    const raise = (slotHour: number) =>
-      h.json<{ error?: string }>("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour } });
 
-    const matched = await raise(21);
-    const other = await raise(22);
+    const added = await raise(h.seeded.kmuId);
 
-    expect(matched).toMatchObject({ status: 409, body: { error: "slot_matched" } });
-    expect(other.status).toBe(201);
+    expect(added.status).toBe(201);
+    expect((await list()).body.handups).toHaveLength(1);
+    const board = (await h.json<{ slots: { hour: number; matches: unknown[]; matched: boolean }[] }>("/api/board", { cookie })).body;
+    expect(board.slots.find((slot) => slot.hour === 21)).toMatchObject({ matched: true, matches: [] });
+    expect(await raise(h.seeded.kmuId)).toMatchObject({ status: 409, body: { error: "already_raised" } });
   });
 
-  it("代理の取り消しも 409（slot_matched）。挙手は残る", async () => {
-    const { id } = (await h.json<{ id: number }>("/api/handups", { method: "POST", cookie, body: { teamId: h.seeded.kmuId, slotHour: 21 } })).body;
+  it("組分けに入っていないチームの挙手は、記録として取り消せる", async () => {
+    const { id } = (await raise(h.seeded.kmuId)).body;
     await markMatched();
 
-    const result = await h.json<{ error?: string }>(`/api/handups/${id}`, { method: "DELETE", cookie });
+    const result = await h.json(`/api/handups/${id}`, { method: "DELETE", cookie });
 
-    expect(result).toMatchObject({ status: 409, body: { error: "slot_matched" } });
-    expect((await list()).body.handups).toHaveLength(1);
+    expect(result.status).toBe(200);
+    expect((await list()).body.handups).toEqual([]);
+  });
+
+  it("組分けに入っているチームの挙手は、取り消せない（409 team_in_match）。先に、組分けを削除する", async () => {
+    const { id } = (await raise(h.seeded.kmuId)).body;
+    await raise(h.seeded.utId);
+    await markMatched([[h.seeded.kmuId, h.seeded.utId]]);
+
+    const blocked = await h.json<{ error?: string }>(`/api/handups/${id}`, { method: "DELETE", cookie });
+
+    expect(blocked).toMatchObject({ status: 409, body: { error: "team_in_match" } });
+    expect((await list()).body.handups).toHaveLength(2);
+    const board = (await h.json<{ slots: { hour: number; matches: { id: number }[] }[] }>("/api/board", { cookie })).body;
+    const matchId = board.slots.find((slot) => slot.hour === 21)!.matches[0]!.id;
+    await h.json(`/api/matches/${matchId}`, { method: "DELETE", cookie });
+    expect((await h.json(`/api/handups/${id}`, { method: "DELETE", cookie })).status).toBe(200);
+  });
+
+  it("組まれなかったチームの挙手を取り消すと、その印が外れる（「組まれなかったチーム」に、残らない）", async () => {
+    const { id } = (await raise(h.seeded.kmuId)).body;
+    await markMatched([], h.seeded.kmuId);
+
+    await h.json(`/api/handups/${id}`, { method: "DELETE", cookie });
+
+    const board = (await h.json<{ slots: { hour: number; excluded: unknown }[] }>("/api/board", { cookie })).body;
+    expect(board.slots.find((slot) => slot.hour === 21)?.excluded).toBeNull();
+  });
+
+  it("試合開始後の対戦枠にも、記録として、挙手を付けられる", async () => {
+    h.time.now = jst("2026-10-07T22:00:00");
+
+    expect((await raise(h.seeded.kmuId)).status).toBe(201);
   });
 });
