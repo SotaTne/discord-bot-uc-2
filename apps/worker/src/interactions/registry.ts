@@ -6,6 +6,7 @@ import { adminDashboard } from "./admin-dashboard";
 import { adminStatus } from "./admin-status";
 import { handdown } from "./handdown";
 import { handup } from "./handup";
+import { adminRole, roleCheck, roleRemove, roleSet } from "./roles";
 import { status } from "./status";
 import { teams } from "./teams";
 import { join, wait, waitCancel } from "./waiting";
@@ -37,6 +38,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
   "uc-teams": teams,
   "uc-admin-status": adminStatus,
   "uc-admin-dashboard": adminDashboard,
+  "uc-admin-role": adminRole,
 };
 
 /** ボタンなどのコンポーネントの処理。custom_id の「:」より前の部分が、キーになる */
@@ -44,4 +46,7 @@ export const componentHandlers: Record<string, CommandHandler> = {
   wait,
   "wait-cancel": waitCancel,
   join,
+  "role-set": roleSet,
+  "role-remove": roleRemove,
+  "role-check": roleCheck,
 };

@@ -89,6 +89,14 @@ export function createDiscordRest(options: DiscordRestOptions) {
     deleteMessage: (channelId: string, messageId: string) =>
       request<unknown>("DELETE", `${Routes.channelMessages(channelId)}/${messageId}`),
 
+    /** メンバーに、ロールを付ける（Bot に「ロールの管理」の権限が要り、Bot のロールが、付けるロールより上であること） */
+    addGuildMemberRole: (guildId: string, userId: string, roleId: string) =>
+      request<unknown>("PUT", Routes.guildMemberRole(guildId, userId, roleId)),
+
+    /** メンバーから、ロールを外す（権限は、付けるときと同じ） */
+    removeGuildMemberRole: (guildId: string, userId: string, roleId: string) =>
+      request<unknown>("DELETE", Routes.guildMemberRole(guildId, userId, roleId)),
+
     getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", Routes.guildRoles(guildId)),
 
     /** サーバーのメンバー1人（表示名を取るため。サーバーにいない人は 404） */

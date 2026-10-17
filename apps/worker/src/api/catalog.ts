@@ -13,9 +13,20 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
+import { syncRoleMessage } from "../usecases/role-registration";
 import { teamMatchCounts } from "../usecases/team-match-counts";
 import { teamNames } from "../usecases/team-names";
+import type { AppEnv } from "../env";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
+
+/** チームの登録・削除のあと、ロール登録のメッセージ（永続）を、いまのチームの一覧に合わせる。失敗しても、登録・削除は、取り消さない */
+async function syncRoleMessageSafely(env: AppEnv, guildId: string) {
+  try {
+    await syncRoleMessage({ db: createDb(env.DB), rest: createRestFromEnv(env) }, guildId);
+  } catch (error) {
+    console.error("ロール登録のメッセージの更新に失敗しました", error);
+  }
+}
 
 /** 試合時刻とチームの登録 */
 export function createCatalogRoutes(deps: ApiDeps) {
@@ -70,6 +81,7 @@ export function createCatalogRoutes(deps: ApiDeps) {
           roleId: input.roleId,
           createdAt: deps.clock.now().getTime(),
         });
+        await syncRoleMessageSafely(c.env, guildId);
         return c.json({ id }, 201);
       } catch (error) {
         // 同じロールのチームがすでにある
@@ -83,6 +95,8 @@ export function createCatalogRoutes(deps: ApiDeps) {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
       const deleted = await deleteTeam(createDb(c.env.DB), c.get("auth").guildId, id, deps.clock.now().getTime());
-      return deleted ? c.json({ ok: true as const }) : c.json({ error: "not_found" as const }, 404);
+      if (!deleted) return c.json({ error: "not_found" as const }, 404);
+      await syncRoleMessageSafely(c.env, c.get("auth").guildId);
+      return c.json({ ok: true as const });
     });
 }

@@ -46,6 +46,7 @@ describe("commands（Discord のコマンド登録の決まり）", () => {
     expect(commands.map((c) => c.name).sort()).toEqual(
       [
         "uc-admin-dashboard",
+        "uc-admin-role",
         "uc-admin-status",
         "uc-handdown",
         "uc-handup",

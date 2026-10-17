@@ -4,6 +4,7 @@ import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../t
 
 const SETTINGS = {
   channelId: "300000000000000001",
+  roleChannelId: null as string | null,
   recruitHour: 12,
   cutoffMinutes: 7,
   recruitMentionMode: "none" as const,
@@ -56,6 +57,7 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(await region("投稿と募集").findByText("保存しました")).toBeTruthy();
     expect(backend.last("PUT", "/api/settings")?.json).toEqual({
       channelId: null,
+      roleChannelId: null,
       recruitHour: 10,
       cutoffMinutes: 15,
       recruitMentionMode: "none",
@@ -63,6 +65,20 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       matchLimit: null,
       revokeSessionsOnReissue: false,
     });
+  });
+
+  it("ロール登録の投稿先のチャンネルを、入力して保存できる。空にすると null。桁の違う ID は、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const input = await screen.findByLabelText("ロール登録のチャンネル ID");
+
+    fireEvent.change(input, { target: { value: "12345" } });
+    expect((region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: "300000000000000009" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ roleChannelId: "300000000000000009" }));
   });
 
   it("試合数の規定数を、入力して保存できる。空にすると、規定数なし（null）。範囲外は、保存できない", async () => {

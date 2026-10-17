@@ -97,6 +97,8 @@ h1, h2, h3 { text-wrap: balance; }
 .discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr);  }
 .discord-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 44px; background: var(--dc-bar); border-bottom: 1px solid var(--dc-line); color: var(--dc-strong); font-weight: 600; font-size: 15px; }
 .discord-head .hash { color: var(--dc-muted); font-size: 20px; font-weight: 400; }
+.channel-select { background: transparent; color: var(--dc-strong); border: 1px solid var(--dc-line); border-radius: 4px; padding: 3px 6px; font: inherit; font-size: 14px; }
+.msg-head .channel-tag { font-size: 12px; color: var(--dc-muted); }
 .msgs { overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 12px; }
 .msgs-empty { display: grid; place-items: center; height: 100%; color: var(--dc-muted); font-size: 14px; }
 .msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; padding: 6px 16px 6px 12px; border-left: 4px solid transparent; }

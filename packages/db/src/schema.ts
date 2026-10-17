@@ -16,6 +16,13 @@ export const guildSettings = sqliteTable("guild_settings", {
   recruitMentionMode: text("recruit_mention_mode", { enum: ["none", "teams", "roles"] }).notNull().default("none"),
   /** recruit_mention_mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here）の配列（JSON） */
   recruitMentionTargets: text("recruit_mention_targets", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+  /** ロール登録のメッセージ（チームのロールを選ぶボタン）を投稿するチャンネル。空は、ロール登録を使わない */
+  roleChannelId: text("role_channel_id"),
+  /**
+   * 投稿したロール登録のメッセージの ID（投稿順の JSON 配列）。
+   * チームは 20 ごとにメッセージを分けるので、2 件以上になる。チームを登録・削除したとき、このメッセージを編集する（設定の保存では変わらない）。
+   */
+  roleMessageIds: text("role_message_id", { mode: "json" }).$type<string[] | null>(),
   /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。表示だけで、挙手・マッチングは止めない */
   matchLimit: integer("match_limit"),
   /** ダッシュボードのリンクを再発行したときに、古いセッションを失効させるか */

@@ -13,6 +13,25 @@ beforeEach(() => {
 const bot = { Authorization: "Bot dev-token", "Content-Type": "application/json" };
 
 describe("Discord REST のモック", () => {
+  it("メンバーへのロールの付与・解除ができる（成功は 204）。付与は重ならない。ない人・ないロールは 404。Bot トークンがなければ 401", async () => {
+    const app = createDiscordRestRoutes(state);
+    const eve = state.users.find((user) => user.username.startsWith("eve"))!;
+    const kmu = state.roles.find((role) => role.name === "KMU")!;
+    const call = (method: string, userId: string, roleId: string, headers: Record<string, string> = bot) =>
+      app.request(`/guilds/g1/members/${userId}/roles/${roleId}`, { method, headers });
+
+    expect((await call("PUT", eve.id, kmu.id)).status).toBe(204);
+    expect((await call("PUT", eve.id, kmu.id)).status).toBe(204);
+    expect(eve.roleIds).toEqual([kmu.id]);
+
+    expect((await call("DELETE", eve.id, kmu.id)).status).toBe(204);
+    expect(eve.roleIds).toEqual([]);
+
+    expect((await call("PUT", "nobody", kmu.id)).status).toBe(404);
+    expect((await call("PUT", eve.id, "no-role")).status).toBe(404);
+    expect((await call("PUT", eve.id, kmu.id, {})).status).toBe(401);
+  });
+
   it("チャンネルへの投稿が、公開メッセージとして保存される", async () => {
     const app = createDiscordRestRoutes(state);
     const response = await app.request("/channels/c1/messages", {

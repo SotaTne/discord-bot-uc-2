@@ -117,13 +117,25 @@ export function createFakeChannel() {
   const posted: { id: string; channelId: string; content: string; components: unknown; allowedMentions: unknown; replyTo: string | undefined }[] = [];
   const edited: { channelId: string; messageId: string; content: string | undefined; components: unknown }[] = [];
   const deleted: { channelId: string; messageId: string }[] = [];
-  const failures: { delete: number | null; edit: number | null } = { delete: null, edit: null };
+  const failures: { delete: number | null; edit: number | null; editMessageId: string | null; role: number | null; createsLeft: number | null } = {
+    delete: null,
+    edit: null,
+    editMessageId: null,
+    role: null,
+    createsLeft: null,
+  };
+  /** ロールの付与（add）・解除（remove）の記録 */
+  const roleCalls: { kind: "add" | "remove"; guildId: string; userId: string; roleId: string }[] = [];
 
   const rest = {
     async createMessage(
       channelId: string,
       payload: { content?: string; components?: unknown; allowed_mentions?: unknown; message_reference?: { message_id: string } },
     ) {
+      if (failures.createsLeft !== null) {
+        if (failures.createsLeft <= 0) throw new DiscordApiError(500, "failed", `/channels/${channelId}/messages`);
+        failures.createsLeft -= 1;
+      }
       const id = `m${posted.length + 1}`;
       posted.push({
         id,
@@ -136,8 +148,24 @@ export function createFakeChannel() {
       return { id };
     },
     async editMessage(channelId: string, messageId: string, payload: { content?: string; components?: unknown }) {
-      if (failures.edit !== null) throw new DiscordApiError(failures.edit, "failed", `/channels/${channelId}/messages/${messageId}`);
+      if (failures.edit !== null && (failures.editMessageId === null || failures.editMessageId === messageId)) {
+        throw new DiscordApiError(failures.edit, "failed", `/channels/${channelId}/messages/${messageId}`);
+      }
       edited.push({ channelId, messageId, content: payload.content, components: payload.components });
+      return {};
+    },
+    /** チームの表示名（ロールの名前）を取るためのロール一覧 */
+    async getGuildRoles(_guildId: string) {
+      return Object.entries(ROLE_NAMES).map(([id, name], position) => ({ id, name, position }));
+    },
+    async addGuildMemberRole(guildId: string, userId: string, roleId: string) {
+      if (failures.role !== null) throw new DiscordApiError(failures.role, "failed", `/guilds/${guildId}/members/${userId}/roles/${roleId}`);
+      roleCalls.push({ kind: "add", guildId, userId, roleId });
+      return {};
+    },
+    async removeGuildMemberRole(guildId: string, userId: string, roleId: string) {
+      if (failures.role !== null) throw new DiscordApiError(failures.role, "failed", `/guilds/${guildId}/members/${userId}/roles/${roleId}`);
+      roleCalls.push({ kind: "remove", guildId, userId, roleId });
       return {};
     },
     async deleteMessage(channelId: string, messageId: string) {
@@ -152,10 +180,18 @@ export function createFakeChannel() {
     posted,
     edited,
     deleted,
+    roleCalls,
+    /** 以降のロールの付け外しを、このステータスで失敗させる（null で、元に戻す。403 は、権限・ロールの位置が足りない） */
+    failRoles: (status: number | null) => void (failures.role = status),
     /** 以降の削除を、このステータスで失敗させる（null で、元に戻す） */
     failDelete: (status: number | null) => void (failures.delete = status),
-    /** 以降の編集を、このステータスで失敗させる（null で、元に戻す） */
-    failEdit: (status: number | null) => void (failures.edit = status),
+    /** 以降の編集を、このステータスで失敗させる（null で、元に戻す）。messageId を渡すと、そのメッセージだけ失敗する */
+    failEdit: (status: number | null, messageId?: string) => {
+      failures.edit = status;
+      failures.editMessageId = messageId ?? null;
+    },
+    /** これ以降の投稿を、成功させる回数。0 は次から失敗。null は、制限なし */
+    allowCreates: (count: number | null) => void (failures.createsLeft = count),
   };
 }
 

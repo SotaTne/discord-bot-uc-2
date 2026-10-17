@@ -37,6 +37,10 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
   return {
     guildId: "200000000000000001",
     channelId: "300000000000000001",
+    channels: [
+      { id: "300000000000000001", name: "マッチング" },
+      { id: "300000000000000002", name: "ロール登録" },
+    ],
     users: [
       { id: ids.alice, username: "alice (KMU)", roleIds: ["400000000000000001"], isAdmin: false },
       { id: ids.carol, username: "carol (UT)", roleIds: ["400000000000000002"], isAdmin: false },

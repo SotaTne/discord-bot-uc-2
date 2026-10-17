@@ -41,6 +41,7 @@ describe("ログインが必要", () => {
 describe("サーバーの設定", () => {
   const valid = {
     channelId: "300000000000000001",
+    roleChannelId: "300000000000000002",
     recruitHour: 10,
     cutoffMinutes: 15,
     recruitMentionMode: "roles" as const,
@@ -99,6 +100,79 @@ describe("試合時刻", () => {
     expect((await h.json(`/api/slot-hours/${slot.id}`, { method: "DELETE", cookie })).status).toBe(200);
     expect((await h.json(`/api/slot-hours/${slot.id}`, { method: "DELETE", cookie })).status).toBe(404);
     expect((await h.json("/api/slot-hours/abc", { method: "DELETE", cookie })).status).toBe(400);
+  });
+});
+
+describe("チーム: ロール登録のメッセージ（永続）の更新", () => {
+  const ROLE_CHANNEL = "300000000000000002";
+  const team = { roleId: "400000000000000003" };
+  /** Discord への、メッセージの投稿・編集の呼び出し（ロール一覧は、ロール名のため、返す） */
+  let calls: { method: string; url: string; body: { content?: string; components?: { components: { label: string }[] }[] } }[];
+  let failNext: number | null;
+
+  beforeEach(async () => {
+    calls = [];
+    failNext = null;
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/roles")) {
+        return new Response(JSON.stringify([{ id: "400000000000000001", name: "KMU", position: 1 }, { id: "400000000000000002", name: "UT", position: 2 }, { id: "400000000000000003", name: "NGT", position: 3 }]));
+      }
+      calls.push({ method, url, body: JSON.parse(String(init?.body ?? "{}")) });
+      if (failNext !== null) return new Response("{}", { status: failNext });
+      return new Response(JSON.stringify({ id: "msg-1" }));
+    });
+    const { saveGuildSettings } = await import("@uc/db");
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, roleChannelId: ROLE_CHANNEL }, 1);
+  });
+
+  const labels = (call: (typeof calls)[number]) => call.body.components?.[0]?.components.map((button) => button.label);
+
+  it("チームを追加すると、ロール登録のメッセージが、新しく投稿される（ボタンに、追加したチームがある）。2 回目からは、編集", async () => {
+    await h.json("/api/teams", { method: "POST", cookie, body: team });
+
+    expect(calls.map((call) => call.method)).toEqual(["POST"]);
+    expect(calls[0]!.url).toContain(`/channels/${ROLE_CHANNEL}/messages`);
+    expect(labels(calls[0]!)).toEqual(["KMU", "UT", "NGT"]);
+  });
+
+  it("チームを削除すると、そのチームのボタンが消える（同じメッセージを、編集する）", async () => {
+    const { setRoleMessageIds } = await import("@uc/db");
+    await setRoleMessageIds(h.seeded.db, GUILD_ID, ["msg-1"]);
+
+    const response = await h.json(`/api/teams/${h.seeded.utId}`, { method: "DELETE", cookie });
+
+    expect(response.status).toBe(200);
+    expect(calls.map((call) => call.method)).toEqual(["PATCH"]);
+    expect(calls[0]!.url).toContain(`/channels/${ROLE_CHANNEL}/messages/msg-1`);
+    expect(labels(calls[0]!)).toEqual(["KMU"]);
+  });
+
+  it("投稿先が決まっていなければ、Discord には、何も送らない", async () => {
+    const { saveGuildSettings } = await import("@uc/db");
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings }, 2);
+
+    await h.json("/api/teams", { method: "POST", cookie, body: team });
+
+    expect(calls).toEqual([]);
+  });
+
+  it("メッセージの更新に失敗しても、チームの追加・削除は成功する（取り消さない）", async () => {
+    failNext = 500;
+
+    const added = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+    const removed = await h.json(`/api/teams/${added.body.id}`, { method: "DELETE", cookie });
+
+    expect(added.status).toBe(201);
+    expect(removed.status).toBe(200);
+  });
+
+  it("存在しないチームの削除（404）や、重複した追加（409）では、メッセージを更新しない", async () => {
+    await h.json("/api/teams/9999", { method: "DELETE", cookie });
+    await h.json("/api/teams", { method: "POST", cookie, body: { roleId: "400000000000000001" } });
+
+    expect(calls).toEqual([]);
   });
 });
 

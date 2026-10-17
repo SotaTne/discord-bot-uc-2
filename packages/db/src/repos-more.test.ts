@@ -34,6 +34,8 @@ import {
   revokeSession,
   saveGuildSettings,
   defaultGuildSettings,
+  getRoleMessageIds,
+  setRoleMessageIds,
   withdrawHandupById,
   matches,
 } from "./index";
@@ -350,6 +352,32 @@ describe("画面のための参照（cron の履歴・ログインリンク）",
       { issuedBy: "a", createdAt: 1, expiresAt: 100, usedAt: null },
     ]);
     expect(JSON.stringify(links)).not.toContain("secret");
+  });
+});
+
+describe("ロール登録の投稿先とメッセージの ID", () => {
+  it("投稿先は、設定として保存・読み出しできる。設定のないサーバーは、空", async () => {
+    expect((await getGuildSettings(db, GUILD)).roleChannelId).toBeNull();
+
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002" }, 1);
+
+    expect((await getGuildSettings(db, GUILD)).roleChannelId).toBe("300000000000000002");
+    expect((await getGuildSettings(db, OTHER)).roleChannelId).toBeNull();
+  });
+
+  it("メッセージの ID は、投稿順の配列で、設定とは別に保存する。設定を保存し直しても、消えない。サーバーごとに別", async () => {
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002" }, 1);
+    await saveGuildSettings(db, OTHER, { ...defaultGuildSettings }, 1);
+    expect(await getRoleMessageIds(db, GUILD)).toEqual([]);
+
+    await setRoleMessageIds(db, GUILD, ["m1", "m2"]);
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002", cutoffMinutes: 9 }, 2);
+
+    expect(await getRoleMessageIds(db, GUILD)).toEqual(["m1", "m2"]);
+    expect(await getRoleMessageIds(db, OTHER)).toEqual([]);
+
+    await setRoleMessageIds(db, GUILD, []);
+    expect(await getRoleMessageIds(db, GUILD)).toEqual([]);
   });
 });
 

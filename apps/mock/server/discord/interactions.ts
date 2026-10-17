@@ -60,7 +60,7 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
     return { status: httpResponse.status, response: (await httpResponse.json()) as InteractionResponse };
   }
 
-  function baseInteraction(userId: string): Interaction {
+  function baseInteraction(userId: string, channelId: string = state.channelId): Interaction {
     const user = state.userById(userId);
     if (!user) throw new Error(`ユーザーが見つかりません: ${userId}`);
     return {
@@ -69,7 +69,7 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
       type: 2,
       token: `mock-${state.newId()}`,
       guild_id: state.guildId,
-      channel_id: state.channelId,
+      channel_id: channelId,
       member: {
         user: { id: user.id, username: user.username },
         roles: user.roleIds,
@@ -119,7 +119,9 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
 
   /** メッセージのボタンを押す。押されたメッセージは、応答の内容で置き換わる */
   async function sendComponent(input: { userId: string; customId: string; messageId: string }): Promise<SendResult> {
-    const interaction = baseInteraction(input.userId);
+    // ボタンを押したチャンネル（押されたメッセージがあるチャンネル）。返信も、そのチャンネルに出る
+    const channelId = state.messages.find((message) => message.id === input.messageId)?.channelId ?? state.channelId;
+    const interaction = baseInteraction(input.userId, channelId);
     interaction.type = 3;
     interaction.data = { name: "", custom_id: input.customId };
 
@@ -134,7 +136,7 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
       });
     } else if (response.type === InteractionResponseType.ChannelMessageWithSource) {
       state.addMessage({
-        channelId: state.channelId,
+        channelId,
         content: response.data?.content ?? "",
         visibleTo: isEphemeral(response) ? input.userId : null,
       });

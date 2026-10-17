@@ -64,6 +64,12 @@ export const commands: CommandDefinition[] = [
     dm_permission: false,
   },
   {
+    name: "uc-admin-role",
+    description: "(管理者のみ) ロール登録のメッセージ（チームのロールを選ぶボタン）を投稿・更新する",
+    default_member_permissions: ADMIN_ONLY,
+    dm_permission: false,
+  },
+  {
     name: "uc-admin-dashboard",
     description: "(管理者のみ) ダッシュボードへのリンクを発行する",
     default_member_permissions: ADMIN_ONLY,
