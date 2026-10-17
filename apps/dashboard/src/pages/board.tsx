@@ -106,11 +106,24 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
     () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: notifyCancel } })),
     REFRESH,
   );
+  // 待機の解除（継続募集中のとき）。待機しているチームの代わりに、「待機をキャンセル」を押すのと同じ。待機する（開始）は、チームの選択なので、ここには、ない
+  const cancelWaiting = useInvalidatingMutation(
+    () => unwrap(api["match-slots"]["cancel-waiting"].$post({ json: { slotHour: slot.hour, slotDate: date } })),
+    REFRESH,
+  );
   const reopenLabel = slot.matches.length === 0 ? "やり直しを実行する" : `組分け${slot.matches.length}件を削除して、やり直す`;
 
-  // この対戦枠への操作（マッチング処理の実行 / やり直し）。右の欄の上に置く
+  // この対戦枠への操作（待機の解除 / マッチング処理の実行 / やり直し）。右の欄の上に置く
   const slotAction = (
     <>
+      {slot.waiting && (
+        <ConfirmButton
+          label="待機を解除する"
+          description={`${slot.waiting.name} の待機を解除します。募集のメッセージは削除されます。案内の「待機する」は残るので、チームは、待機し直せます。`}
+          disabled={cancelWaiting.isPending}
+          onConfirm={() => cancelWaiting.mutate()}
+        />
+      )}
       {slot.matched ? (
         <ConfirmButton
           label="やり直す"
@@ -180,7 +193,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             {/* 削除済みの試合時刻は、マッチング処理も、やり直しも、しない（組分けだけを、扱う） */}
             {!slot.deleted && slotAction}
           </Group>
-          <ErrorNote error={confirm.error ?? reopen.error} />
+          <ErrorNote error={confirm.error ?? reopen.error ?? cancelWaiting.error} />
           {reopen.data?.notifyFailed && (
             <Text size="sm" c="red" role="alert">
               やり直しはできましたが、Discord への投稿に失敗しました。必要なら、チームに、直接お知らせください。

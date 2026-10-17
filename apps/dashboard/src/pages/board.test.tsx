@@ -254,6 +254,38 @@ describe("対戦枠の画面: 組分け", () => {
     expect(within21.getByText("NGT が待機中")).toBeTruthy();
   });
 
+  it("継続募集中の対戦枠には、「待機を解除する」が出る。確認してから実行して、対戦枠の日付も送る。待機していない対戦枠には、出ない", async () => {
+    const backend = installFakeBackend({
+      ...apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" }, matches: [match()] }), slot({ hour: 22 })]),
+      "POST /api/match-slots/cancel-waiting": { body: { ok: true } },
+    });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.click(await within21.findByRole("button", { name: "待機を解除する" }));
+    expect(backend.count("POST", "/api/match-slots/cancel-waiting")).toBe(0);
+    expect(screen.getByText(/NGT の待機を解除します。募集のメッセージは削除されます/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "実行する" }));
+
+    await waitFor(() => expect(backend.count("POST", "/api/match-slots/cancel-waiting")).toBe(1));
+    expect(backend.last("POST", "/api/match-slots/cancel-waiting")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07" });
+    // 待機していない対戦枠（22 時）には、出ない
+    expect((await card("22:00の対戦枠")).queryByRole("button", { name: "待機を解除する" })).toBeNull();
+  });
+
+  it("待機の解除に失敗したら、理由を出す（すでに解除された、など）", async () => {
+    installFakeBackend({
+      ...apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" } })]),
+      "POST /api/match-slots/cancel-waiting": { status: 409, body: { error: "not_waiting" } },
+    });
+    renderApp("/");
+
+    fireEvent.click(await (await card("21:00の対戦枠")).findByRole("button", { name: "待機を解除する" }));
+    fireEvent.click(screen.getByRole("button", { name: "実行する" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("いま、待機しているチームはいません");
+  });
+
   it("組分け（AA vs BB）を出し、組まれなかったチームも出す", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match()], excluded: { id: 3, name: "NGT" } })]));
     renderApp("/");

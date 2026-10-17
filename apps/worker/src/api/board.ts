@@ -6,6 +6,7 @@ import {
   findMatchSlot,
   releaseJob,
   reopenMatchSlot,
+  stopWaiting,
   ensureHandup,
   deleteMatch,
   findSlotHour,
@@ -24,7 +25,9 @@ import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { postMatchingCancelled } from "../messages";
+import { deleteWaitingAnnounce } from "../usecases/close-waiting-messages";
 import { confirmMatching } from "../usecases/confirm-matching";
+import { endContinuedRecruit } from "../usecases/end-waiting";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
@@ -121,6 +124,15 @@ export function createBoardRoutes(deps: ApiDeps) {
         for (const teamId of [input.teamAId, input.teamBId]) {
           await ensureHandup(db, { guildId, slotDate, slotHour: input.slotHour, teamId, raisedBy: userId, createdAt: now.getTime() });
         }
+        // フック: 「組分けが追加されたら」、待機中のチームが組まれて、継続募集の相手が決まったなら、継続募集を終わらせる
+        // （待機していないチームを組んだときは、継続募集は、そのまま続く）。失敗しても、組分けの追加は、取り消さない
+        const slot = await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
+        if (slot && slot.excludedTeamId === null) {
+          await endContinuedRecruit(
+            { db, rest: createRestFromEnv(c.env) },
+            { guildId, slotDate, slotHour: input.slotHour, offerContent: `${input.slotHour}時: 管理者が組分けを決めたため、待機は終わりました。` },
+          ).catch((error: unknown) => console.error("継続募集の終了に失敗しました", error));
+        }
         return c.json({ id }, 201);
       } catch (error) {
         if (error instanceof MatchTeamTakenError) return c.json({ error: "team_already_matched" as const }, 409);
@@ -189,6 +201,12 @@ export function createBoardRoutes(deps: ApiDeps) {
       const reopened = await reopenMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
       if (!reopened) return c.json({ error: "slot_not_matched" as const }, 409);
 
+      // フック: 「やり直したら」、継続募集を終わらせる（募集のメッセージを削除し、案内のボタンを外す）。失敗しても、やり直しは、取り消さない
+      await endContinuedRecruit(
+        { db, rest: createRestFromEnv(c.env) },
+        { guildId, slotDate, slotHour: input.slotHour, offerContent: `${input.slotHour}時: マッチングがやり直されたため、待機は終わりました。` },
+      ).catch((error: unknown) => console.error("継続募集の終了に失敗しました", error));
+
       // 締切の時刻の前なら、cron が、あらためて自動で確定できるように、権利を返す。過ぎていれば、管理者が確定するまで、そのまま
       const settings = await getGuildSettings(db, guildId);
       if (slotPhase(now, slotDate, input.slotHour, settings) !== "closed") {
@@ -218,5 +236,31 @@ export function createBoardRoutes(deps: ApiDeps) {
         }
       }
       return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, notified, notifyFailed });
+    })
+
+    // 管理者が、待機（継続募集）を解除する。待機しているチームの代わりに、「待機をキャンセル」を押すのと、同じ。
+    // 待機は、チームの選択なので、代わりに「待機する」ことは、できない（解除だけ）
+    .post("/match-slots/cancel-waiting", zValidator("json", matchSlotInputSchema), async (c) => {
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const input = c.req.valid("json");
+      const now = deps.clock.now();
+      const slotDate = input.slotDate ?? jstDateOf(now);
+
+      if (!(await findSlotHour(db, guildId, input.slotHour, { includeDeleted: true }))) return c.json({ error: "slot_not_found" as const }, 404);
+      const slot = await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
+      if (!slot || !isContinuedRecruit({ ...slot, slotDate, slotHour: input.slotHour }, now)) {
+        return c.json({ error: "not_waiting" as const }, 409);
+      }
+
+      await stopWaiting(db, slot.id);
+      // 募集のメッセージを削除する（案内の「待機する」は、残す。チームが、待機し直せる）。失敗しても、解除は、取り消さない
+      const { channelId } = await getGuildSettings(db, guildId);
+      if (channelId) {
+        await deleteWaitingAnnounce({ db, rest: createRestFromEnv(c.env) }, { slot, channelId }).catch((error: unknown) =>
+          console.error("募集のメッセージの削除に失敗しました", error),
+        );
+      }
+      return c.json({ ok: true as const });
     });
 }

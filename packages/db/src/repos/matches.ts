@@ -210,7 +210,7 @@ export function listGuildMatches(
 
 /**
  * マッチング済みの対戦枠を、未マッチングに戻す（挙手は、そのまま残す）。
- * その対戦枠の組分けを、すべて削除する。除外チームも外す。
+ * その対戦枠の組分けを、すべて削除する。除外チームも外し、継続募集の待機も、終わりにする。
  * 削除した組分けの件数を返す。処理済みの対戦枠がなければ null。
  */
 export async function reopenMatchSlot(
@@ -221,7 +221,11 @@ export async function reopenMatchSlot(
   if (!slot || slot.status !== "matched") return null;
 
   const removed = await db.delete(matches).where(eq(matches.matchSlotId, slot.id)).returning({ id: matches.id });
-  await db.update(matchSlots).set({ status: "open", matchedAt: null, excludedTeamId: null }).where(eq(matchSlots.id, slot.id));
+  // 待機（継続募集）も、終わる。メッセージの ID は、残す（呼び出し側が、メッセージを削除・編集して、空にする）
+  await db
+    .update(matchSlots)
+    .set({ status: "open", matchedAt: null, excludedTeamId: null, waitingSince: null })
+    .where(eq(matchSlots.id, slot.id));
 
   return { deletedMatches: removed.length };
 }

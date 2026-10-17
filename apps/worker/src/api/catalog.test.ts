@@ -25,6 +25,7 @@ describe("ログインが必要", () => {
     ["POST", "/api/handups"],
     ["DELETE", "/api/handups/1"],
     ["POST", "/api/matches"],
+    ["POST", "/api/match-slots/cancel-waiting"],
     ["DELETE", "/api/matches/1"],
     ["GET", "/api/sessions"],
     ["DELETE", "/api/sessions/1"],

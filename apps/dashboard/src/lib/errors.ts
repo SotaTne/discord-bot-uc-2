@@ -37,6 +37,7 @@ const MESSAGES: Record<string, string> = {
   already_raised: "このチームは、その対戦枠にすでに挙手しています",
   slot_matched: "その試合は、すでにマッチングが済んでいます（挙手の追加も取り消しもできません）",
   slot_not_matched: "その対戦枠は、まだマッチングが済んでいません",
+  not_waiting: "いま、待機しているチームはいません（すでに、解除されたか、試合が始まっています）",
   team_not_found: "チームが見つかりません",
   team_already_matched: "そのチームは、この対戦枠で、すでに別の組分けに入っています",
   win_exists: "この組分けには、すでに勝利が記録されています。削除してから、記録し直してください",
