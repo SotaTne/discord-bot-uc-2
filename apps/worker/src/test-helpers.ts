@@ -5,7 +5,7 @@ import {
 } from "@uc/db";
 import { createTestDb } from "@uc/db/testing";
 import { DiscordApiError, type CommandOptionValue, type DiscordRest, type Interaction } from "@uc/discord";
-import type { CommandContext } from "./commands/registry";
+import type { CommandContext } from "./interactions/registry";
 import type { AppEnv } from "./env";
 
 /** コマンドのテストで使う、決まった ID の登場人物 */

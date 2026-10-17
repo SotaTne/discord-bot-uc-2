@@ -1,9 +1,9 @@
 import { fixedClock } from "@uc/core";
 import { defaultGuildSettings, findMatchSlot, listHandupsForSlot, listMatchedSlots, reopenMatchSlot, saveGuildSettings } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { handdown } from "../commands/handdown";
-import { handup } from "../commands/handup";
-import { status } from "../commands/status";
+import { handdown } from "../interactions/handdown";
+import { handup } from "../interactions/handup";
+import { status } from "../interactions/status";
 import { ALICE, CAROL, GUILD_ID, KMU_ROLE, UT_ROLE, channelNoops, commandContext, commandInteraction, contentOf, createSeededDb, jst, timeOption } from "../test-helpers";
 import { runScheduled } from "./run";
 

@@ -5,7 +5,7 @@ import {
   pong,
 } from "@uc/discord";
 import { Hono } from "hono";
-import { componentHandlers, commandHandlers, type CommandHandler } from "../commands/registry";
+import { componentHandlers, commandHandlers, type CommandHandler } from "../interactions/registry";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { verifyDiscordRequest, type InteractionEnv } from "../middleware/discord-signature";
