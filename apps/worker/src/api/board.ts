@@ -1,8 +1,9 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
-import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, slotHoursOnDate, slotPhase } from "@uc/core";
+import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, seasonAccess, slotHoursOnDate, slotPhase } from "@uc/core";
 import {
   claimJob,
   deleteMatch,
+  findMatch,
   findMatchSlot,
   findSlotHour,
   findTeamById,
@@ -21,6 +22,7 @@ import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
 import { addMatchByAdmin, reopenSlotByAdmin } from "../usecases/admin-matches";
+import { seasonAccessFor, seasonWindow } from "../usecases/season";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { cancelWaiting } from "../usecases/continued-recruit";
 import { teamNames } from "../usecases/team-names";
@@ -38,7 +40,8 @@ export function createBoardRoutes(deps: ApiDeps) {
       const db = createDb(c.env.DB);
       const { guildId } = c.get("auth");
       const now = deps.clock.now();
-      const date = c.req.valid("query").date ?? jstDateOf(now);
+      const today = jstDateOf(now);
+      const date = c.req.valid("query").date ?? today;
 
       const [settings, slots, teams, matchSlots, handups, matches, guildMatches] = await Promise.all([
         getGuildSettings(db, guildId),
@@ -61,7 +64,10 @@ export function createBoardRoutes(deps: ApiDeps) {
 
       return c.json({
         date,
-        today: jstDateOf(now),
+        today,
+        access: seasonAccess(today, date, seasonWindow(settings)),
+        seasonStart: settings.seasonStart,
+        seasonEnd: settings.seasonEnd,
         slots: boardHours.map((slot) => {
           const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
           return {
@@ -113,7 +119,9 @@ export function createBoardRoutes(deps: ApiDeps) {
       for (const teamId of [input.teamAId, input.teamBId]) {
         if (!(await findTeamById(db, guildId, teamId))) return c.json({ error: "team_not_found" as const }, 404);
       }
-      const slotDate = input.slotDate ?? jstDateOf(now);
+      const today = jstDateOf(now);
+      const slotDate = input.slotDate ?? today;
+      if ((await seasonAccessFor(db, guildId, today, slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
       // 登録した試合時刻のほか、削除した試合時刻でも、画面に出ている対戦枠（削除した日まで）には、追加できる
       const onDate = slotHoursOnDate(await listSlotHours(db, guildId, { includeDeleted: true }), slotDate);
       if (!onDate.some((slot) => slot.hour === input.slotHour)) return c.json({ error: "slot_not_found" as const }, 404);
@@ -134,7 +142,15 @@ export function createBoardRoutes(deps: ApiDeps) {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
 
-      const deleted = await deleteMatch(createDb(c.env.DB), { guildId: c.get("auth").guildId, id });
+      const db = createDb(c.env.DB);
+      const { guildId } = c.get("auth");
+      const found = await findMatch(db, { guildId, id });
+      if (!found) return c.json({ error: "not_found" as const }, 404);
+      // 大会が終わったあとも、期間に入っていた日の組分けは、削除できる
+      const today = jstDateOf(deps.clock.now());
+      if ((await seasonAccessFor(db, guildId, today, found.slotDate)) === "closed") return c.json({ error: "outside_season" as const }, 409);
+
+      const deleted = await deleteMatch(db, { guildId, id });
       if (!deleted) return c.json({ error: "not_found" as const }, 404);
       return c.json({ ok: true as const });
     })
@@ -146,7 +162,9 @@ export function createBoardRoutes(deps: ApiDeps) {
       const { guildId } = c.get("auth");
       const input = c.req.valid("json");
       const now = deps.clock.now();
-      const slotDate = input.slotDate ?? jstDateOf(now);
+      const today = jstDateOf(now);
+      const slotDate = input.slotDate ?? today;
+      if ((await seasonAccessFor(db, guildId, today, slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
 
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
       if ((await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched") {
@@ -177,7 +195,10 @@ export function createBoardRoutes(deps: ApiDeps) {
       const { guildId } = c.get("auth");
       const input = c.req.valid("json");
       const now = deps.clock.now();
-      const slotDate = input.slotDate ?? jstDateOf(now);
+      const today = jstDateOf(now);
+      const slotDate = input.slotDate ?? today;
+      // 大会が終わったあとも、期間に入っていた日は、やり直せる。期間の外の日は、できない
+      if ((await seasonAccessFor(db, guildId, today, slotDate)) === "closed") return c.json({ error: "outside_season" as const }, 409);
       // 削除した試合時刻の対戦枠は、やり直せない（組分けの削除も、Discord への投稿もしない）
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
 
@@ -196,7 +217,9 @@ export function createBoardRoutes(deps: ApiDeps) {
       const { guildId } = c.get("auth");
       const input = c.req.valid("json");
       const now = deps.clock.now();
-      const slotDate = input.slotDate ?? jstDateOf(now);
+      const today = jstDateOf(now);
+      const slotDate = input.slotDate ?? today;
+      if ((await seasonAccessFor(db, guildId, today, slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
 
       if (!(await findSlotHour(db, guildId, input.slotHour, { includeDeleted: true }))) return c.json({ error: "slot_not_found" as const }, 404);
       const slot = await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });

@@ -1,4 +1,4 @@
-import { findHandup } from "@uc/db";
+import { defaultGuildSettings, findHandup, saveGuildSettings } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ALICE,
@@ -35,6 +35,16 @@ const active = (teamId: number, slotHour = 21) =>
   findHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour, teamId });
 
 describe("/uc-handdown", () => {
+  it("大会の期間の外では、取り消せない", async () => {
+    await call(handup, { name: "uc-handup", options: [timeOption(21)] });
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, seasonStart: "2026-10-08", seasonEnd: "2026-10-09" }, 1);
+
+    const response = await call(handdown, { name: "uc-handdown", options: [timeOption(21)] });
+
+    expect(contentOf(response)).toBe("いまは大会の期間外です（2026-10-08〜2026-10-09）");
+    expect(await active(seeded.kmuId)).toBeDefined();
+  });
+
   it("挙手を取り消せる（チームのメンションつきで、本人にだけ見える）", async () => {
     await call(handup, { name: "uc-handup", options: [timeOption(21)] });
 

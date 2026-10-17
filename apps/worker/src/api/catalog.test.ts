@@ -47,6 +47,8 @@ describe("サーバーの設定", () => {
     recruitMentionMode: "roles" as const,
     recruitMentionTargets: ["200000000000000099", "here"],
     matchLimit: 8,
+    seasonStart: null,
+    seasonEnd: null,
     revokeSessionsOnReissue: true,
   };
 

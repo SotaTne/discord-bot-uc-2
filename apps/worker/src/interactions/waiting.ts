@@ -1,5 +1,5 @@
-import { slotStart } from "@uc/core";
-import { findMatchSlot, listTeams, type MatchSlot, type Team } from "@uc/db";
+import { jstDateOf, seasonAccess, seasonClosedMessage, slotStart } from "@uc/core";
+import { findMatchSlot, getGuildSettings, listTeams, type MatchSlot, type Team } from "@uc/db";
 import { ephemeralMessage, type InteractionResponse } from "@uc/discord";
 import { parseWaitingCustomId, waitingJoinedMessage } from "../messages/waiting";
 import { cancelWaiting, joinWaiting, startWaitingByTeam } from "../usecases/continued-recruit";
@@ -32,6 +32,12 @@ async function resolveTarget(context: CommandContext, expected: "wait" | "wait-c
   const { guildId, userId, team } = resolved.caller;
 
   const now = context.clock.now();
+  const settings = await getGuildSettings(context.db, guildId);
+  const season = { start: settings.seasonStart, end: settings.seasonEnd };
+  // 開催日でないときは、待機も、キャンセルも、対戦するも、受け付けない
+  if (seasonAccess(jstDateOf(now), parsed.slotDate, season) !== "play") {
+    return fail(seasonClosedMessage(season));
+  }
   if (now.getTime() >= slotStart(parsed.slotDate, parsed.slotHour).getTime()) {
     return fail(`${parsed.slotHour}時の試合は、もう始まっています`);
   }

@@ -340,6 +340,38 @@ describe("フック 5: 試合開始の時刻になる → 募集のメッセー�
     expect((await slotOf()).waitingAnnounceMessageId).not.toBeNull();
   });
 
+  it("大会の期間の外では、待機できない", async () => {
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, seasonStart: "2026-10-08", seasonEnd: "2026-10-09" }, 2);
+
+    const response = await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+
+    expect(contentOf(response)).toBe("いまは大会の期間外です（2026-10-08〜2026-10-09）");
+    expect((await slotOf()).waitingSince).toBeNull();
+  });
+
+  it("大会が終わったあとでも、期間内の日の待機は、試合開始を過ぎていれば終わる。募集は、しない", async () => {
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+    const slot = await slotOf();
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, seasonStart: "2026-10-01", seasonEnd: "2026-10-07" }, 2);
+
+    const summary = await tick("2026-10-08T12:00:00");
+
+    expect(summary.ran).not.toContain("recruit:2026-10-08:12");
+    expect(channel.deleted).toEqual([{ channelId: CHANNEL, messageId: slot.waitingAnnounceMessageId }]);
+    expect(await slotOf()).toMatchObject({ waitingMessageId: null, waitingAnnounceMessageId: null });
+  });
+
+  it("期間の外の日の待機は、試合開始になっても、終わらせない", async () => {
+    await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
+    const slot = await slotOf();
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, seasonStart: "2026-10-08", seasonEnd: "2026-10-09" }, 2);
+
+    await tick("2026-10-07T21:00:00");
+
+    expect(channel.deleted).toEqual([]);
+    expect(await slotOf()).toMatchObject({ waitingMessageId: slot.waitingMessageId, waitingAnnounceMessageId: slot.waitingAnnounceMessageId });
+  });
+
   it("試合開始の時刻（00 分）になったら、募集のメッセージを削除し、案内のボタンを外す。ID は、空になる", async () => {
     await press(wait, { customId: WAIT, roleIds: [NGT_ROLE] });
     const slot = await slotOf();

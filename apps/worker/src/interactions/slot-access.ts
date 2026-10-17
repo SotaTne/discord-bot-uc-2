@@ -1,4 +1,4 @@
-import { handupPhase, jstDateOf } from "@uc/core";
+import { handupPhase, jstDateOf, seasonAccess, seasonClosedMessage } from "@uc/core";
 import { findMatchSlot, findSlotHour, getGuildSettings, type Db } from "@uc/db";
 
 /**
@@ -11,6 +11,14 @@ export async function checkAcceptingSlot(
   db: Db,
   input: { guildId: string; hour: number; now: Date },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  const settings = await getGuildSettings(db, input.guildId);
+  const today = jstDateOf(input.now);
+  const season = { start: settings.seasonStart, end: settings.seasonEnd };
+  // 今日が開催日でないときは、受付時間より先に断る（挙手も、取り消しもしない）
+  if (seasonAccess(today, today, season) !== "play") {
+    return { ok: false, message: seasonClosedMessage(season) };
+  }
+
   if (!(await findSlotHour(db, input.guildId, input.hour))) {
     return { ok: false, message: `${input.hour}時の試合時刻は登録されていません` };
   }
@@ -20,7 +28,6 @@ export async function checkAcceptingSlot(
     return { ok: false, message: `${input.hour}時の試合は、すでにマッチングが済んでいます` };
   }
 
-  const settings = await getGuildSettings(db, input.guildId);
   const phase = handupPhase(input.now, input.hour, settings);
   if (phase === "before-open") {
     return { ok: false, message: `受付は${settings.recruitHour}時からです` };

@@ -1,4 +1,4 @@
-import { listTeamHandupsOnDate } from "@uc/db";
+import { defaultGuildSettings, listTeamHandupsOnDate, saveGuildSettings } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ALICE,
@@ -98,6 +98,17 @@ describe("/uc-handup", () => {
     it("登録されていない時刻", async () => {
       const response = await run({ name: "uc-handup", options: [timeOption(20)] });
       expect(contentOf(response)).toBe("20時の試合時刻は登録されていません");
+    });
+
+    it("大会の期間の外では、挙手できない。期間の当日は、できる", async () => {
+      await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, seasonStart: "2026-10-08", seasonEnd: "2026-10-09" }, 1);
+      const outside = await run({ name: "uc-handup", options: [timeOption(21)] });
+      expect(contentOf(outside)).toBe("いまは大会の期間外です（2026-10-08〜2026-10-09）");
+      expect(await listTeamHandupsOnDate(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", teamId: seeded.kmuId })).toHaveLength(0);
+
+      await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, seasonStart: "2026-10-07", seasonEnd: "2026-10-07" }, 2);
+      const inside = await run({ name: "uc-handup", options: [timeOption(21)] });
+      expect(contentOf(inside)).toContain("21時の試合に挙手しました");
     });
 
     it("募集開始前", async () => {
