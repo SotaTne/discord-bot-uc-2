@@ -6,7 +6,7 @@
 |---|---|
 | `entry.ts` | 開発の入口。`pnpm dev`（`wrangler dev src/dev/entry.ts`）だけが使う |
 | `app.ts` | 本番と同じアプリ（`createApp`）に、`/dev/*` を足す |
-| `routes.ts` | `/dev/*` のルート（認証なし）: 時計（`/clock`）・cron の実行（`/tick`）・状態（`/state`）・画像（`/screenshots/:id`）・初期化（`/reset`） |
+| `routes.ts` | `/dev/*` のルート（認証なし）: 時計（`/clock`）・cron の実行（`/tick`）・状態（`/state`）・初期化（`/reset`） |
 | `clock.ts` | 疑似時計。「本物の時刻 + ずれ」。API・Discord・cron が、同じ時計に従う |
 | `snapshot.ts` | `/dev/state` が返す、worker の状態のまとめ（mock の画面が使う） |
 

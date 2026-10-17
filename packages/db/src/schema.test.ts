@@ -160,45 +160,6 @@ function aMatch(): number {
   return Number(result.lastInsertRowid);
 }
 
-describe("wins（勝利の記録）", () => {
-  const insertWin = (fields: { teamId?: number | null; matchId?: number | null; points?: number | null; active?: number | null }) =>
-    db
-      .prepare(
-        `INSERT INTO wins (guild_id, match_id, team_id, points, active, recorded_by, created_at)
-         VALUES (?, ?, ?, ?, COALESCE(?, 1), ?, ?)`,
-      )
-      .run(GUILD, fields.matchId ?? null, fields.teamId ?? null, fields.points ?? null, fields.active ?? null, "admin-1", NOW);
-
-  it("試合・チーム・生点がそろっていれば記録できる。はじめは有効", () => {
-    const team = insertTeam("KMU", "r1");
-    expect(() => insertWin({ teamId: team, matchId: aMatch(), points: 80 })).not.toThrow();
-    expect(db.prepare("SELECT active FROM wins").get()).toEqual({ active: 1 });
-  });
-
-  it("試合・チーム・生点のどれが欠けても、記録できない", () => {
-    const team = insertTeam("KMU", "r1");
-    expect(() => insertWin({ teamId: team, matchId: aMatch() })).toThrow(/NOT NULL/);
-    expect(() => insertWin({ matchId: aMatch(), points: 1 })).toThrow(/NOT NULL/);
-    expect(() => insertWin({ teamId: team, points: 1 })).toThrow(/NOT NULL/);
-  });
-
-  it("存在しない試合・チームには、記録できない", () => {
-    const team = insertTeam("KMU", "r1");
-    expect(() => insertWin({ teamId: team, matchId: 999, points: 1 })).toThrow(/FOREIGN KEY/);
-    expect(() => insertWin({ teamId: 999, matchId: aMatch(), points: 1 })).toThrow(/FOREIGN KEY/);
-  });
-
-  it("id は記録のたびに増える。無効にしても行は残る", () => {
-    const team = insertTeam("KMU", "r1");
-    const first = insertWin({ teamId: team, matchId: aMatch(), points: 1 });
-    const second = insertWin({ teamId: team, matchId: aMatch(), points: 2 });
-    expect(Number(second.lastInsertRowid)).toBeGreaterThan(Number(first.lastInsertRowid));
-
-    db.prepare("UPDATE wins SET active = 0 WHERE id = ?").run(Number(first.lastInsertRowid));
-    expect(db.prepare("SELECT COUNT(*) AS n FROM wins").get()).toEqual({ n: 2 });
-  });
-});
-
 describe("dashboard_links", () => {
   const issue = (tokenHash: string, expiresAt: number) =>
     db

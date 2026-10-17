@@ -1,5 +1,6 @@
 import { slotHourInputSchema, teamInputSchema } from "@uc/api";
 import {
+  getGuildSettings,
   createSlotHour,
   createTeam,
   deleteSlotHour,
@@ -12,6 +13,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
+import { teamMatchCounts } from "../usecases/team-match-counts";
 import { teamNames } from "../usecases/team-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
@@ -48,9 +50,15 @@ export function createCatalogRoutes(deps: ApiDeps) {
 
     .get("/teams", async (c) => {
       const { guildId } = c.get("auth");
-      const teams = await listTeams(createDb(c.env.DB), guildId);
+      const db = createDb(c.env.DB);
+      const teams = await listTeams(db, guildId);
       const names = await teamNames(createRestFromEnv(c.env), guildId, teams);
-      return c.json({ teams: teams.map((team) => ({ id: team.id, name: names.get(team.id) ?? team.roleId, roleId: team.roleId })) });
+      // 各チームの試合数（そのチームが入った組分けの数。保存せず、毎回、数える）。/uc-teams と同じ数
+      const counts = new Map((await teamMatchCounts(db, guildId)).map((row) => [row.team.id, row]));
+      return c.json({
+        teams: teams.map((team) => ({ id: team.id, name: names.get(team.id) ?? team.roleId, roleId: team.roleId, matchCount: counts.get(team.id)?.count ?? 0, matchOver: counts.get(team.id)?.over ?? false })),
+        matchLimit: (await getGuildSettings(db, guildId)).matchLimit,
+      });
     })
 
     .post("/teams", zValidator("json", teamInputSchema), async (c) => {

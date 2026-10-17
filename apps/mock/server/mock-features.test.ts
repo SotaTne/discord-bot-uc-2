@@ -33,7 +33,7 @@ function fakeWorker(respond: (url: string) => unknown) {
 
 const clientFor = (fetchImpl: typeof fetch) =>
   createDiscordInteractions(
-    { workerUrl: "http://worker.local", mockUrl: "http://mock.local/", keys, applicationId: "100000000000000001", fetch: fetchImpl },
+    { workerUrl: "http://worker.local", keys, applicationId: "100000000000000001", fetch: fetchImpl },
     state,
   );
 
@@ -72,14 +72,6 @@ describe("MockState: 時計・添付ファイル・メッセージの置き換�
     });
   });
 
-  it("添付ファイルを登録して、ID で取り出せる。reset で消える", () => {
-    const attachment = state.addAttachment({ filename: "a.png", contentType: "image/png", bytes: new Uint8Array([1, 2]) });
-
-    expect(state.getAttachment(attachment.id)).toMatchObject({ filename: "a.png" });
-    state.reset();
-    expect(state.getAttachment(attachment.id)).toBeUndefined();
-  });
-
   it("メッセージの本文とボタンを置き換えられる（ボタンなしにもできる）", () => {
     const buttons = [{ type: 1 as const, components: [{ type: 2 as const, style: 4 as const, label: "実行", custom_id: "x:confirm" }] }];
     const message = state.addMessage({ channelId: "c", content: "確認", components: buttons });
@@ -92,7 +84,7 @@ describe("MockState: 時計・添付ファイル・メッセージの置き換�
   });
 });
 
-describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", () => {
+describe("DiscordInteractions: 疑似時計・ボタン", () => {
   it("時計は、worker が持つので、リクエストには、時刻のヘッダー（X-Dev-Now）を付けない。署名のヘッダーだけ", async () => {
     const { sent, fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "ok" } }));
     state.moveTo(jst("2026-10-07T20:53:00"));
@@ -100,39 +92,6 @@ describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", (
     await clientFor(fetchImpl).sendCommand({ userId: alice().id, name: "uc-status" });
 
     expect(Object.keys(sent[0]!.headers).sort()).toEqual(["Content-Type", "X-Signature-Ed25519", "X-Signature-Timestamp"]);
-  });
-
-  it("添付ファイルのオプションは、worker が取りに来られる URL と一緒に、resolved に入れる", async () => {
-    const { sent, fetchImpl } = fakeWorker(() => ({ type: 5, data: { flags: 64 } }));
-    const image = state.addAttachment({ filename: "shot.png", contentType: "image/png", bytes: new Uint8Array([1, 2, 3]) });
-
-    await clientFor(fetchImpl).sendCommand({
-      userId: admin().id,
-      name: "uc-admin-win",
-      options: { time: 21, "team-role": "KMU", point: 80, image: image.id },
-    });
-
-    const interaction = JSON.parse(sent[0]!.body) as Interaction;
-    expect(interaction.data?.options?.find((o) => o.name === "image")).toMatchObject({ type: 11, value: image.id });
-    expect(interaction.data?.resolved?.attachments?.[image.id]).toEqual({
-      id: image.id,
-      url: `http://mock.local/attachments/${image.id}`,
-      filename: "shot.png",
-      content_type: "image/png",
-      size: 3,
-    });
-  });
-
-  it("存在しない添付ファイルは、worker に送らず拒否する", async () => {
-    const { sent, fetchImpl } = fakeWorker(() => ({}));
-    await expect(
-      clientFor(fetchImpl).sendCommand({
-        userId: admin().id,
-        name: "uc-admin-win",
-        options: { time: 21, "team-role": "KMU", point: 80, image: "nope" },
-      }),
-    ).rejects.toThrow("添付ファイル");
-    expect(sent).toEqual([]);
   });
 
   it("worker の返信の編集が、応答（考え中）より先に届いても、受け付ける（実際の Discord でも、起こり得る順序）", async () => {
@@ -148,19 +107,19 @@ describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", (
       return new Response(JSON.stringify({ type: 5, data: { flags: 64 } }));
     };
 
-    await clientFor(earlyEdit).sendCommand({ userId: admin().id, name: "uc-admin-score-clear" });
+    await clientFor(earlyEdit).sendCommand({ userId: admin().id, name: "uc-admin-dashboard" });
 
     expect(state.messages).toMatchObject([{ content: "先に届いた結果", visibleTo: admin().id }]);
   });
 
   it("ボタンつきの返信は、ボタンも一緒にメッセージとして残る", async () => {
-    const buttons = [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }];
+    const buttons = [{ type: 1, components: [{ type: 2, style: 4, label: "確認", custom_id: "sample:confirm" }] }];
     const { fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "確認", flags: 64, components: buttons } }));
 
-    await clientFor(fetchImpl).sendCommand({ userId: admin().id, name: "uc-admin-score-clear" });
+    await clientFor(fetchImpl).sendCommand({ userId: admin().id, name: "uc-admin-dashboard" });
 
     expect(state.messages[0]).toMatchObject({ content: "確認", visibleTo: admin().id });
-    expect(state.messages[0]?.components?.[0]?.components[0]?.custom_id).toBe("score-clear:confirm");
+    expect(state.messages[0]?.components?.[0]?.components[0]?.custom_id).toBe("sample:confirm");
   });
 
   it("ボタンを押すと、worker に押した人と custom_id を送り、メッセージが置き換わる（ボタンは消える）", async () => {
@@ -168,27 +127,27 @@ describe("DiscordInteractions: 疑似時計・添付ファイル・ボタン", (
       channelId: state.channelId,
       content: "確認",
       visibleTo: admin().id,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "確認", custom_id: "sample:confirm" }] }],
     });
-    const { sent, fetchImpl } = fakeWorker(() => ({ type: 7, data: { content: "クリアしました", components: [] } }));
+    const { sent, fetchImpl } = fakeWorker(() => ({ type: 7, data: { content: "完了しました", components: [] } }));
 
     const result = await clientFor(fetchImpl).sendComponent({
       userId: admin().id,
-      customId: "score-clear:confirm",
+      customId: "sample:confirm",
       messageId: message.id,
     });
 
     expect(result.status).toBe(200);
     const interaction = JSON.parse(sent[0]!.body) as Interaction;
-    expect(interaction).toMatchObject({ type: 3, data: { custom_id: "score-clear:confirm" }, member: { permissions: "8" } });
-    expect(state.messages[0]).toMatchObject({ content: "クリアしました" });
+    expect(interaction).toMatchObject({ type: 3, data: { custom_id: "sample:confirm" }, member: { permissions: "8" } });
+    expect(state.messages[0]).toMatchObject({ content: "完了しました" });
     expect(state.messages[0]?.components).toBeUndefined();
   });
 
   it("ボタンへの応答が通常のメッセージ（権限がないなど）なら、新しいメッセージとして残る", async () => {
     const { fetchImpl } = fakeWorker(() => ({ type: 4, data: { content: "管理者ではありません", flags: 64 } }));
 
-    await clientFor(fetchImpl).sendComponent({ userId: alice().id, customId: "score-clear:cancel", messageId: "none" });
+    await clientFor(fetchImpl).sendComponent({ userId: alice().id, customId: "sample:cancel", messageId: "none" });
 
     expect(state.messages).toMatchObject([{ content: "管理者ではありません", visibleTo: alice().id }]);
   });

@@ -8,3 +8,6 @@ dist
 .DS_Store
 worker-configuration.d.ts
 .dev-keys.json
+
+# schema と migrations の差分確認の、作業用のコピー
+.schema-check

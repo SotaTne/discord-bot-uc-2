@@ -59,11 +59,7 @@ export function createWorkerDev(options: WorkerDevOptions, state: MockState) {
   }
 
   /** 保存された画像（worker の R2）を取る */
-  function fetchScreenshot(seq: string): Promise<Response> {
-    return doFetch(`${workerUrl}/dev/screenshots/${encodeURIComponent(seq)}?guildId=${encodeURIComponent(state.guildId)}`);
-  }
-
-  return { pushClock, tick, fetchSnapshot, resetWorkerData, fetchScreenshot };
+  return { pushClock, tick, fetchSnapshot, resetWorkerData };
 }
 
 export type WorkerDev = ReturnType<typeof createWorkerDev>;

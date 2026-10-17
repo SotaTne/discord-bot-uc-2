@@ -1,22 +1,24 @@
-import { isJobDue, jstDateOf, scheduledJobsForDate, type Clock, type ScheduledJobSpec } from "@uc/core";
+import { isJobDue, jstDateOf, scheduledJobsForDate, slotStart, type Clock, type ScheduledJobSpec } from "@uc/core";
 import {
   claimJob,
   deleteExpiredCredentials,
   listConfiguredGuilds,
   listMatchSlots,
   listSlotHours,
+  listSlotsWithWaitingMessages,
   listTeams,
   releaseJob,
   type Db,
   type GuildSettingsValues,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
+import { closeWaitingMessages } from "../usecases/close-waiting-messages";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { postRecruit, recruitMention } from "../messages";
 
 export type ScheduledDeps = {
   db: Db;
-  rest: Pick<DiscordRest, "createMessage">;
+  rest: Pick<DiscordRest, "createMessage" | "editMessage" | "deleteMessage">;
   clock: Clock;
 };
 
@@ -74,6 +76,7 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
   });
 
   await releaseStaleCutoffClaims(deps, guild.guildId, specs, today, now);
+  await closeExpiredWaitingMessages(deps, guild.guildId, channelId, now);
 
   const jobs: Job[] = specs
     .filter((spec) => isJobDue(spec, now))
@@ -109,6 +112,22 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       console.error(`ジョブに失敗しました: ${job.key}`, error);
       summary.errors.push(`${job.key}: ${errorText(error)}`);
     }
+  }
+}
+
+/**
+ * フック: 「試合開始の時刻（00 分）になったら」、継続募集のメッセージを、終わりにする。
+ * 募集のメッセージ（「対戦する」「待機をキャンセル」）は削除し、案内のメッセージ（「待機する」）は、ボタンを外す。
+ * 終わりにしたあと、メッセージの ID を空にするので、毎分実行しても、1 度しか、処理しない。
+ */
+async function closeExpiredWaitingMessages(deps: ScheduledDeps, guildId: string, channelId: string, now: Date) {
+  for (const slot of await listSlotsWithWaitingMessages(deps.db, guildId)) {
+    if (now.getTime() < slotStart(slot.slotDate, slot.slotHour).getTime()) continue;
+    await closeWaitingMessages(deps, {
+      slot,
+      channelId,
+      offerContent: `${slot.slotHour}時: 待機の受付は、終わりました。`,
+    });
   }
 }
 

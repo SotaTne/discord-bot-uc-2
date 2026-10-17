@@ -5,13 +5,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { ApiError, unwrap } from "../lib/errors";
 import { formatJstNow } from "../lib/format";
-import { useMe, useUnrecordedMatches } from "../lib/queries";
+import { useMe } from "../lib/queries";
 import { ErrorNote } from "../components/ui";
 
 const NAV = [
   { to: "/", label: "対戦枠" },
   { to: "/teams", label: "チーム" },
-  { to: "/wins", label: "勝利記録" },
   { to: "/settings", label: "設定" },
   { to: "/guide", label: "ガイド" },
 ] as const;
@@ -46,9 +45,6 @@ export function AppLayout() {
       await navigate({ to: "/login", hash: "" });
     },
   });
-
-  // 勝利を記録しないといけない組分けの数。あれば、「勝利記録」の右上に、小さな赤い点で知らせる（数字は、出さない）
-  const unrecorded = useUnrecordedMatches().data?.matches.length ?? 0;
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
@@ -92,11 +88,7 @@ export function AppLayout() {
                 const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
                 return (
                   <Link key={item.to} to={item.to} className="nav-link" {...(active ? { "aria-current": "page" as const } : {})}>
-                    <span className="nav-label">
-                      {item.label}
-                      {item.to === "/wins" && unrecorded > 0 && <span className="nav-dot" aria-hidden="true" />}
-                    </span>
-                    {item.to === "/wins" && unrecorded > 0 && <span className="sr-only">（勝利が未記録の組分け {unrecorded}件）</span>}
+                    <span className="nav-label">{item.label}</span>
                   </Link>
                 );
               })}

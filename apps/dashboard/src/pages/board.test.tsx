@@ -11,40 +11,20 @@ const slot = (over: Record<string, unknown> = {}) => ({
   phase: "open",
   matched: false,
   excluded: null,
+  waiting: null,
   handups: [],
   matches: [],
   ...over,
 });
 const handup = (over: Record<string, unknown> = {}) => ({ id: 1, team: KMU, raisedByName: "alice", createdAt: at("2026-10-07T15:00:00"), ...over });
-const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 1, matchNumberB: 1, win: null, deletedWins: 0, ...over });
-const win = (over: Record<string, unknown> = {}) => ({
-  id: 3,
-  team: UT,
-  points: 452,
-  recordedByName: "管理者さん",
-  createdAt: at("2026-10-07T21:30:00"),
-  hasScreenshot: true,
-  ...over,
-});
-
-const rule = { fixedAfterMatches: 5, fixedPoints: 100 };
-const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, rule, slots } });
+const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 3, matchNumberB: 5, overA: false, overB: false, host: UT, ...over });
+const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, slots } });
 const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
   "GET /api/board": board(slots),
   "GET /api/teams": { body: TEAMS },
   "GET /api/slot-hours": { body: SLOT_HOURS },
 });
-/** 行の「操作」メニューを開いて、項目を選ぶ */
-const choose = async (menuName: string, item: string) => {
-  fireEvent.click(await screen.findByRole("button", { name: menuName }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
-};
-/** 勝利がまだない組分けの「勝利を追加」を押して、入力のダイアログを開く */
-const openAddWin = async (label: string) => {
-  fireEvent.click(await screen.findByRole("button", { name: `${label}の勝利を追加` }));
-  return within(await screen.findByRole("form", { name: `${label}の勝利を追加` }));
-};
 const card = async (name: string) => within(await screen.findByRole("region", { name }));
 
 describe("対戦枠の画面: 削除した試合時刻の対戦枠（状態は、未マッチング / マッチング済み / 削除済みの 3 つ）", () => {
@@ -88,13 +68,13 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠（状態は�
     }
   });
 
-  it("削除済み・未マッチングの対戦枠では、挙手の取り消しが、できる（後始末のため）。勝利の記録の操作も、できる", async () => {
+  it("削除済み・未マッチングの対戦枠では、挙手の取り消しが、できる（後始末のため）。組分けの操作も、できる", async () => {
     installFakeBackend(apis([slot({ hour: 21, deleted: true, matched: false, handups: [handup()], matches: [match()] })]));
     renderApp("/");
 
     const deleted = await card("21:00の対戦枠");
     expect(deleted.getByRole("button", { name: "KMUの21:00の挙手を取り消す" })).toBeTruthy();
-    expect(deleted.getByRole("button", { name: "KMU vs UTの勝利を追加" })).toBeTruthy();
+    expect(deleted.getByRole("button", { name: "KMU vs UTを削除" })).toBeTruthy();
   });
 });
 
@@ -186,6 +166,13 @@ describe("対戦枠の画面: 挙手", () => {
     await waitFor(() => expect(backend.last("POST", "/api/handups")?.json).toEqual({ teamId: 2, slotHour: 21, slotDate: "2026-10-07" }));
   });
 
+  it("規定数を超えた試合には、そのチームの何試合目に「超過」を添える", async () => {
+    installFakeBackend(apis([slot({ matched: true, handups: [handup()], matches: [match({ overB: true })] })]));
+    renderApp("/");
+
+    expect((await screen.findAllByText("KMU（3試合目） vs UT（5試合目・超過）")).length).toBeGreaterThan(0);
+  });
+
   it("マッチング済みの対戦枠では、挙手の追加も取り消しも出さない", async () => {
     installFakeBackend(apis([slot({ matched: true, handups: [handup()], matches: [match()] })]));
     renderApp("/");
@@ -193,7 +180,7 @@ describe("対戦枠の画面: 挙手", () => {
     const within21 = await card("21:00の対戦枠");
     expect(within21.getAllByText("KMU").length).toBeGreaterThan(0);
     // 挙手を追加する欄は、チームの一覧を取るまで出ない。取れたあとも、出さない
-    await screen.findAllByText("KMU vs UT");
+    await screen.findAllByText("KMU（3試合目） vs UT（5試合目）");
     expect(within21.queryByRole("button", { name: /挙手を取り消す/ })).toBeNull();
     expect(within21.queryByLabelText("挙手するチーム")).toBeNull();
   });
@@ -224,6 +211,39 @@ describe("対戦枠の画面: 組分けの追加", () => {
       expect(backend.last("POST", "/api/matches")?.json).toEqual({ teamAId: 1, teamBId: 2, slotHour: 21, slotDate: "2026-10-07" }),
     );
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
+  });
+
+  it("規定数ちょうどのチームを選ぶと、追加すると規定数を超える、と知らせる（追加は止めない）。余裕のあるチーム・規定数なしでは、出さない", async () => {
+    const teams = (matchLimit: number | null) => ({
+      body: {
+        teams: [
+          { id: 1, name: "KMU", roleId: "400000000000000001", matchCount: 4, matchOver: false },
+          { id: 2, name: "UT", roleId: "400000000000000002", matchCount: 3, matchOver: false },
+        ],
+        matchLimit,
+      },
+    });
+    const backend = installFakeBackend({ ...apis(), "GET /api/teams": teams(4) });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "2" } });
+    expect(within21.queryByRole("note")).toBeNull();
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
+    expect((await within21.findByRole("note")).textContent).toBe("KMUは、この組分けを追加すると、試合数が規定数（4試合）を超えます");
+    expect((within21.getByRole("button", { name: "組分けを追加" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(backend.count("POST", "/api/matches")).toBe(0);
+  });
+
+  it("規定数がなければ、規定数を超える、という知らせは出ない", async () => {
+    installFakeBackend(apis());
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
+
+    expect(within21.queryByRole("note")).toBeNull();
   });
 
   it("1チーム目に選んだチームは、2チーム目の選択肢から外れる。2チームそろうまで、追加できない", async () => {
@@ -263,162 +283,57 @@ describe("対戦枠の画面: 組分けの追加", () => {
   });
 });
 
-describe("対戦枠の画面: 組分けと勝利", () => {
+describe("対戦枠の画面: 組分け", () => {
+  it("継続募集中の対戦枠は、「マッチング済み」ではなく「継続募集中」と、待機しているチームを出す", async () => {
+    installFakeBackend(apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" }, matches: [match()] })]));
+    renderApp("/");
+
+    const within21 = await card("21:00の対戦枠");
+    expect(await within21.findByText("継続募集中")).toBeTruthy();
+    expect(within21.queryByText("マッチング済み")).toBeNull();
+    expect(within21.getByText("NGT が待機中")).toBeTruthy();
+  });
+
+  it("継続募集中の対戦枠には、「待機を解除する」が出る。確認してから実行して、対戦枠の日付も送る。待機していない対戦枠には、出ない", async () => {
+    const backend = installFakeBackend({
+      ...apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" }, matches: [match()] }), slot({ hour: 22 })]),
+      "POST /api/match-slots/cancel-waiting": { body: { ok: true } },
+    });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.click(await within21.findByRole("button", { name: "待機を解除する" }));
+    expect(backend.count("POST", "/api/match-slots/cancel-waiting")).toBe(0);
+    expect(screen.getByText(/NGT の待機を解除します。募集のメッセージは削除されます/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "実行する" }));
+
+    await waitFor(() => expect(backend.count("POST", "/api/match-slots/cancel-waiting")).toBe(1));
+    expect(backend.last("POST", "/api/match-slots/cancel-waiting")?.json).toEqual({ slotHour: 21, slotDate: "2026-10-07" });
+    // 待機していない対戦枠（22 時）には、出ない
+    expect((await card("22:00の対戦枠")).queryByRole("button", { name: "待機を解除する" })).toBeNull();
+  });
+
+  it("待機の解除に失敗したら、理由を出す（すでに解除された、など）", async () => {
+    installFakeBackend({
+      ...apis([slot({ matched: true, excluded: { id: 3, name: "NGT" }, waiting: { id: 3, name: "NGT" } })]),
+      "POST /api/match-slots/cancel-waiting": { status: 409, body: { error: "not_waiting" } },
+    });
+    renderApp("/");
+
+    fireEvent.click(await (await card("21:00の対戦枠")).findByRole("button", { name: "待機を解除する" }));
+    fireEvent.click(screen.getByRole("button", { name: "実行する" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("いま、待機しているチームはいません");
+  });
+
   it("組分け（AA vs BB）を出し、組まれなかったチームも出す", async () => {
     installFakeBackend(apis([slot({ matched: true, matches: [match()], excluded: { id: 3, name: "NGT" } })]));
     renderApp("/");
 
     const within21 = await card("21:00の対戦枠");
-    expect(within21.getByText("KMU vs UT")).toBeTruthy();
+    expect(within21.getByText("KMU（3試合目） vs UT（5試合目）")).toBeTruthy();
+    expect(within21.getByText("主催: UT")).toBeTruthy();
     expect(within21.getByText("組まれなかったチーム: NGT")).toBeTruthy();
-  });
-
-  it("勝利がまだなら、その行から記録できる（勝ったチーム・点数・画像）。画像つきのフォームで、その組分けに送る", async () => {
-    const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "POST /api/matches/7/wins": { status: 201, body: { id: 3 } } });
-    renderApp("/");
-
-    // 表には入力欄を並べず、「勝利を追加」を押すと、入力のダイアログが開く
-    const form = await openAddWin("KMU vs UT");
-    const button = form.getByRole("button", { name: "追加" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(within(form.getByLabelText("勝ったチーム")).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択してください", "KMU", "UT"]);
-
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "2" } });
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "452" } });
-    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] } });
-    expect(button.disabled).toBe(false);
-    fireEvent.click(button);
-
-    await waitFor(() => expect(backend.count("POST", "/api/matches/7/wins")).toBe(1));
-    const sent = backend.last("POST", "/api/matches/7/wins")?.form;
-    expect(sent?.get("teamId")).toBe("2");
-    expect(sent?.get("points")).toBe("452");
-    expect((sent?.get("image") as File).name).toBe("shot.png");
-    await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
-  });
-
-  it("N 試合を超える試合で勝つチームを選ぶと、点数の入力は要らず、固定点で登録されることを案内する", async () => {
-    const backend = installFakeBackend({
-      ...apis([slot({ matches: [match({ matchNumberA: 3, matchNumberB: 6 })] })]),
-      "POST /api/matches/7/wins": { status: 201, body: { id: 3, points: 100 } },
-    });
-    renderApp("/");
-    const form = await openAddWin("KMU vs UT");
-    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
-
-    // KMU は 3 試合目（N=5 以内）: 点数を入力する
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
-    expect((form.getByLabelText("点数") as HTMLInputElement).disabled).toBe(false);
-    expect((form.getByRole("button", { name: "追加" }) as HTMLButtonElement).disabled).toBe(true);
-
-    // UT は 6 試合目（N=5 を超える）: 入力は要らない。固定点で登録される
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "2" } });
-    expect((form.getByLabelText("点数") as HTMLInputElement).disabled).toBe(true);
-    expect(form.getByText(/固定点の 100pt で登録されます/)).toBeTruthy();
-    fireEvent.click(form.getByRole("button", { name: "追加" }));
-
-    await waitFor(() => expect(backend.count("POST", "/api/matches/7/wins")).toBe(1));
-    expect(backend.last("POST", "/api/matches/7/wins")?.form?.get("points")).toBe("100");
-  });
-
-  it("点数が上限（100000）を超えると、追加できない。その理由を、入力欄の下と、ボタンの横に出す", async () => {
-    installFakeBackend(apis([slot({ matches: [match()] })]));
-    renderApp("/");
-    const form = await openAddWin("KMU vs UT");
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
-    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
-    const add = form.getByRole("button", { name: "追加" }) as HTMLButtonElement;
-
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "10000000000000000000" } });
-    expect(add.disabled).toBe(true);
-    expect(form.getByText("100000 以下にしてください")).toBeTruthy();
-    expect(form.getByText("追加するには、点数を直す")).toBeTruthy();
-
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "100000" } });
-    expect(add.disabled).toBe(false);
-    expect(form.queryByText("100000 以下にしてください")).toBeNull();
-    expect(form.queryByText(/追加するには/)).toBeNull();
-  });
-
-  it("勝利を追加するダイアログに、キャンセルのボタンはない（右上の×・外側・Esc で閉じる）。閉じても、何も送らない", async () => {
-    const backend = installFakeBackend({ ...apis([slot({ matches: [match()] })]), "POST /api/matches/7/wins": { status: 201, body: { id: 3 } } });
-    renderApp("/");
-    const form = await openAddWin("KMU vs UT");
-
-    expect(form.queryByRole("button", { name: "キャンセル" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
-
-    await waitFor(() => expect(screen.queryByRole("form", { name: "KMU vs UTの勝利を追加" })).toBeNull());
-    expect(backend.count("POST", "/api/matches/7/wins")).toBe(0);
-  });
-
-  it("追加できないとき、足りないものを、ボタンの横に出す（勝ったチーム・点数・画像）", async () => {
-    installFakeBackend(apis([slot({ matches: [match()] })]));
-    renderApp("/");
-    const form = await openAddWin("KMU vs UT");
-
-    expect(form.getByText("追加するには、勝ったチームを選ぶ・点数を入力する・画像を選ぶ")).toBeTruthy();
-
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "50" } });
-    expect(form.getByText("追加するには、画像を選ぶ")).toBeTruthy();
-  });
-
-
-  it("勝利があれば、勝ったチーム・点数・記録した人・画像を出す。記録フォームは出さない", async () => {
-    installFakeBackend(apis([slot({ matched: true, matches: [match({ win: win() })] })]));
-    renderApp("/");
-
-    const within21 = await card("21:00の対戦枠");
-    // 組分けの 1 行に、勝利チーム・点数・記録・画像が並ぶ
-    expect(within21.getByText("452pt").closest("tr")!.textContent).toContain("UT");
-    expect(within21.getByText("452pt")).toBeTruthy();
-    expect(within21.getByText(/管理者さん・10\/07 21:30/)).toBeTruthy();
-    // 画像は、別のページには移らず、ポップアップで表示する
-    expect(within21.queryByRole("link", { name: "画像" })).toBeNull();
-    fireEvent.click(within21.getByRole("button", { name: "画像" }));
-    expect(screen.getByRole("img", { name: "勝利#3の画像" }).getAttribute("src")).toBe("/api/screenshots/3");
-    expect(within21.queryByRole("button", { name: /の勝利を追加/ })).toBeNull();
-  });
-
-  it("メニューの「勝利を削除」で、勝利を外す（外したあと、記録し直せる）", async () => {
-    const backend = installFakeBackend({
-      ...apis([slot({ matched: true, matches: [match({ win: win() })] })]),
-      "PUT /api/wins/3/active": { body: { ok: true } },
-    });
-    renderApp("/");
-
-    await choose("KMU vs UTの操作", "勝利を削除");
-
-    await waitFor(() => expect(backend.last("PUT", "/api/wins/3/active")?.json).toEqual({ active: false }));
-    await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
-  });
-
-  it("記録に失敗したら、理由を出す", async () => {
-    installFakeBackend({
-      ...apis([slot({ matches: [match()] })]),
-      "POST /api/matches/7/wins": { status: 409, body: { error: "win_exists" } },
-    });
-    renderApp("/");
-
-    const form = await openAddWin("KMU vs UT");
-    fireEvent.change(form.getByLabelText("勝ったチーム"), { target: { value: "1" } });
-    fireEvent.change(form.getByLabelText("点数"), { target: { value: "10" } });
-    fireEvent.change(form.getByLabelText("画像"), { target: { files: [new File([new Uint8Array([1])], "a.png", { type: "image/png" })] } });
-    fireEvent.click(form.getByRole("button", { name: "追加" }));
-
-    expect((await screen.findAllByRole("alert"))[0]?.textContent).toContain("すでに勝利が記録されています");
-  });
-
-  it("勝利のある組分けを削除するときは、勝利も消えることを、確認に出す（削除済みの勝利も数える）", async () => {
-    installFakeBackend(apis([slot({ matches: [match({ win: win(), deletedWins: 1 })] })]));
-    renderApp("/");
-    const within21 = await card("21:00の対戦枠");
-
-    await choose("KMU vs UTの操作", "組分けを削除");
-
-    expect(screen.getByRole("dialog", { name: "KMU vs UTの組分けを削除" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "勝利2件も削除して、実行する" })).toBeTruthy();
   });
 
   it("組分けの削除は、確認してから実行する", async () => {
@@ -426,7 +341,7 @@ describe("対戦枠の画面: 組分けと勝利", () => {
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
 
-    await choose("KMU vs UTの操作", "組分けを削除");
+    fireEvent.click(await screen.findByRole("button", { name: "KMU vs UTを削除" }));
     expect(backend.count("DELETE", "/api/matches/7")).toBe(0);
     fireEvent.click(screen.getByRole("button", { name: "削除を実行する" }));
 
@@ -452,10 +367,10 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
     expect(within21.queryByRole("button", { name: "やり直す" })).toBeNull();
   });
 
-  it("マッチング済みの対戦枠には「やり直す」が出る（確定は出ない）。消える組分けと勝利の件数を、確認に出す", async () => {
+  it("マッチング済みの対戦枠には「やり直す」が出る（確定は出ない）。消える組分けの件数を、確認に出す", async () => {
     const backend = installFakeBackend({
-      ...apis([slot({ matched: true, matches: [match({ win: win() }), match({ id: 8, deletedWins: 1 })] })]),
-      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 2, deletedWins: 2 } },
+      ...apis([slot({ matched: true, matches: [match(), match({ id: 8 })] })]),
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 2 } },
     });
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
@@ -463,7 +378,7 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
 
     fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
     expect(screen.getByRole("dialog", { name: "やり直す" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "組分け2件と勝利2件を削除して、やり直す" }));
+    fireEvent.click(screen.getByRole("button", { name: "組分け2件を削除して、やり直す" }));
 
     await waitFor(() => expect(backend.count("POST", "/api/match-slots/reopen")).toBe(1));
     // 投稿のチェックは、初期はオン
@@ -473,7 +388,7 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
   it("やり直しのダイアログに、「Discord に、マッチングのキャンセルを投稿する」のチェックが出る（初期はオン）。外すと、投稿しないことを送る", async () => {
     const backend = installFakeBackend({
       ...apis([slot({ matched: true, matches: [match()] })]),
-      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: false } },
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, notified: false, notifyFailed: false } },
     });
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
@@ -500,7 +415,7 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
   it("投稿に失敗したときは、やり直しはできたことと、投稿に失敗したことを出す", async () => {
     installFakeBackend({
       ...apis([slot({ matched: true, matches: [match()] })]),
-      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, deletedWins: 0, notified: false, notifyFailed: true } },
+      "POST /api/match-slots/reopen": { body: { ok: true, deletedMatches: 1, notified: false, notifyFailed: true } },
     });
     renderApp("/");
     const within21 = await card("21:00の対戦枠");
@@ -510,7 +425,7 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("Discord への投稿に失敗しました");
   });
 
-  it("組分けも勝利もない対戦枠は、件数を出さずに「やり直しを実行する」だけ", async () => {
+  it("組分けもない対戦枠は、件数を出さずに「やり直しを実行する」だけ", async () => {
     installFakeBackend(apis([slot({ matched: true })]));
     renderApp("/");
     const within21 = await card("21:00の対戦枠");

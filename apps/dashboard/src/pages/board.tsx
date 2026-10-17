@@ -1,19 +1,14 @@
-import { ActionIcon, Anchor, Badge, Button, Checkbox, CloseButton, FileButton, Group, Input, Modal, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Badge, Button, Checkbox, CloseButton, Group, NativeSelect, Paper, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { MAX_POINTS } from "@uc/api";
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Async, ConfirmButton, ConfirmDialog, ErrorNote, RowMenu, ScreenshotLink, usePointsEditor, type RowMenuItem } from "../components/ui";
-import { validatePoints } from "../lib/settings-validation";
+import { useEffect, useRef, useState } from "react";
+import { Async, ConfirmButton, ConfirmDialog, ErrorNote } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatDateWithWeekday, formatHour, formatJstDateTime, shiftDate } from "../lib/format";
 import { useBoard, useInvalidatingMutation, useTeams } from "../lib/queries";
 
 /** 対戦枠の画面で更新したあとに、取り直すデータ */
-const REFRESH = [["board"], ["wins"], ["scores"]];
-
-/** 得点の集計の規則（N と固定点）。勝利を追加するダイアログが、N 試合を超える試合かどうかの案内に使う */
-const RuleContext = createContext<{ fixedAfterMatches: number; fixedPoints: number } | null>(null);
+const REFRESH = [["board"], ["teams"]];
 
 type Board = Awaited<ReturnType<typeof useBoard>["data"]> & object;
 type Slot = Board["slots"][number];
@@ -27,8 +22,8 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 /**
- * 対戦枠の画面（入口）: 日付ごとに、対戦枠 → 挙手・組分け・勝利を、1か所で扱う。
- * 管理者が、組分けを追加（挙手は自動で付く）して、その行から勝利を追加する。
+ * 対戦枠の画面（入口）: 日付ごとに、対戦枠 → 挙手・組分けを、1か所で扱う。
+ * 管理者が、組分けを追加（挙手は自動で付く）したり、削除したりする。
  */
 export function BoardPage() {
   // 見ている日付は、URL に持つ（省略は、今日）。続けて押しても、1日ずつ進むように、表示中のデータではなく、URL の日付を基準にする
@@ -76,13 +71,11 @@ export function BoardPage() {
             <Text c="dimmed">試合時刻が登録されていません。設定で追加してください。</Text>
           ) : (
             // 進行表: 対戦枠を、時刻の順に、1 つの面に並べる（細い線で区切る）
-            <RuleContext.Provider value={data.rule}>
-              <div className="surface">
-                {data.slots.map((slot) => (
-                  <SlotCard key={slot.hour} date={data.date} slot={slot} />
-                ))}
-              </div>
-            </RuleContext.Provider>
+            <div className="surface">
+              {data.slots.map((slot) => (
+                <SlotCard key={slot.hour} date={data.date} slot={slot} />
+              ))}
+            </div>
           )
         }
       </Async>
@@ -102,7 +95,7 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
     REFRESH,
   );
 
-  // マッチングの確定（cron の締切と同じ処理）と、やり直し（組分けと勝利を消して、挙手を受け付ける状態に戻す）
+  // マッチングの確定（cron の締切と同じ処理）と、やり直し（組分けを消して、挙手を受け付ける状態に戻す）
   const confirm = useInvalidatingMutation(
     () => unwrap(api["match-slots"].confirm.$post({ json: { slotHour: slot.hour, slotDate: date } })),
     REFRESH,
@@ -113,21 +106,30 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
     () => unwrap(api["match-slots"].reopen.$post({ json: { slotHour: slot.hour, slotDate: date, notify: notifyCancel } })),
     REFRESH,
   );
-  const winCount = slot.matches.filter((match) => match.win).length + slot.matches.reduce((sum, match) => sum + match.deletedWins, 0);
-  const reopenLabel =
-    slot.matches.length === 0
-      ? "やり直しを実行する"
-      : `組分け${slot.matches.length}件${winCount > 0 ? `と勝利${winCount}件` : ""}を削除して、やり直す`;
+  // 待機の解除（継続募集中のとき）。待機しているチームの代わりに、「待機をキャンセル」を押すのと同じ。待機する（開始）は、チームの選択なので、ここには、ない
+  const cancelWaiting = useInvalidatingMutation(
+    () => unwrap(api["match-slots"]["cancel-waiting"].$post({ json: { slotHour: slot.hour, slotDate: date } })),
+    REFRESH,
+  );
+  const reopenLabel = slot.matches.length === 0 ? "やり直しを実行する" : `組分け${slot.matches.length}件を削除して、やり直す`;
 
-  // この対戦枠への操作（マッチング処理の実行 / やり直し）。右の欄の上に置く
+  // この対戦枠への操作（待機の解除 / マッチング処理の実行 / やり直し）。右の欄の上に置く
   const slotAction = (
     <>
+      {slot.waiting && (
+        <ConfirmButton
+          label="待機を解除する"
+          description={`${slot.waiting.name} の待機を解除します。募集のメッセージは削除されます。案内の「待機する」は残るので、チームは、待機し直せます。`}
+          disabled={cancelWaiting.isPending}
+          onConfirm={() => cancelWaiting.mutate()}
+        />
+      )}
       {slot.matched ? (
         <ConfirmButton
           label="やり直す"
           confirmLabel={reopenLabel}
           heavy
-          description="この対戦枠の組分けと勝利（画像も）を削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
+          description="この対戦枠の組分けを削除して、未マッチングに戻します。挙手は残ります。元に戻せません。"
           danger
           extra={
             (slot.matches.length > 0 || slot.excluded !== null) && (
@@ -160,15 +162,24 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
       {/* 左: 時刻（目印）・状態・この対戦枠への操作 */}
       <Stack gap="sm" align="flex-start">
         <h2 className="slot-time">{formatHour(slot.hour)}</h2>
-        {/* 状態は、3 つ: 未マッチング（受付の段階つき）/ マッチング済み / 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
+        {/* 状態: 未マッチング（受付の段階つき）/ マッチング済み / 継続募集中（組まれなかったチームが待機して、00 分まで、別のチームを募集している）/ 削除済み（設定で試合時刻を削除した。削除した日までの対戦枠が残る） */}
         {slot.deleted ? (
           <Badge color="gray" variant="filled" tt="none" title="設定で削除した試合時刻です。削除した日までの対戦枠が、残っています">
             削除済み
+          </Badge>
+        ) : slot.waiting ? (
+          <Badge color="orange" variant="light" tt="none" title={`${slot.waiting.name} が待機中。試合開始まで、先着 1 チームが対戦できます`}>
+            継続募集中
           </Badge>
         ) : (
           <Badge color={slot.matched ? "green" : slot.phase === "open" ? "cobalt" : "gray"} variant="light" tt="none">
             {slot.matched ? "マッチング済み" : (PHASE_LABEL[slot.phase] ?? slot.phase)}
           </Badge>
+        )}
+        {slot.waiting && (
+          <Text size="xs" c="dimmed">
+            {slot.waiting.name} が待機中
+          </Text>
         )}
       </Stack>
 
@@ -179,10 +190,10 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
             <Title order={3} c="dimmed">
               挙手 {slot.handups.length > 0 && `（${slot.handups.length}）`}
             </Title>
-            {/* 削除済みの試合時刻は、マッチング処理も、やり直しも、しない（組分けと勝利の記録だけを、扱う） */}
+            {/* 削除済みの試合時刻は、マッチング処理も、やり直しも、しない（組分けだけを、扱う） */}
             {!slot.deleted && slotAction}
           </Group>
-          <ErrorNote error={confirm.error ?? reopen.error} />
+          <ErrorNote error={confirm.error ?? reopen.error ?? cancelWaiting.error} />
           {reopen.data?.notifyFailed && (
             <Text size="sm" c="red" role="alert">
               やり直しはできましたが、Discord への投稿に失敗しました。必要なら、チームに、直接お知らせください。
@@ -238,15 +249,11 @@ function SlotCard({ date, slot }: { date: string; slot: Slot }) {
               まだありません
             </Text>
           ) : (
-            <Table.ScrollContainer minWidth={820}>
+            <Table.ScrollContainer minWidth={420}>
               <Table>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>組分け</Table.Th>
-                    <Table.Th w={120}>勝利チーム</Table.Th>
-                    <Table.Th w={90}>点数</Table.Th>
-                    <Table.Th w={190}>記録</Table.Th>
-                    <Table.Th w={60}>画像</Table.Th>
                     <Table.Th />
                   </Table.Tr>
                 </Table.Thead>
@@ -308,7 +315,15 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
     (input: { teamAId: number; teamBId: number }) => unwrap(api.matches.$post({ json: { ...input, slotHour: hour, slotDate: date } })),
     REFRESH,
   );
+  const teams = useTeams();
   if (candidates.length < 2) return null;
+
+  // 規定数ちょうどのチームは、この組分けを足すと、規定数を超える（追加は止めない。管理者が決める）
+  const limit = teams.data?.matchLimit ?? null;
+  const exceeding = [teamAId, teamBId].flatMap((id) => {
+    const team = teams.data?.teams.find((candidate) => candidate.id === id);
+    return limit !== null && team && team.matchCount >= limit ? [team] : [];
+  });
 
   return (
     <form
@@ -340,35 +355,50 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
           組分けを追加
         </Button>
       </Group>
+      {exceeding.length > 0 && limit !== null && (
+        <Text size="sm" c="orange" mt="xs" role="note">
+          {exceeding.map((team) => team.name).join("・")}は、この組分けを追加すると、試合数が規定数（{limit}試合）を超えます
+        </Text>
+      )}
       <ErrorNote error={add.error} />
     </form>
   );
 }
 
-/**
- * 組分けの 1 行（表の行）。表には、内容だけを出す。操作は、行の右端の「操作 ▾」メニューに、項目の名前で入れる。
- * 勝利があれば、その内容を。なければ、「勝利を追加」のボタンを出す（押すと、入力のダイアログが開く）。
- */
+/** 組分けの 1 行（表の行）。右端に「削除」のボタンを置く */
 function MatchRow({ match }: { match: Match }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
+  // 表示は、各チームが何試合目かを添える（そのチームが入った組分けの数。サーバーが、組分けから数える）
+  // 規定数を超えた試合には、「超過」を添える
+  const numberOf = (number: number, over: boolean) => `${number}試合目${over ? "・超過" : ""}`;
+  const shown = `${match.teamA.name}（${numberOf(match.matchNumberA, match.overA)}） vs ${match.teamB.name}（${numberOf(match.matchNumberB, match.overB)}）`;
   const [removing, setRemoving] = useState(false);
   const removeMatch = useInvalidatingMutation(
     (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),
     REFRESH,
   );
-  // 組分けを削除すると、その勝利（削除済みのものも）と画像も消える。確認に、その件数を出す
-  const winCount = (match.win ? 1 : 0) + match.deletedWins;
-  const removeMatchItem: RowMenuItem = { label: "組分けを削除", danger: true, onClick: () => setRemoving(true) };
 
   return (
     <>
       <Table.Tr>
-        <Table.Td>{label}</Table.Td>
-        {match.win ? <WinCells match={match} win={match.win} removeMatchItem={removeMatchItem} /> : <NoWinCells match={match} removeMatchItem={removeMatchItem} />}
+        <Table.Td>
+          {shown}
+          {/* 主催（部屋を立てる側）。組分けを作るときに、無作為に決めて保存した値 */}
+          <Text span c="dimmed" size="sm" ml="xs">
+            主催: {match.host.name}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <Group justify="flex-end" wrap="nowrap">
+            <Button variant="default" color="red" size="xs" onClick={() => setRemoving(true)} aria-label={`${label}を削除`}>
+              削除
+            </Button>
+          </Group>
+        </Table.Td>
       </Table.Tr>
       {removeMatch.error && (
         <Table.Tr>
-          <Table.Td colSpan={6}>
+          <Table.Td colSpan={2}>
             <ErrorNote error={removeMatch.error} />
           </Table.Td>
         </Table.Tr>
@@ -377,163 +407,11 @@ function MatchRow({ match }: { match: Match }) {
         opened={removing}
         onClose={() => setRemoving(false)}
         title={`${label}の組分けを削除`}
-        description={winCount > 0 ? `この組分けの勝利（${winCount}件。削除済みも含む）と画像も、あわせて削除します。元に戻せません。` : "この組分けを削除します。"}
-        confirmLabel={winCount > 0 ? `勝利${winCount}件も削除して、実行する` : "削除を実行する"}
+        description="この組分けを削除します。"
+        confirmLabel="削除を実行する"
         disabled={removeMatch.isPending}
         onConfirm={() => removeMatch.mutate(match.id)}
       />
     </>
-  );
-}
-
-type Win = NonNullable<Match["win"]>;
-
-/** 記録された勝利の列（勝利チーム・点数・記録・画像）と、操作のメニュー */
-function WinCells({ match, win, removeMatchItem }: { match: Match; win: Win; removeMatchItem: RowMenuItem }) {
-  const label = `${match.teamA.name} vs ${match.teamB.name}の勝利`;
-  const edit = usePointsEditor({ winId: win.id, points: win.points, label });
-  const removeWin = useInvalidatingMutation(
-    (id: number) => unwrap(api.wins[":id"].active.$put({ param: { id: String(id) }, json: { active: false } })),
-    REFRESH,
-  );
-  return (
-    <>
-      <Table.Td>
-        <Badge color="gray" variant="light" size="lg" tt="none">
-          {win.team.name}
-        </Badge>
-      </Table.Td>
-      <Table.Td>{edit.points}</Table.Td>
-      <Table.Td c="dimmed">
-        {win.recordedByName}・{formatJstDateTime(win.createdAt)}
-      </Table.Td>
-      <Table.Td>{win.hasScreenshot ? <ScreenshotLink winId={win.id} label="画像" /> : "—"}</Table.Td>
-      <Table.Td>
-        <Group justify="flex-end" wrap="nowrap">
-          {edit.controls ?? (
-            <RowMenu
-              label={`${match.teamA.name} vs ${match.teamB.name}の操作`}
-              items={[
-                { label: "点数を編集", onClick: edit.start },
-                { label: "勝利を削除", onClick: () => removeWin.mutate(win.id), disabled: removeWin.isPending },
-                removeMatchItem,
-              ]}
-            />
-          )}
-        </Group>
-        <ErrorNote error={edit.error ?? removeWin.error} />
-      </Table.Td>
-    </>
-  );
-}
-
-/** 勝利がまだない組分けの列。「勝利を追加」と、操作のメニュー */
-function NoWinCells({ match, removeMatchItem }: { match: Match; removeMatchItem: RowMenuItem }) {
-  const [adding, setAdding] = useState(false);
-  const label = `${match.teamA.name} vs ${match.teamB.name}`;
-  return (
-    <>
-      <Table.Td colSpan={4} c="dimmed">
-        勝利はまだありません
-      </Table.Td>
-      <Table.Td>
-        <Group gap="xs" justify="flex-end" wrap="nowrap">
-          <Button variant="light" size="xs" onClick={() => setAdding(true)} aria-label={`${label}の勝利を追加`}>
-            勝利を追加
-          </Button>
-          <RowMenu label={`${label}の操作`} items={[removeMatchItem]} />
-        </Group>
-        <AddWinDialog match={match} opened={adding} onClose={() => setAdding(false)} />
-      </Table.Td>
-    </>
-  );
-}
-
-/** 選んだ画像のファイル名を、ボタンに収まる長さにする（拡張子は残す） */
-const shortName = (name: string) => (name.length <= 24 ? name : `${name.slice(0, 12)}…${name.slice(-8)}`);
-
-/** 勝利を追加するダイアログ。勝ったチーム・点数・画像を入力する */
-function AddWinDialog({ match, opened, onClose }: { match: Match; opened: boolean; onClose: () => void }) {
-  const resetFile = useRef<() => void>(null);
-  const [teamId, setTeamId] = useState<number | "">("");
-  const [points, setPoints] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const record = useInvalidatingMutation(
-    (form: FormData) => unwrap(api.matches[":id"].wins.$post({ param: { id: String(match.id) } }, { init: { body: form } })),
-    REFRESH,
-  );
-  const rule = useContext(RuleContext);
-  const label = `${match.teamA.name} vs ${match.teamB.name}`;
-  // 勝つチームが、その組分けで N 試合目を超えているなら、入力は要らない（固定点で登録される）
-  const matchNumber = teamId === "" ? null : teamId === match.teamA.id ? match.matchNumberA : match.matchNumberB;
-  const fixed = rule !== null && matchNumber !== null && matchNumber > rule.fixedAfterMatches;
-  // 点数の入力が正しくないときは、入力欄の下に、理由を出す（空のときは、まだ入力していないだけなので、出さない）
-  const pointsError = fixed || points === "" ? undefined : validatePoints(points);
-  const pointsValid = fixed || (points !== "" && pointsError === undefined);
-  const ready = teamId !== "" && pointsValid && image !== null;
-  // 追加できないとき、足りないものを、ボタンの横に出す
-  const missing = [teamId === "" && "勝ったチームを選ぶ", !pointsValid && pointsError === undefined && "点数を入力する", image === null && "画像を選ぶ"].filter((item): item is string => item !== false);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!ready) return;
-    const form = new FormData();
-    form.set("teamId", String(teamId));
-    form.set("points", fixed && rule ? String(rule.fixedPoints) : points);
-    form.set("image", image);
-    record.mutate(form, {
-      onSuccess: () => {
-        resetFile.current?.();
-        setTeamId("");
-        setPoints("");
-        setImage(null);
-        onClose();
-      },
-    });
-  }
-
-  return (
-    <Modal opened={opened} onClose={onClose} title={`${label}の勝利を追加`} centered>
-      <form onSubmit={submit} aria-label={`${label}の勝利を追加`}>
-        <Stack gap="md">
-          <NativeSelect label="勝ったチーム" value={teamId} onChange={(event) => setTeamId(toId(event.target.value))} data={teamOptions([match.teamA, match.teamB], "選択してください")} />
-          {fixed && rule ? (
-            <TextInput
-              label="点数"
-              name="points"
-              value={`${rule.fixedPoints}`}
-              readOnly
-              disabled
-              description={`${matchNumber} 試合目（N=${rule.fixedAfterMatches} を超えています）。点数は、固定点の ${rule.fixedPoints}pt で登録されます`}
-            />
-          ) : (
-            <TextInput label="点数" name="points" type="number" min={0} max={MAX_POINTS} step={1} value={points} error={pointsError ?? false} onChange={(event) => setPoints(event.target.value)} />
-          )}
-          <Input.Wrapper label="画像">
-            <div>
-              <FileButton resetRef={resetFile} onChange={setImage} accept="image/png,image/jpeg,image/webp" inputProps={{ "aria-label": "画像" }}>
-                {(fileProps) => (
-                  <Button variant="default" {...fileProps} title={image?.name}>
-                    {image ? shortName(image.name) : "画像を選択"}
-                  </Button>
-                )}
-              </FileButton>
-            </div>
-          </Input.Wrapper>
-          <ErrorNote error={record.error} />
-          {/* やめるときは、右上の×・外側を押す・Esc で閉じる（キャンセルのボタンは置かない） */}
-          <Group justify="flex-end" gap="xs" wrap="nowrap">
-            {!ready && (missing.length > 0 || pointsError) && (
-              <Text size="xs" c="dimmed" mr="auto" role="status">
-                追加するには、{pointsError ? "点数を直す" : missing.join("・")}
-              </Text>
-            )}
-            <Button type="submit" disabled={!ready || record.isPending}>
-              追加
-            </Button>
-          </Group>
-        </Stack>
-      </form>
-    </Modal>
   );
 }

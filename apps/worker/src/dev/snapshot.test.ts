@@ -6,16 +6,13 @@ import {
   createSession,
   createTeam,
   defaultGuildSettings,
-  deleteAllMatches,
-  deleteAllWins,
-  setWinActive,
   saveMatchResult,
   saveGuildSettings,
   withdrawHandup,
 } from "@uc/db";
 import { createTestDb } from "@uc/db/testing";
 import { beforeEach, describe, expect, it } from "vitest";
-import { GUILD_ID, createSeededDb, fakeRoleRest, insertWinInSlot, jst } from "../test-helpers";
+import { GUILD_ID, createSeededDb, fakeRoleRest, jst } from "../test-helpers";
 import { buildDevSnapshot } from "./snapshot";
 
 let seeded: Awaited<ReturnType<typeof createSeededDb>>;
@@ -27,12 +24,6 @@ beforeEach(async () => {
 const NOW = jst("2026-10-07T21:30:00");
 const snapshot = (at = NOW) => buildDevSnapshot({ db: seeded.db, guildId: GUILD_ID, clock: fixedClock(at), rest: fakeRoleRest });
 
-const win = (teamId: number, day: number, points: number, extra: { screenshotKey?: string } = {}) =>
-  insertWinInSlot(seeded.db, {
-    guildId: GUILD_ID, teamId, slotDate: `2026-09-${String(day).padStart(2, "0")}`, slotHour: 21,
-    points, screenshotKey: extra.screenshotKey ?? null, recordedBy: "admin", createdAt: day,
-  });
-
 describe("buildDevSnapshot", () => {
   it("何もなければ、設定・対戦枠・チームだけが入った、空の状態を返す", async () => {
     const result = await snapshot();
@@ -40,19 +31,17 @@ describe("buildDevSnapshot", () => {
     expect(result).toMatchObject({
       now: NOW.toISOString(),
       today: "2026-10-07",
-      settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
+      settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7 },
       slotHours: [21, 22, 23],
       handups: [],
       rounds: [],
-      wins: [],
       jobs: [],
       dashboard: { links: [], sessions: 0 },
-      screenshots: 0,
     });
     expect(result.teams.map((t) => t.name)).toEqual(["KMU", "UT"]);
-    expect(result.teamStats.map((t) => [t.name, t.activeHandups, t.matches, t.wins, t.total])).toEqual([
-      ["KMU", [], 0, 0, 0],
-      ["UT", [], 0, 0, 0],
+    expect(result.teamStats.map((t) => [t.name, t.activeHandups, t.matches])).toEqual([
+      ["KMU", [], 0],
+      ["UT", [], 0],
     ]);
   });
 
@@ -99,70 +88,6 @@ describe("buildDevSnapshot", () => {
       const stat = (name: string) => teamStats.find((t) => t.name === name);
       expect([stat("KMU")?.matches, stat("UT")?.matches, stat("NGT")?.matches]).toEqual([2, 1, 1]);
       expect([stat("KMU")?.excluded, stat("UT")?.excluded, stat("NGT")?.excluded]).toEqual([0, 0, 1]);
-    });
-  });
-
-  describe("得点と勝利記録", () => {
-    it("勝利数と得点を、チームごとに出す。N 試合を超えた試合（6 試合目から）の勝利は、固定点で数える", async () => {
-      for (let day = 1; day <= 7; day++) await win(seeded.kmuId, day, 10);
-      await win(seeded.utId, 1, 60, { screenshotKey: "screenshots/x/a.png" });
-
-      const { teamStats, wins, screenshots } = await snapshot();
-
-      expect(teamStats.find((t) => t.name === "KMU")).toMatchObject({ wins: 7, total: 5 * 10 + 2 * 100 });
-      expect(teamStats.find((t) => t.name === "UT")).toMatchObject({ wins: 1, total: 60 });
-      expect(screenshots).toBe(1);
-      // 新しい順。そのチームの何試合目で、集計は何 pt か
-      expect(wins[0]).toMatchObject({ teamName: "UT", points: 60, countedPoints: 60, matchNumber: 1, active: true, hasScreenshot: true });
-      const seventh = wins.find((e) => e.teamName === "KMU" && e.matchNumber === 7);
-      expect(seventh).toMatchObject({ points: 10, countedPoints: 100 });
-    });
-
-    it("無効にした勝利は、active が false で、集計の対象から外れる。有効に戻すと、数え直される", async () => {
-      const first = await win(seeded.kmuId, 1, 80);
-      await win(seeded.kmuId, 2, 70);
-      await setWinActive(seeded.db, { guildId: GUILD_ID, id: first, active: false });
-
-      const off = await snapshot();
-
-      expect(off.teamStats.find((t) => t.name === "KMU")).toMatchObject({ wins: 1, total: 70 });
-      expect(off.wins.find((w) => w.id === first)).toMatchObject({ active: false, countedPoints: null, matchNumber: null });
-
-      await setWinActive(seeded.db, { guildId: GUILD_ID, id: first, active: true });
-      const on = await snapshot();
-
-      expect(on.teamStats.find((t) => t.name === "KMU")).toMatchObject({ wins: 2, total: 150 });
-      expect(on.wins.find((w) => w.id === first)).toMatchObject({ active: true, countedPoints: 80, matchNumber: 1 });
-    });
-
-    it("勝利には、組分け（試合の2チーム）と、対戦枠（日付・時刻）がつく", async () => {
-      await win(seeded.kmuId, 1, 80);
-
-      const [first] = (await snapshot()).wins;
-
-      expect(first).toMatchObject({ teamName: "KMU", match: { a: "KMU", b: "UT" }, slotDate: "2026-09-01", slotHour: 21 });
-    });
-
-    it("得点のクリアのあとは、クリア前の勝利は、履歴にも残らない", async () => {
-      await win(seeded.kmuId, 1, 80);
-      await deleteAllWins(seeded.db, GUILD_ID);
-      await deleteAllMatches(seeded.db, GUILD_ID);
-      await win(seeded.kmuId, 9, 30);
-
-      const { wins, teamStats } = await snapshot();
-
-      expect(teamStats.find((t) => t.name === "KMU")).toMatchObject({ wins: 1, total: 30 });
-      expect(wins).toHaveLength(1);
-      expect(wins[0]).toMatchObject({ countedPoints: 30, matchNumber: 1, active: true });
-    });
-
-    it("勝利の記録は、最大50件まで（新しい順）", async () => {
-      for (let i = 1; i <= 55; i++) await win(seeded.kmuId, (i % 28) + 1, 1);
-
-      const { wins } = await snapshot();
-
-      expect(wins).toHaveLength(50);
-      expect(wins[0]?.id).toBe(55);
     });
   });
 

@@ -5,8 +5,25 @@ import { userName, type MockMessage, type MockStateData } from "../mockState";
 import { jstHm } from "../time";
 import { DiscordText } from "./DiscordText";
 
-/** Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る */
-export function Feed({ state }: { state: MockStateData }) {
+/** 返信の相手のメッセージを、1 行で出す。相手が、すでに削除されていれば、その旨 */
+function ReplyPreview({ state, replyTo }: { state: MockStateData; replyTo: string }) {
+  const original = state.messages.find((m) => m.id === replyTo);
+  const firstLine = original?.content.split("\n")[0] ?? "";
+  return (
+    <div className="reply" aria-label="返信の相手">
+      <span className="reply-arrow" aria-hidden="true">
+        ↱
+      </span>
+      <span className="reply-text">{original ? <DiscordText text={firstLine} state={state} /> : "元のメッセージは、削除されました"}</span>
+    </div>
+  );
+}
+
+/**
+ * Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る。
+ * ボタンは、本人にだけ見える返信なら、その本人として、公開メッセージなら、選んでいる実行者として押す（チームごとに、押せるかが変わるため）。
+ */
+export function Feed({ state, selectedUsers }: { state: MockStateData; selectedUsers: string[] }) {
   const click = useAction((form) => mockApi.click.$post({}, { init: { body: form } }));
   const scroller = useRef<HTMLDivElement>(null);
   const count = state.messages.length;
@@ -16,7 +33,8 @@ export function Feed({ state }: { state: MockStateData }) {
     if (element) element.scrollTop = element.scrollHeight;
   }, [count]);
 
-  const press = (message: MockMessage, customId: string) => click.mutate(formOf({ custom_id: customId, message_id: message.id }));
+  const press = (message: MockMessage, customId: string) =>
+    click.mutate(formOf({ custom_id: customId, message_id: message.id, users: selectedUsers.join(",") }));
 
   return (
     <div className="discord">
@@ -38,6 +56,8 @@ export function Feed({ state }: { state: MockStateData }) {
                 UC
               </div>
               <div style={{ minWidth: 0 }}>
+                {/* 返信なら、返信の相手のメッセージを、1 行で見せる（Discord の、「返信」の表示） */}
+                {message.replyTo ? <ReplyPreview state={state} replyTo={message.replyTo} /> : null}
                 <div className="msg-head">
                   <span className="author">UC Bot</span>
                   <span className="bot">BOT</span>

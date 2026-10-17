@@ -13,8 +13,6 @@ import type { MockState } from "./state";
 export type InteractionClientOptions = {
   /** worker の URL（例: http://localhost:8787） */
   workerUrl: string;
-  /** この疑似 Discord の URL。添付ファイルの URL に使う（worker が取りに来る） */
-  mockUrl: string;
   keys: DevKeyPair;
   applicationId: string;
   fetch?: typeof fetch;
@@ -25,7 +23,7 @@ export type InteractionClientOptions = {
 export type SendCommandInput = {
   userId: string;
   name: string;
-  /** コマンドのオプション。ロールは名前か ID で、添付ファイルは state.addAttachment の ID で指定する */
+  /** コマンドのオプション。ロールは名前か ID で指定する */
   options?: Record<string, string | number>;
 };
 
@@ -44,7 +42,6 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
   const doFetch = options.fetch ?? fetch;
   const nowSeconds = options.nowSeconds ?? (() => Math.floor(Date.now() / 1000));
   const workerUrl = options.workerUrl.replace(/\/$/, "");
-  const mockUrl = options.mockUrl.replace(/\/$/, "");
 
   /** 署名して、/interactions に送る（時計は、worker が持つ。ここでは、伝えない） */
   async function post(interaction: Interaction): Promise<SendResult> {
@@ -89,11 +86,10 @@ export function createDiscordInteractions(options: InteractionClientOptions, sta
     if (!definition) throw new Error(`コマンドが見つかりません: ${input.name}`);
 
     const interaction = baseInteraction(input.userId);
-    const built = buildOptions(definition.options ?? [], input.options ?? {}, state, mockUrl);
+    const options = buildOptions(definition.options ?? [], input.options ?? {}, state);
     interaction.data = {
       name: input.name,
-      options: built.options,
-      ...(Object.keys(built.attachments).length > 0 ? { resolved: { attachments: built.attachments } } : {}),
+      options,
     };
 
     // 応答（考え中）を受け取る前に、worker が返信を編集しに来ることがある。先に、受け付けられるようにしておく。
@@ -155,8 +151,7 @@ function buildOptions(
   definitions: OptionDefinition[],
   given: Record<string, string | number>,
   state: MockState,
-  mockUrl: string,
-) {
+): CommandOptionValue[] {
   for (const key of Object.keys(given)) {
     if (!definitions.some((definition) => definition.name === key)) {
       throw new Error(`このコマンドにないオプションです: ${key}`);
@@ -164,7 +159,6 @@ function buildOptions(
   }
 
   const result: CommandOptionValue[] = [];
-  const attachments: Record<string, { id: string; url: string; filename: string; content_type: string; size: number }> = {};
 
   for (const definition of definitions) {
     const raw = given[definition.name];
@@ -186,22 +180,9 @@ function buildOptions(
         result.push({ name: definition.name, type: definition.type, value: role.id });
         break;
       }
-      case ApplicationCommandOptionType.Attachment: {
-        const attachment = state.getAttachment(String(raw));
-        if (!attachment) throw new Error(`添付ファイルが見つかりません: ${definition.name}`);
-        attachments[attachment.id] = {
-          id: attachment.id,
-          url: `${mockUrl}/attachments/${attachment.id}`,
-          filename: attachment.filename,
-          content_type: attachment.contentType,
-          size: attachment.bytes.byteLength,
-        };
-        result.push({ name: definition.name, type: definition.type, value: attachment.id });
-        break;
-      }
       default:
         result.push({ name: definition.name, type: definition.type, value: String(raw) });
     }
   }
-  return { options: result, attachments };
+  return result;
 }

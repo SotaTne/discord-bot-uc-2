@@ -1,4 +1,5 @@
 import { RouteBases, Routes } from "discord-api-types/v10";
+import type { ActionRow } from "./responses";
 
 /** Discord の API の URL（バージョンつき）。公式の型定義の値を使う */
 export const DISCORD_API_BASE = `${RouteBases.api}`;
@@ -10,8 +11,12 @@ export type MessagePayload = {
    * parse に "roles" を入れると、本文中のロールのメンションが、すべて通知される。roles に ID を渡すと、そのロールだけが通知される（どちらか一方）。
    * @here・@everyone は、parse に "everyone" を入れたときだけ通知される
    */
-  allowed_mentions?: { parse?: string[]; roles?: string[] };
+  allowed_mentions?: { parse?: string[]; roles?: string[]; replied_user?: boolean };
   flags?: number;
+  /** ボタン。空の配列を渡すと、メッセージのボタンが消える（編集のとき） */
+  components?: ActionRow[];
+  /** 別のメッセージへの返信にする（投稿のとき）。元のメッセージが消えていても、投稿できるようにする（fail_if_not_exists: false） */
+  message_reference?: { message_id: string; fail_if_not_exists?: boolean };
 };
 
 export class DiscordApiError extends Error {
@@ -75,6 +80,14 @@ export function createDiscordRest(options: DiscordRestOptions) {
     /** deferred で返したインタラクションの応答を、あとから編集する（トークンで認証するので Bot トークンは不要） */
     editOriginalResponse: (applicationId: string, interactionToken: string, payload: MessagePayload) =>
       request<unknown>("PATCH", `${Routes.webhook(applicationId, interactionToken)}/messages/@original`, payload, false),
+
+    /** チャンネルのメッセージを編集する（ボタンを消す・付け替える） */
+    editMessage: (channelId: string, messageId: string, payload: MessagePayload) =>
+      request<unknown>("PATCH", `${Routes.channelMessages(channelId)}/${messageId}`, payload),
+
+    /** チャンネルのメッセージを削除する（すでにない場合は 404） */
+    deleteMessage: (channelId: string, messageId: string) =>
+      request<unknown>("DELETE", `${Routes.channelMessages(channelId)}/${messageId}`),
 
     getGuildRoles: (guildId: string) => request<DiscordRole[]>("GET", Routes.guildRoles(guildId)),
 

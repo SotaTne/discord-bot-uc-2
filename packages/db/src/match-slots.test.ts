@@ -6,13 +6,14 @@ import {
   ensureMatchSlot,
   findMatchSlot,
   MatchSlotMatchedError,
-  insertWin,
   listHandupsForSlot,
   listMatchSlots,
   listMatchedSlots,
-  listWins,
   markMatchSlotMatched,
   saveMatchResult,
+  setWaitingMessage,
+  startWaiting,
+  stopWaiting,
   withdrawHandup,
   withdrawHandupById,
 } from "./index";
@@ -91,6 +92,46 @@ describe("マッチング済みの対戦枠は、挙手を受け付けない（�
   });
 });
 
+describe("継続募集（待機）", () => {
+  const matchedWithExcluded = async () => {
+    await saveMatchResult(db, { ...slot, excludedTeamId: ut, pairs: [], now: 10 });
+    return (await findMatchSlot(db, slot))!;
+  };
+
+  it("組まれなかったチームがいる、マッチング済みの対戦枠で、待機を始められる。二重には、始められない", async () => {
+    const fixture = await matchedWithExcluded();
+
+    expect(await startWaiting(db, { id: fixture.id, since: 100 })).toBe(true);
+    expect(await startWaiting(db, { id: fixture.id, since: 200 })).toBe(false);
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingSince: 100, excludedTeamId: ut });
+  });
+
+  it("組まれなかったチームがいない対戦枠・未マッチングの対戦枠では、始められない", async () => {
+    const open = await ensureMatchSlot(db, { ...slot, createdAt: 1 });
+    expect(await startWaiting(db, { id: open.id, since: 100 })).toBe(false);
+
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[kmu, ut]], now: 10 });
+    expect(await startWaiting(db, { id: open.id, since: 100 })).toBe(false);
+  });
+
+  it("待機をやめられる。待機中でなければ、何もしない。組まれなかったチームは、そのまま", async () => {
+    const fixture = await matchedWithExcluded();
+    await startWaiting(db, { id: fixture.id, since: 100 });
+
+    expect(await stopWaiting(db, fixture.id)).toBe(true);
+    expect(await stopWaiting(db, fixture.id)).toBe(false);
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingSince: null, excludedTeamId: ut });
+  });
+
+  it("案内のメッセージ ID を、保存できる", async () => {
+    const fixture = await matchedWithExcluded();
+
+    await setWaitingMessage(db, { id: fixture.id, messageId: "999" });
+
+    expect(await findMatchSlot(db, slot)).toMatchObject({ waitingMessageId: "999" });
+  });
+});
+
 describe("組分けと勝利は、対戦枠・試合に紐づく", () => {
   const save = (over: { slotHour?: number; pairs?: [number, number][] } = {}) =>
     saveMatchResult(db, { ...slot, slotHour: 21, excludedTeamId: null, pairs: [], now: 10, ...over });
@@ -104,37 +145,14 @@ describe("組分けと勝利は、対戦枠・試合に紐づく", () => {
     await expect(createHandup(db, { ...slot, teamId: ut, raisedBy: "u", createdAt: 11 })).rejects.toBeInstanceOf(MatchSlotMatchedError);
   });
 
-  it("勝利は、試合に紐づく。日付と時刻は、その試合の対戦枠から取れる", async () => {
-    await save({ pairs: [[kmu, ut]] });
-    await save({ slotHour: 22, pairs: [[ut, kmu]] });
-    const [first, second] = await listMatchedSlots(db, { guildId: GUILD });
-    await insertWin(db, { guildId: GUILD, matchId: first!.pairs[0]!.matchId, teamId: kmu, points: 80, screenshotKey: null, recordedBy: "a", createdAt: 2 });
-    await insertWin(db, { guildId: GUILD, matchId: second!.pairs[0]!.matchId, teamId: kmu, points: 50, screenshotKey: null, recordedBy: "a", createdAt: 3 });
-
-    const events = await listWins(db, GUILD);
-
-    expect(events.map((e) => [e.slotDate, e.slotHour, e.matchId])).toEqual([
-      [DATE, 21, first!.pairs[0]!.matchId],
-      [DATE, 22, second!.pairs[0]!.matchId],
-    ]);
-  });
-
-  it("存在しない試合には、勝利を追加できない", async () => {
-    await expect(
-      insertWin(db, { guildId: GUILD, matchId: 999, teamId: kmu, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 1 }),
-    ).rejects.toThrow();
-  });
-
   it("活動の記録を消すと、対戦枠も試合も消える", async () => {
     await createHandup(db, { ...slot, teamId: kmu, raisedBy: "u", createdAt: 1 });
     await save({ pairs: [[kmu, ut]] });
     const matchId = (await listMatchedSlots(db, { guildId: GUILD }))[0]!.pairs[0]!.matchId;
-    await insertWin(db, { guildId: GUILD, matchId, teamId: kmu, points: 80, screenshotKey: null, recordedBy: "a", createdAt: 2 });
 
     await deleteGuildActivity(db, GUILD);
 
     expect(await listMatchSlots(db, { guildId: GUILD })).toEqual([]);
     expect(await listMatchedSlots(db, { guildId: GUILD })).toEqual([]);
-    expect(await listWins(db, GUILD)).toEqual([]);
   });
 });

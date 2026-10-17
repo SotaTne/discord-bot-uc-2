@@ -1,5 +1,5 @@
 import type { Clock } from "@uc/core";
-import { deleteGuildActivity, findWin, listConfiguredGuilds, type Db } from "@uc/db";
+import { deleteGuildActivity, listConfiguredGuilds, type Db } from "@uc/db";
 import { Hono } from "hono";
 import { getDevClockState, parseDevClockState, setDevClockState } from "./clock";
 import { createDb } from "../db";
@@ -45,24 +45,6 @@ export function createDevRoutes(deps: { clock: Clock }) {
       if (!guildId) return c.json({ error: "no_guild" as const }, 404);
 
       return c.json(await buildDevSnapshot({ db, guildId, clock: deps.clock, rest: createRestFromEnv(c.env) }), 200);
-    })
-
-    .get("/screenshots/:id", async (c) => {
-      const db = createDb(c.env.DB);
-      const guildId = await targetGuildId(db, c.req.query("guildId"));
-      const id = Number(c.req.param("id"));
-      if (!guildId || !Number.isInteger(id)) return c.json({ error: "not_found" as const }, 404);
-
-      const event = await findWin(db, guildId, id);
-      const object = event?.screenshotKey ? await c.env.SCREENSHOTS.get(event.screenshotKey) : null;
-      if (!object) return c.json({ error: "not_found" as const }, 404);
-
-      return new Response(object.body, {
-        headers: {
-          "Content-Type": object.httpMetadata?.contentType ?? "application/octet-stream",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
     })
 
     .post("/reset", async (c) => {

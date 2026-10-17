@@ -25,13 +25,8 @@ describe("ログインが必要", () => {
     ["POST", "/api/handups"],
     ["DELETE", "/api/handups/1"],
     ["POST", "/api/matches"],
+    ["POST", "/api/match-slots/cancel-waiting"],
     ["DELETE", "/api/matches/1"],
-    ["POST", "/api/matches/1/wins"],
-    ["GET", "/api/scores"],
-    ["GET", "/api/wins"],
-    ["PUT", "/api/wins/1/active"],
-    ["DELETE", "/api/wins"],
-    ["GET", "/api/screenshots/1"],
     ["GET", "/api/sessions"],
     ["DELETE", "/api/sessions/1"],
     ["POST", "/api/sessions/revoke-all"],
@@ -48,10 +43,9 @@ describe("サーバーの設定", () => {
     channelId: "300000000000000001",
     recruitHour: 10,
     cutoffMinutes: 15,
-    fixedAfterMatches: 4,
-    fixedPoints: 90,
     recruitMentionMode: "roles" as const,
     recruitMentionTargets: ["200000000000000099", "here"],
+    matchLimit: 8,
     revokeSessionsOnReissue: true,
   };
 
@@ -111,6 +105,32 @@ describe("試合時刻", () => {
 describe("チーム", () => {
   const team = { roleId: "400000000000000003" };
 
+  it("一覧に、各チームの試合数（そのチームが入った組分けの数）が付く。組まれていないチームは 0。/uc-teams と同じ数", async () => {
+    const { saveMatchResult } = await import("@uc/db");
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+
+    const { body } = await h.json<{ teams: { id: number; matchCount: number }[] }>("/api/teams", { cookie });
+
+    expect(body.teams.map((t) => [t.id, t.matchCount])).toEqual([[h.seeded.kmuId, 2], [h.seeded.utId, 2], [third.body.id, 0]]);
+  });
+
+  it("一覧に、規定数と、各チームの超過が付く（規定数なしなら null・超過なし）", async () => {
+    const { saveMatchResult, saveGuildSettings, defaultGuildSettings } = await import("@uc/db");
+    type Body = { teams: { id: number; matchOver: boolean }[]; matchLimit: number | null };
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+    expect((await h.json<Body>("/api/teams", { cookie })).body).toMatchObject({ matchLimit: null });
+
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, third.body.id]], now: 1 });
+    const { body } = await h.json<Body>("/api/teams", { cookie });
+
+    expect(body.matchLimit).toBe(1);
+    expect(body.teams.map((t) => [t.id, t.matchOver])).toEqual([[h.seeded.kmuId, true], [h.seeded.utId, false], [third.body.id, false]]);
+  });
+
   it("一覧できる。表示名は、ロールの名前（シード: KMU・UT）", async () => {
     const { body } = await h.json<{ teams: { name: string; roleId: string }[] }>("/api/teams", { cookie });
     expect(body.teams.map((t) => [t.name, t.roleId])).toEqual([["KMU", "400000000000000001"], ["UT", "400000000000000002"]]);
@@ -140,7 +160,7 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${created.body.id}`, { method: "DELETE", cookie })).status).toBe(404);
   });
 
-  it("使われているチームも削除できる（論理削除）。一覧と得点表から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
+  it("使われているチームも削除できる（論理削除）。一覧から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
     const { db, kmuId, utId } = h.seeded;
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: kmuId, raisedBy: "u", createdAt: 1 });
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: "u", createdAt: 1 });
@@ -149,7 +169,6 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${kmuId}`, { method: "DELETE", cookie })).status).toBe(200);
 
     expect((await h.json<{ teams: { name: string }[] }>("/api/teams", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
-    expect((await h.json<{ teams: { name: string }[] }>("/api/scores", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
     const board = (await h.json<{ slots: { hour: number; handups: unknown[]; matches: { teamA: { name: string } }[] }[] }>("/api/board", { cookie })).body.slots;
     expect(board.map((slot) => slot.handups.length)).toEqual([0, 0, 1]);
     expect(board.find((slot) => slot.hour === 23)?.matches[0]?.teamA.name).toBe("KMU");

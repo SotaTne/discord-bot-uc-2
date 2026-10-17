@@ -4,12 +4,11 @@ import type { DiscordRest, Interaction, InteractionResponse } from "@uc/discord"
 import type { AppEnv } from "../env";
 import { adminDashboard } from "./admin-dashboard";
 import { adminStatus } from "./admin-status";
-import { adminWin } from "./admin-win";
 import { handdown } from "./handdown";
 import { handup } from "./handup";
-import { scoreClear, scoreClearComponent } from "./score-clear";
 import { status } from "./status";
 import { teams } from "./teams";
+import { join, wait, waitCancel } from "./waiting";
 
 export type CommandContext = {
   interaction: Interaction;
@@ -37,12 +36,12 @@ export const commandHandlers: Record<string, CommandHandler> = {
   "uc-status": status,
   "uc-teams": teams,
   "uc-admin-status": adminStatus,
-  "uc-admin-win": adminWin,
-  "uc-admin-score-clear": scoreClear,
   "uc-admin-dashboard": adminDashboard,
 };
 
 /** ボタンなどのコンポーネントの処理。custom_id の「:」より前の部分が、キーになる */
 export const componentHandlers: Record<string, CommandHandler> = {
-  "score-clear": scoreClearComponent,
+  wait,
+  "wait-cancel": waitCancel,
+  join,
 };

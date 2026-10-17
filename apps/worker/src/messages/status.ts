@@ -5,37 +5,60 @@ import { teamMention } from "./mention";
 const STATUS_PHASE_LABEL: Record<HandupPhase, string> = {
   "before-open": "受付前",
   open: "受付中",
-  closed: "締切",
+  closed: "締切（マッチング待ち）",
 };
 
 /** matched: その日の対戦枠が、マッチング済み（時刻に関係なく、挙手を受け付けない） */
-export type SlotStatus = { hour: number; phase: HandupPhase; handups: Handup[]; matched?: boolean };
+export type SlotStatus = {
+  hour: number;
+  phase: HandupPhase;
+  handups: Handup[];
+  matched?: boolean;
+  /** 自チームが組まれていれば、その組分け（相手・何試合目か・主催） */
+  match?: { opponent: Team; number: number; host: Team; /** 何試合目が、規定数を超えている */ over?: boolean };
+  /** マッチング済みで、自チームが、奇数のために組まれなかった */
+  excluded?: boolean;
+  /** 継続募集中（組まれなかったチームが待機して、00 分まで、別のチームを募集している）。self: 待機しているのが、自チーム */
+  continued?: { waiting: Team; self: boolean };
+};
 
 /** 自チームの挙手状況の文面を作る（純粋な関数） */
 export function formatStatus(input: {
   team: Team;
   slotDate: string;
   slots: SlotStatus[];
-  /** 自チームの得点（順位・試合数・勝利数）。あれば、見出しの下に出す */
-  score?: { total: number; rank: number; matches: number; wins: number; fixedAfterMatches: number; fixedPoints: number };
+  /** 自チームが、これまでに入った組分けの数（組まれた試合数） */
+  matchCount?: number;
+  /** サーバー設定の規定数（null・省略は、なし）。試合数がこれを超えていれば、見出しの下に、その旨を出す */
+  matchLimit?: number | null;
 }): string {
-  // 得点は、数字を太字にして、順位・試合数・勝利数を、短く並べる。N を超えたときは、別の行（小さな字）で、その意味を伝える
-  const scoreLine = input.score
-    ? `\n**${input.score.total}pt**（${input.score.rank}位）・${input.score.matches}試合・${input.score.wins}勝` +
-      (input.score.matches > input.score.fixedAfterMatches
-        ? `\n-# 試合数${input.score.fixedAfterMatches}を超えました。以降の試合は、勝つと${input.score.fixedPoints}pt固定です`
-        : "")
-    : "";
-  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${scoreLine}`;
+  const count = input.matchCount === undefined ? "" : `\nこれまで ${input.matchCount} 試合（次の試合は ${input.matchCount + 1} 試合目）`;
+  const over =
+    input.matchLimit != null && input.matchCount !== undefined && input.matchCount > input.matchLimit
+      ? `\n-# 試合数が規定数（${input.matchLimit}試合）を超えています`
+      : "";
+  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${count}${over}`;
   if (input.slots.length === 0) {
     return `${header}\n試合時刻が登録されていません`;
   }
 
-  const lines = input.slots.map(({ hour, phase, handups, matched }) => {
+  // 対戦枠ごとに、知りたいのは、3 つ: 誰とマッチングしたか / 締切か / 受付中か
+  const lines = input.slots.map(({ hour, phase, handups, matched, match, excluded, continued }) => {
+    if (match) {
+      return `- ${hour}時: ${teamMention(match.opponent)} と対戦（${match.number}試合目${match.over ? "・規定数超過" : ""}・主催: ${teamMention(match.host)}）`;
+    }
+    // 継続募集中は、「マッチング済み」「締切」とは別の状態。参加できるのに、できないと見せない
+    if (continued) {
+      return continued.self
+        ? `- ${hour}時: 待機中（${hour}:00 まで、対戦相手を募集しています）`
+        : `- ${hour}時: 継続募集中（${teamMention(continued.waiting)} が待機中。${hour}:00 までに、先着 1 チームが対戦できます）`;
+    }
+    if (matched) {
+      return `- ${hour}時: ${excluded ? "組まれませんでした（挙手が奇数のため）" : "マッチング済み（組まれていません）"}`;
+    }
     const active = handups[0];
-
     const state = active ? `挙手済み（by <@${active.raisedBy}>, ${formatJstTime(new Date(active.createdAt))}）` : "未挙手";
-    return `- ${hour}時: ${state}・${matched ? "マッチング済み" : STATUS_PHASE_LABEL[phase]}`;
+    return `- ${hour}時: ${state}・${STATUS_PHASE_LABEL[phase]}`;
   });
 
   return [header, ...lines].join("\n");

@@ -30,7 +30,6 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
  * - POST /click        メッセージのボタンを押す
  * - POST /clock        時計を動かす（移る・日を前後・本物の時刻へ。動かしたら、cron が動く）
  * - POST /reset        すべて初期状態に戻す
- * - GET  /screenshots/:seq   worker に保存された画像
  */
 export function createMockApi(deps: MockApiDeps) {
   const { state } = deps;
@@ -94,18 +93,6 @@ export function createMockApi(deps: MockApiDeps) {
       });
     })
 
-    // 記録した勝利の画像（worker の R2 から取って、そのまま返す）
-    .get("/screenshots/:seq", async (c) => {
-      const response = await deps.workerDev.fetchScreenshot(c.req.param("seq")).catch(() => null);
-      if (!response?.ok) return c.text("not found", 404);
-      return new Response(response.body, {
-        headers: {
-          "Content-Type": response.headers.get("Content-Type") ?? "application/octet-stream",
-          "Cache-Control": "private, max-age=300",
-        },
-      });
-    })
-
     // コマンドの実行。フォームの項目は、コマンドの定義（@uc/discord）に従って、オプションにする。
     // 実行者が複数なら、選んだ順に、1人ずつ実行する
     .post("/send", (c) =>
@@ -120,17 +107,7 @@ export function createMockApi(deps: MockApiDeps) {
         const options: Record<string, string | number> = {};
         for (const option of definition.options ?? []) {
           const value = form[option.name];
-          if (value instanceof File) {
-            // アップロードされた画像は、添付ファイルとして渡す
-            if (value.size > 0) {
-              const attachment = state.addAttachment({
-                filename: value.name,
-                contentType: value.type || "application/octet-stream",
-                bytes: new Uint8Array(await value.arrayBuffer()),
-              });
-              options[option.name] = attachment.id;
-            }
-          } else if (typeof value === "string" && value !== "") {
+          if (typeof value === "string" && value !== "") {
             options[option.name] = value;
           }
         }
@@ -149,9 +126,16 @@ export function createMockApi(deps: MockApiDeps) {
       perform(c, async (form) => {
         const messageId = String(form.message_id ?? "");
         const message = state.messages.find((m) => m.id === messageId);
-        const userId = message?.visibleTo ?? state.users[0]?.id ?? "";
-        const result = await deps.interactions.sendComponent({ userId, customId: String(form.custom_id ?? ""), messageId });
-        return result.status === 200 ? { ok: true, notice: "" } : { ok: false, notice: `worker が ${result.status} を返しました` };
+        // 本人にだけ見える返信は、その本人として押す。公開メッセージは、選んでいる実行者として押す（複数なら、順に 1 人ずつ）
+        const chosen = String(form.users ?? "").split(",").filter(Boolean);
+        const userIds = message?.visibleTo ? [message.visibleTo] : chosen.length > 0 ? chosen : [state.users[0]?.id ?? ""];
+
+        const failures: string[] = [];
+        for (const userId of userIds) {
+          const result = await deps.interactions.sendComponent({ userId, customId: String(form.custom_id ?? ""), messageId });
+          if (result.status !== 200) failures.push(`${state.userById(userId)?.username ?? userId}: worker が ${result.status} を返しました`);
+        }
+        return failures.length === 0 ? { ok: true, notice: "" } : { ok: false, notice: failures.join(" / ") };
       }),
     )
 

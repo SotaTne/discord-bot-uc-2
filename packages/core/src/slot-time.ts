@@ -24,40 +24,31 @@ export function slotHoursOnDate(entries: readonly SlotHourEntry[], date: string)
     .sort((a, b) => a.hour - b.hour);
 }
 
+/**
+ * 継続募集中か（奇数で組まれなかったチームが「待機する」を押し、その対戦枠の開始前で、別のチームの挙手を待っている）。
+ * 保存せず、対戦枠の状態と、時刻から、毎回、計算する。試合開始を過ぎれば、何も保存し直さなくても、終わる。
+ */
+export function isContinuedRecruit(
+  slot: { status: "open" | "matched"; excludedTeamId: number | null; waitingSince: number | null; slotDate: string; slotHour: number },
+  now: Date,
+): boolean {
+  return (
+    slot.status === "matched" &&
+    slot.excludedTeamId !== null &&
+    slot.waitingSince !== null &&
+    now.getTime() < slotStart(slot.slotDate, slot.slotHour).getTime()
+  );
+}
+
 /** JST の「日付 + 時」の開始時刻 */
 export function slotStart(slotDate: string, slotHour: number): Date {
   assertHour(slotHour);
   return new Date(Date.parse(`${slotDate}T00:00:00Z`) + slotHour * HOUR_MS - JST_OFFSET_MS);
 }
 
-/** 勝利を追加できる状態か。ok: 追加できる / not-matched: マッチング処理がまだ / not-started: 試合の開始前 */
-export type WinRecordability = "ok" | "not-matched" | "not-started";
-
-/**
- * 勝利を追加できる状態: マッチング済みで、試合の開始時刻を過ぎている。
- * `/uc-admin-win` の制限と、ダッシュボードの「勝利が未記録の組分け」（印と一覧）が、同じ基準を使う。
- * （ダッシュボードの「勝利を追加」自体は、この基準に関係なく、いつでもできる）
- */
-export function winRecordability(input: { matched: boolean; slotDate: string; slotHour: number; now: Date }): WinRecordability {
-  if (!input.matched) return "not-matched";
-  return slotStart(input.slotDate, input.slotHour).getTime() <= input.now.getTime() ? "ok" : "not-started";
-}
-
 /** 挙手を打ち切る時刻（試合開始の K 分前） */
 export function handupDeadline(slotDate: string, slotHour: number, cutoffMinutes: number): Date {
   return new Date(slotStart(slotDate, slotHour).getTime() - cutoffMinutes * MINUTE_MS);
-}
-
-/**
- * `/uc-admin-win` で日付を省略したときの日付。
- * 「今より前で、一番直近のその時刻の対戦枠」の日付（JST）を返す。
- */
-export function resolveRecentSlotDate(now: Date, slotHour: number): string {
-  const today = jstDateOf(now);
-  if (slotStart(today, slotHour).getTime() <= now.getTime()) {
-    return today;
-  }
-  return jstDateOf(new Date(slotStart(today, slotHour).getTime() - DAY_MS));
 }
 
 export type HandupWindow = {
