@@ -201,6 +201,18 @@ pnpm workspaces + Turborepo。ツールのバージョンは mise で固定す�
 ```
 
 - `core` は Discord にも Cloudflare にも依存しない。`Clock` は外から注入する。
+- **worker のコードの構成**（`apps/worker/src`）: 入口と、意図（usecase）を分ける。
+  | 置き場所 | 役割 |
+  |---|---|
+  | `interactions/` | **Discord の入口**。スラッシュコマンドと、ボタン。誰が押したかの確認と、usecase の呼び出しと、結果を返事（本人にだけ見える返信）の形に直すことだけ |
+  | `api/` | **ダッシュボードの入口**（Hono の API）。入力の検証と、usecase の呼び出しと、結果を JSON の形に直すことだけ |
+  | `scheduled/` | **cron の入口**。時刻が来ているジョブを、実行する権利を取って、usecase を呼ぶ |
+  | `usecases/` | **意図**（待機する・対戦する・組分けを追加する・やり直す・マッチングを確定する、など）。状態の変更と、あとの片付け（メッセージの投稿・削除、継続募集の終了）を、ここが持つ。結果は、文字（`"started"` など）で返し、入口が、返事の形を決める |
+  | `messages/` | 文面と、チャンネルへの投稿（通知先の決定も） |
+  - 同じ出来事（「対戦が決まった」「やり直した」）を、複数の入口から起こせる。**あとの片付けは、入口ごとに書かず、usecase に 1 つだけ書く**（入口ごとに書くと、書き忘れる）。
+  - ボタンも、スラッシュコマンドと同じ、Discord の入口。`custom_id`（`wait:日付:時` など）で、処理を選ぶ。
+  - あとの片付けは、名前のついた関数（`closeWaitingMessages`・`endContinuedRecruit` など）にして、個別にテストする。「出来事に、反応を登録する」仕組み（イベントバス）は、持たない（反応が増えて、順序や失敗の扱いに困ったら、検討する）。
+  - 依存の向き: 入口 → usecase → db・messages・core。usecase は、入口（Hono・Discord の Interaction）を知らない。
 - ダッシュボードは worker と**同一オリジン**で配信する（Cookie の `SameSite=Strict` と Origin の検証のため）。開発時は、Vite の proxy で `/api` を worker に向ける。そのとき、ブラウザ自身（Vite の画面）の Origin だけを、worker の Origin に書き換える（ほかのサイトの Origin は、書き換えずに渡して、worker に拒否させる）。
 - 画面と API の型は **Hono RPC**（`hc<ApiType>`）で共有する。worker は、API の型を宣言ファイル（`dist/types`）として出力し、dashboard は型だけを参照する（ランタイムの依存は持たない）。
 - 画面の部品は Mantine（表・フォーム・バッジ・確認など。ライト / ダークに対応。見た目の既定は `apps/dashboard/src/theme.ts`）。自前の CSS は、無効な行の取り消し線だけ。Tailwind は使わない。TanStack Start も使わない（Interactions を受ける worker を軽く保つため）。

@@ -1,14 +1,9 @@
 import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
 import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, slotHoursOnDate, slotPhase } from "@uc/core";
 import {
-  addMatch,
   claimJob,
-  findMatchSlot,
-  releaseJob,
-  reopenMatchSlot,
-  stopWaiting,
-  ensureHandup,
   deleteMatch,
+  findMatchSlot,
   findSlotHour,
   findTeamById,
   getGuildSettings,
@@ -19,15 +14,15 @@ import {
   listSlotHours,
   listTeams,
   MatchTeamTakenError,
+  releaseJob,
 } from "@uc/db";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { postMatchingCancelled } from "../messages";
-import { deleteWaitingAnnounce } from "../usecases/close-waiting-messages";
+import { addMatchByAdmin, reopenSlotByAdmin } from "../usecases/admin-matches";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { endContinuedRecruit } from "../usecases/end-waiting";
+import { cancelWaiting } from "../usecases/continued-recruit";
 import { teamNames } from "../usecases/team-names";
 import { nameOrId, userNames } from "../usecases/user-names";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
@@ -120,19 +115,10 @@ export function createBoardRoutes(deps: ApiDeps) {
       const onDate = slotHoursOnDate(await listSlotHours(db, guildId, { includeDeleted: true }), slotDate);
       if (!onDate.some((slot) => slot.hour === input.slotHour)) return c.json({ error: "slot_not_found" as const }, 404);
       try {
-        const id = await addMatch(db, { guildId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId, createdAt: now.getTime() });
-        for (const teamId of [input.teamAId, input.teamBId]) {
-          await ensureHandup(db, { guildId, slotDate, slotHour: input.slotHour, teamId, raisedBy: userId, createdAt: now.getTime() });
-        }
-        // フック: 「組分けが追加されたら」、待機中のチームが組まれて、継続募集の相手が決まったなら、継続募集を終わらせる
-        // （待機していないチームを組んだときは、継続募集は、そのまま続く）。失敗しても、組分けの追加は、取り消さない
-        const slot = await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
-        if (slot && slot.excludedTeamId === null) {
-          await endContinuedRecruit(
-            { db, rest: createRestFromEnv(c.env) },
-            { guildId, slotDate, slotHour: input.slotHour, offerContent: `${input.slotHour}時: 管理者が組分けを決めたため、待機は終わりました。` },
-          ).catch((error: unknown) => console.error("継続募集の終了に失敗しました", error));
-        }
+        const id = await addMatchByAdmin(
+          { db, rest: createRestFromEnv(c.env), now },
+          { guildId, userId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId },
+        );
         return c.json({ id }, 201);
       } catch (error) {
         if (error instanceof MatchTeamTakenError) return c.json({ error: "team_already_matched" as const }, 409);
@@ -192,50 +178,12 @@ export function createBoardRoutes(deps: ApiDeps) {
       // 削除した試合時刻の対戦枠は、やり直せない（組分けの削除も、Discord への投稿もしない）
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
 
-      // キャンセルの投稿に使うので、消す前の、組分けと、組まれなかったチームを、控えておく
-      const before = {
-        slot: await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }),
-        matches: (await listMatchesOnDate(db, { guildId, slotDate })).filter((match) => match.slotHour === input.slotHour),
-      };
-
-      const reopened = await reopenMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
+      const reopened = await reopenSlotByAdmin(
+        { db, rest: createRestFromEnv(c.env), now },
+        { guildId, slotDate, slotHour: input.slotHour, notify: input.notify ?? true },
+      );
       if (!reopened) return c.json({ error: "slot_not_matched" as const }, 409);
-
-      // フック: 「やり直したら」、継続募集を終わらせる（募集のメッセージを削除し、案内のボタンを外す）。失敗しても、やり直しは、取り消さない
-      await endContinuedRecruit(
-        { db, rest: createRestFromEnv(c.env) },
-        { guildId, slotDate, slotHour: input.slotHour, offerContent: `${input.slotHour}時: マッチングがやり直されたため、待機は終わりました。` },
-      ).catch((error: unknown) => console.error("継続募集の終了に失敗しました", error));
-
-      // 締切の時刻の前なら、cron が、あらためて自動で確定できるように、権利を返す。過ぎていれば、管理者が確定するまで、そのまま
-      const settings = await getGuildSettings(db, guildId);
-      if (slotPhase(now, slotDate, input.slotHour, settings) !== "closed") {
-        await releaseJob(db, guildId, cutoffJobKey(slotDate, input.slotHour));
-      }
-
-      // 投稿済みの組分けが、取り消されたことを、Discord に知らせる（組分けの個別の編集では、知らせない）。
-      // 投稿に失敗しても、やり直しは、取り消さない（notified: false で、画面に知らせる）
-      const excludedTeamId = before.slot?.excludedTeamId ?? null;
-      const announced = before.matches.length > 0 || excludedTeamId !== null;
-      let notified = false;
-      let notifyFailed = false;
-      if ((input.notify ?? true) && announced && settings.channelId) {
-        try {
-          const teams = await listTeams(db, guildId, { includeDeleted: true });
-          await postMatchingCancelled(createRestFromEnv(c.env), {
-            channelId: settings.channelId,
-            hour: input.slotHour,
-            pairs: before.matches.map((match): [number, number] => [match.teamAId, match.teamBId]),
-            excluded: excludedTeamId,
-            teams,
-          });
-          notified = true;
-        } catch (error) {
-          console.error("マッチングのキャンセルの投稿に失敗しました", error);
-          notifyFailed = true;
-        }
-      }
-      return c.json({ ok: true as const, deletedMatches: reopened.deletedMatches, notified, notifyFailed });
+      return c.json({ ok: true as const, ...reopened });
     })
 
     // 管理者が、待機（継続募集）を解除する。待機しているチームの代わりに、「待機をキャンセル」を押すのと、同じ。
@@ -249,18 +197,14 @@ export function createBoardRoutes(deps: ApiDeps) {
 
       if (!(await findSlotHour(db, guildId, input.slotHour, { includeDeleted: true }))) return c.json({ error: "slot_not_found" as const }, 404);
       const slot = await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour });
-      if (!slot || !isContinuedRecruit({ ...slot, slotDate, slotHour: input.slotHour }, now)) {
-        return c.json({ error: "not_waiting" as const }, 409);
-      }
+      if (!slot) return c.json({ error: "not_waiting" as const }, 409);
 
-      await stopWaiting(db, slot.id);
-      // 募集のメッセージを削除する（案内の「待機する」は、残す。チームが、待機し直せる）。失敗しても、解除は、取り消さない
-      const { channelId } = await getGuildSettings(db, guildId);
-      if (channelId) {
-        await deleteWaitingAnnounce({ db, rest: createRestFromEnv(c.env) }, { slot, channelId }).catch((error: unknown) =>
-          console.error("募集のメッセージの削除に失敗しました", error),
-        );
-      }
+      // 管理者の操作なので、byTeamId は渡さない（待機しているチームでなくても、解除できる）
+      const result = await cancelWaiting(
+        { db, rest: createRestFromEnv(c.env), now },
+        { guildId, slot, slotDate, slotHour: input.slotHour },
+      );
+      if (result !== "cancelled") return c.json({ error: "not_waiting" as const }, 409);
       return c.json({ ok: true as const });
     });
 }
