@@ -1,4 +1,4 @@
-import { isJobDue, jstDateOf, scheduledJobsForDate, slotStart, type Clock, type ScheduledJobSpec } from "@uc/core";
+import { dateInSeason, isJobDue, jstDateOf, scheduledJobsForDate, seasonAccess, slotStart, type Clock, type ScheduledJobSpec, type SeasonWindow } from "@uc/core";
 import {
   claimJob,
   deleteExpiredCredentials,
@@ -65,6 +65,13 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
 
   const now = clock.now();
   const today = jstDateOf(now);
+  const season = { start: guild.seasonStart, end: guild.seasonEnd };
+
+  // 期間内の日の待機は、試合開始の時刻を過ぎていれば閉じる（大会が終わったあとでも。cron がその時刻を逃した場合のため）
+  await closeExpiredWaitingMessages(deps, guild.guildId, channelId, now, season);
+
+  // 今日が開催日でないときは、募集も締切のマッチングもしない
+  if (seasonAccess(today, today, season) !== "play") return;
 
   // 予定（いつ、どのジョブを実行するか）は、画面に出すものと同じ規則（@uc/core）で決める
   const slots = await listSlotHours(db, guild.guildId);
@@ -76,7 +83,6 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
   });
 
   await releaseStaleCutoffClaims(deps, guild.guildId, specs, today, now);
-  await closeExpiredWaitingMessages(deps, guild.guildId, channelId, now);
 
   const jobs: Job[] = specs
     .filter((spec) => isJobDue(spec, now))
@@ -120,8 +126,9 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
  * 募集のメッセージ（「対戦する」「待機をキャンセル」）は削除し、案内のメッセージ（「待機する」）は、ボタンを外す。
  * 終わりにしたあと、メッセージの ID を空にするので、毎分実行しても、1 度しか、処理しない。
  */
-async function closeExpiredWaitingMessages(deps: ScheduledDeps, guildId: string, channelId: string, now: Date) {
+async function closeExpiredWaitingMessages(deps: ScheduledDeps, guildId: string, channelId: string, now: Date, season: SeasonWindow) {
   for (const slot of await listSlotsWithWaitingMessages(deps.db, guildId)) {
+    if (!dateInSeason(slot.slotDate, season)) continue;
     if (now.getTime() < slotStart(slot.slotDate, slot.slotHour).getTime()) continue;
     await closeWaitingMessages(deps, {
       slot,

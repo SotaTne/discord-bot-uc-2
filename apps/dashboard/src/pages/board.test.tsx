@@ -45,6 +45,7 @@ describe("対戦枠の画面: 削除した試合時刻の対戦枠（状態は�
     expect(await normal.findByRole("button", { name: "組分けを追加" })).toBeTruthy();
     // 削除済みでも、組分けは、追加できる
     expect(await deleted.findByRole("button", { name: "組分けを追加" })).toBeTruthy();
+    expect(screen.queryByText(/大会/)).toBeNull();
   });
 
   it("削除済みの対戦枠には、「マッチング処理を実行する」も、「やり直す」も出ない（マッチング済みでも、未マッチングでも）。挙手の追加も、できない", async () => {
@@ -432,5 +433,50 @@ describe("対戦枠の画面: マッチングの確定とやり直し", () => {
 
     fireEvent.click(await within21.findByRole("button", { name: "やり直す" }));
     expect(screen.getByRole("button", { name: "やり直しを実行する" })).toBeTruthy();
+  });
+});
+
+describe("対戦枠の画面: 大会の期間", () => {
+  const withAccess = (access: "closed" | "repair", slots: unknown[]) => ({
+    ...apis(),
+    "GET /api/board": {
+      body: {
+        date: "2026-10-07",
+        today: "2026-10-07",
+        access,
+        seasonStart: "2026-10-08",
+        seasonEnd: "2026-10-10",
+        slots,
+      },
+    },
+  });
+  const open = slot({ hour: 23, handups: [handup()] });
+  const matched = slot({
+    hour: 22,
+    matched: true,
+    waiting: { id: 3, name: "NGT" },
+    handups: [handup()],
+    matches: [match()],
+  });
+
+  it("closed では、変更するボタンが、どれも出ない", async () => {
+    installFakeBackend(withAccess("closed", [open, matched]));
+    renderApp("/");
+
+    expect(await screen.findByText("いまは大会の期間外です（2026-10-08〜2026-10-10）")).toBeTruthy();
+    const names = ["待機を解除する", "やり直す", "マッチング処理を実行する", "挙手を追加", "組分けを追加", "KMU vs UTを削除", "KMUの23:00の挙手を取り消す"];
+    for (const name of names) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("repair では、やり直すと、組分けの削除だけが出る", async () => {
+    installFakeBackend(withAccess("repair", [open, matched]));
+    renderApp("/");
+
+    expect(await screen.findByText("大会は終わっています。組分けの削除と、やり直しだけができます")).toBeTruthy();
+    expect(await (await card("22:00の対戦枠")).findByRole("button", { name: "やり直す" })).toBeTruthy();
+    expect((await card("22:00の対戦枠")).getByRole("button", { name: "KMU vs UTを削除" })).toBeTruthy();
+    for (const name of ["待機を解除する", "マッチング処理を実行する", "挙手を追加", "組分けを追加", "KMUの23:00の挙手を取り消す"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
   });
 });

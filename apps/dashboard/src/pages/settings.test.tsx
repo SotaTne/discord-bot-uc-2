@@ -63,6 +63,8 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       recruitMentionMode: "none",
       recruitMentionTargets: [],
       matchLimit: null,
+      seasonStart: null,
+      seasonEnd: null,
       revokeSessionsOnReissue: false,
     });
   });
@@ -93,6 +95,35 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
 
     await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ matchLimit: 5 }));
+  });
+
+  it("大会の期間は、開始日と終了日を両方入れて保存する。片方だけ、または開始が終了よりあとなら、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const start = (await screen.findByLabelText("大会の開始日")) as HTMLInputElement;
+    const end = screen.getByLabelText("大会の終了日") as HTMLInputElement;
+    const save = () => region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement;
+
+    expect(start.value).toBe("");
+    expect(end.value).toBe("");
+
+    fireEvent.change(start, { target: { value: "2026-10-08" } });
+    expect(save().disabled).toBe(true);
+    expect(region("投稿と募集").getByRole("alert").textContent).toContain("両方");
+
+    fireEvent.change(end, { target: { value: "2026-10-07" } });
+    expect(save().disabled).toBe(true);
+    expect(region("投稿と募集").getByRole("alert").textContent).toContain("前");
+
+    fireEvent.change(end, { target: { value: "2026-10-10" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "キャンセル" }));
+    expect(start.value).toBe("");
+    expect(end.value).toBe("");
+
+    fireEvent.change(start, { target: { value: "2026-10-08" } });
+    fireEvent.change(end, { target: { value: "2026-10-10" } });
+    fireEvent.click(save());
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }));
   });
 
   describe("募集開始の時刻・締切の変更（投稿先があるとき、変更を知らせるかを、確認する）", () => {

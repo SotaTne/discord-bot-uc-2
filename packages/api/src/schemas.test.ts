@@ -6,6 +6,7 @@ import {
   hourSchema,
   loginInputSchema,
   settingsInputSchema,
+  settingsUpdateSchema,
   snowflakeSchema,
   teamInputSchema,
   matchInputSchema,
@@ -103,6 +104,19 @@ describe("settingsInputSchema", () => {
   it("締切の分数が 0 や大きすぎる値は拒否する", () => {
     expect(settingsInputSchema.safeParse({ ...valid, cutoffMinutes: 0 }).success).toBe(false);
     expect(settingsInputSchema.safeParse({ ...valid, cutoffMinutes: 181 }).success).toBe(false);
+  });
+
+  it("大会の期間は、省略すると空。両方入れるか、両方空。開始は、終了と同じか、それより前", () => {
+    expect(settingsInputSchema.parse(valid)).toMatchObject({ seasonStart: null, seasonEnd: null });
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-08" }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: null }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: null, seasonEnd: "2026-10-10" }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-10", seasonEnd: "2026-10-08" }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-02-30", seasonEnd: "2026-03-01" }).success).toBe(false);
+    // 保存用のスキーマ（notifyChange つき）でも、同じ規則
+    expect(settingsUpdateSchema.safeParse({ ...valid, notifyChange: true, seasonStart: "2026-10-10", seasonEnd: "2026-10-08" }).success).toBe(false);
+    expect(settingsUpdateSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }).success).toBe(true);
   });
 });
 

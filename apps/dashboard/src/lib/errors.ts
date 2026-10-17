@@ -48,6 +48,7 @@ const MESSAGES: Record<string, string> = {
   unsupported_image: "画像（PNG・JPEG・WebP）を選んでください",
   image_too_large: "画像は8MB以下にしてください",
   discord_unavailable: "Discord からロール一覧を取得できませんでした",
+  outside_season: "いまは大会の期間外です",
   invalid_input: "入力内容を確認してください",
 };
 

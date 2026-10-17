@@ -56,7 +56,7 @@ describe("マイグレーションは、差分で積む", () => {
     expect(() => db.prepare("INSERT INTO slot_hours (guild_id, hour, created_at) VALUES ('g1', 24, 3)").run()).toThrow(/CHECK/);
   });
 
-  it("得点・勝利・主催・待機・ロール登録の差分（0003〜0009）は、本番に近いデータ（設定・チーム・組分け・勝利・挙手）を、失わずに適用できる", () => {
+  it("得点・勝利・主催・待機・ロール登録・大会の期間の差分（0003〜0010）は、本番に近いデータ（設定・チーム・組分け・勝利・挙手）を、失わずに適用できる", () => {
     const db = new DatabaseSync(":memory:");
     db.exec("PRAGMA foreign_keys = ON");
     const files = migrationFiles();
@@ -109,6 +109,10 @@ describe("マイグレーションは、差分で積む", () => {
     db.exec(readFileSync(join(migrationsDir, "0009_role_message_ids.sql"), "utf8"));
     db.exec(readFileSync(join(migrationsDir, "0009_role_message_ids.sql"), "utf8"));
     expect(db.prepare("SELECT role_channel_id, role_message_id FROM guild_settings").get()).toEqual({ role_channel_id: "300", role_message_id: '["900"]' });
+    // 大会の期間（0010）は、空で入り、あとから書ける
+    expect(db.prepare("SELECT season_start, season_end FROM guild_settings").get()).toEqual({ season_start: null, season_end: null });
+    db.exec("UPDATE guild_settings SET season_start = '2026-10-08', season_end = '2026-10-10'");
+    expect(db.prepare("SELECT season_start, season_end FROM guild_settings").get()).toEqual({ season_start: "2026-10-08", season_end: "2026-10-10" });
     // 外部キーの整合性が、保たれている（壊れた参照が、1 つもない）
     expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     // 新しい列が、実際に、使える（主催は、2 チームのどちらか、待機の情報も、書ける）

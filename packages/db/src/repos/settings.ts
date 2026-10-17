@@ -17,6 +17,9 @@ export type GuildSettingsValues = {
   recruitMentionTargets: string[];
   /** チームの試合数の規定数（超過は、表示だけ）。null は、規定数なし */
   matchLimit: number | null;
+  /** 大会の期間の開始日（JST。YYYY-MM-DD）。終了日と両方空なら、期間を設けない */
+  seasonStart: string | null;
+  seasonEnd: string | null;
   revokeSessionsOnReissue: boolean;
 };
 
@@ -29,6 +32,8 @@ export const defaultGuildSettings: GuildSettingsValues = {
   recruitMentionMode: "none",
   recruitMentionTargets: [],
   matchLimit: null,
+  seasonStart: null,
+  seasonEnd: null,
   revokeSessionsOnReissue: false,
 };
 
@@ -44,6 +49,8 @@ export async function getGuildSettings(db: Db, guildId: string): Promise<GuildSe
     recruitMentionMode: row.recruitMentionMode,
     recruitMentionTargets: row.recruitMentionTargets,
     matchLimit: row.matchLimit,
+    seasonStart: row.seasonStart,
+    seasonEnd: row.seasonEnd,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   };
 }
@@ -84,6 +91,8 @@ export async function listConfiguredGuilds(db: Db): Promise<({ guildId: string }
     recruitMentionMode: row.recruitMentionMode,
     recruitMentionTargets: row.recruitMentionTargets,
     matchLimit: row.matchLimit,
+    seasonStart: row.seasonStart,
+    seasonEnd: row.seasonEnd,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   }));
 }

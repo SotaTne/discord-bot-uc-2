@@ -56,6 +56,35 @@ async function raise(teamName: string, roleId: string, slotHour: number, created
   await createHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour, teamId, raisedBy: "u", createdAt });
 }
 
+describe("大会の期間", () => {
+  const season = (start: string, end: string) =>
+    saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, seasonStart: start, seasonEnd: end }, 2);
+
+  it("期間の前は、募集も締切のマッチングもしない。開始日は、募集する", async () => {
+    await season("2026-10-08", "2026-10-09");
+    await raise("KMU", KMU_ROLE, 21, 100);
+    await raise("UT", UT_ROLE, 21, 200);
+
+    expect((await tick("2026-10-07T12:00:00")).ran).toEqual([]);
+    expect((await tick("2026-10-07T20:53:00")).ran).toEqual([]);
+    expect(posted).toEqual([]);
+    expect(await listMatchedSlots(seeded.db, { guildId: GUILD_ID })).toEqual([]);
+
+    expect((await tick("2026-10-08T12:00:00")).ran).toEqual(["recruit:2026-10-08:12"]);
+  });
+
+  it("終了日の締切は、マッチングする。終了の翌日は、募集しない", async () => {
+    await season("2026-10-07", "2026-10-07");
+    await raise("KMU", KMU_ROLE, 21, 100);
+    await raise("UT", UT_ROLE, 21, 200);
+
+    expect((await tick("2026-10-07T20:53:00")).ran).toContain("cutoff:2026-10-07:21");
+    posted = [];
+    expect((await tick("2026-10-08T12:00:00")).ran).toEqual([]);
+    expect(posted).toEqual([]);
+  });
+});
+
 describe("募集開始", () => {
   it("募集開始の時刻になると、設定したチャンネルに投稿する（通知はしない）", async () => {
     const summary = await tick("2026-10-07T12:00:00");

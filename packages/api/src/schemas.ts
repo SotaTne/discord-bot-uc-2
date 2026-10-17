@@ -37,7 +37,7 @@ const mentionTargetsSchema = z
   .max(25)
   .refine((targets) => new Set(targets).size === targets.length, { message: "同じ通知先が、重なっています" });
 
-export const settingsInputSchema = z.object({
+const settingsObjectSchema = z.object({
   channelId: snowflakeSchema.nullable(),
   /** ロール登録のメッセージを投稿するチャンネル。null（省略も）は、使わない */
   roleChannelId: snowflakeSchema.nullable().default(null),
@@ -47,14 +47,41 @@ export const settingsInputSchema = z.object({
   recruitMentionTargets: mentionTargetsSchema,
   /** チームの試合数の規定数。null は、規定数なし（省略も、なし） */
   matchLimit: z.number().int().min(1).max(999).nullable().default(null),
+  /** 大会の期間（JST の日付）。両方空（省略も）は、期間を設けない。片方だけでは、保存できない */
+  seasonStart: dateSchema.nullable().default(null),
+  seasonEnd: dateSchema.nullable().default(null),
   revokeSessionsOnReissue: z.boolean(),
 });
+
+/** 開始日と終了日は、両方入れるか、両方空。入れるときは、開始が終了より後にならない */
+function withSeason<T extends z.ZodTypeAny>(schema: T) {
+  return schema.superRefine((value, ctx) => {
+    const start = (value as { seasonStart: string | null }).seasonStart;
+    const end = (value as { seasonEnd: string | null }).seasonEnd;
+    if ((start === null) !== (end === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "開始日と終了日は、両方入れるか、両方空にしてください",
+        path: ["seasonEnd"],
+      });
+    } else if (start !== null && end !== null && start > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "開始日は、終了日と同じか、それより前にしてください",
+        path: ["seasonEnd"],
+      });
+    }
+  });
+}
+
+export const settingsInputSchema = withSeason(settingsObjectSchema);
 
 /**
  * 設定の保存。notifyChange が true で、募集開始の時刻か締切が変わったときは、変更を、投稿先のチャンネルに知らせる
  * （通知先は、募集開始の投稿と同じ。省略は、知らせない）
+ * 期間の規則は、入力と同じ（refine したスキーマは extend できないので、こちらでも付ける）
  */
-export const settingsUpdateSchema = settingsInputSchema.extend({ notifyChange: z.boolean().optional() });
+export const settingsUpdateSchema = withSeason(settingsObjectSchema.extend({ notifyChange: z.boolean().optional() }));
 
 /** 管理者による、代理の挙手 */
 export const adminHandupInputSchema = z.object({

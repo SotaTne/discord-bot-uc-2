@@ -3,6 +3,7 @@ import { jstDateOf } from "@uc/core";
 import {
   createHandup,
   MatchSlotMatchedError,
+  findHandupById,
   findSlotHour,
   findTeamById,
   isUniqueViolation,
@@ -11,6 +12,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
+import { seasonAccessFor } from "../usecases/season";
 import { parseId, type ApiDeps, type ApiEnv } from "./types";
 
 /** 管理者による、代理の挙手と取り消し（一覧は、対戦枠の画面（/board）で見る） */
@@ -23,13 +25,16 @@ export function createHandupRoutes(deps: ApiDeps) {
       const input = c.req.valid("json");
       const now = deps.clock.now();
 
+      const today = jstDateOf(now);
+      const slotDate = input.slotDate ?? today;
+      if ((await seasonAccessFor(db, guildId, today, slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
       if (!(await findTeamById(db, guildId, input.teamId))) return c.json({ error: "team_not_found" as const }, 404);
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
 
       try {
         const id = await createHandup(db, {
           guildId,
-          slotDate: input.slotDate ?? jstDateOf(now),
+          slotDate,
           slotHour: input.slotHour,
           teamId: input.teamId,
           raisedBy: userId,
@@ -48,8 +53,13 @@ export function createHandupRoutes(deps: ApiDeps) {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
       const { guildId } = c.get("auth");
+      const db = createDb(c.env.DB);
+      const found = await findHandupById(db, { guildId, id });
+      if (!found) return c.json({ error: "not_found" as const }, 404);
+      const today = jstDateOf(deps.clock.now());
+      if ((await seasonAccessFor(db, guildId, today, found.slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
 
-      const withdrawn = await withdrawHandupById(createDb(c.env.DB), { guildId, id });
+      const withdrawn = await withdrawHandupById(db, { guildId, id });
       if (withdrawn === "matched") return c.json({ error: "slot_matched" as const }, 409);
       return withdrawn === "withdrawn" ? c.json({ ok: true as const }) : c.json({ error: "not_found" as const }, 404);
     });
