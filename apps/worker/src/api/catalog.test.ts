@@ -25,13 +25,8 @@ describe("ログインが必要", () => {
     ["POST", "/api/handups"],
     ["DELETE", "/api/handups/1"],
     ["POST", "/api/matches"],
+    ["POST", "/api/match-slots/cancel-waiting"],
     ["DELETE", "/api/matches/1"],
-    ["POST", "/api/matches/1/wins"],
-    ["GET", "/api/scores"],
-    ["GET", "/api/wins"],
-    ["PUT", "/api/wins/1/active"],
-    ["DELETE", "/api/wins"],
-    ["GET", "/api/screenshots/1"],
     ["GET", "/api/sessions"],
     ["DELETE", "/api/sessions/1"],
     ["POST", "/api/sessions/revoke-all"],
@@ -46,10 +41,14 @@ describe("ログインが必要", () => {
 describe("サーバーの設定", () => {
   const valid = {
     channelId: "300000000000000001",
+    roleChannelId: "300000000000000002",
     recruitHour: 10,
     cutoffMinutes: 15,
-    fixedAfterMatches: 4,
-    fixedPoints: 90,
+    recruitMentionMode: "roles" as const,
+    recruitMentionTargets: ["200000000000000099", "here"],
+    matchLimit: 8,
+    seasonStart: null,
+    seasonEnd: null,
     revokeSessionsOnReissue: true,
   };
 
@@ -64,8 +63,13 @@ describe("サーバーの設定", () => {
     expect(await getGuildSettings(h.seeded.db, GUILD_ID)).toEqual(valid);
   });
 
-  it("不正な値（締切が0分・チャンネル ID の形式違い・時が範囲外）は 400 で、保存しない", async () => {
-    for (const bad of [{ ...valid, cutoffMinutes: 0 }, { ...valid, channelId: "abc" }, { ...valid, recruitHour: 24 }]) {
+  it("不正な値（締切が0分・チャンネル ID の形式違い・時が範囲外・通知先の形式違い）は 400 で、保存しない", async () => {
+    for (const bad of [
+      { ...valid, cutoffMinutes: 0 },
+      { ...valid, channelId: "abc" },
+      { ...valid, recruitHour: 24 },
+      { ...valid, recruitMentionTargets: ["everyone"] },
+    ]) {
       expect((await h.json("/api/settings", { method: "PUT", cookie, body: bad })).status).toBe(400);
     }
     expect(await getGuildSettings(h.seeded.db, GUILD_ID)).toEqual(defaultGuildSettings);
@@ -101,8 +105,107 @@ describe("試合時刻", () => {
   });
 });
 
+describe("チーム: ロール登録のメッセージ（永続）の更新", () => {
+  const ROLE_CHANNEL = "300000000000000002";
+  const team = { roleId: "400000000000000003" };
+  /** Discord への、メッセージの投稿・編集の呼び出し（ロール一覧は、ロール名のため、返す） */
+  let calls: { method: string; url: string; body: { content?: string; components?: { components: { label: string }[] }[] } }[];
+  let failNext: number | null;
+
+  beforeEach(async () => {
+    calls = [];
+    failNext = null;
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/roles")) {
+        return new Response(JSON.stringify([{ id: "400000000000000001", name: "KMU", position: 1 }, { id: "400000000000000002", name: "UT", position: 2 }, { id: "400000000000000003", name: "NGT", position: 3 }]));
+      }
+      calls.push({ method, url, body: JSON.parse(String(init?.body ?? "{}")) });
+      if (failNext !== null) return new Response("{}", { status: failNext });
+      return new Response(JSON.stringify({ id: "msg-1" }));
+    });
+    const { saveGuildSettings } = await import("@uc/db");
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, roleChannelId: ROLE_CHANNEL }, 1);
+  });
+
+  const labels = (call: (typeof calls)[number]) => call.body.components?.[0]?.components.map((button) => button.label);
+
+  it("チームを追加すると、ロール登録のメッセージが、新しく投稿される（ボタンに、追加したチームがある）。2 回目からは、編集", async () => {
+    await h.json("/api/teams", { method: "POST", cookie, body: team });
+
+    expect(calls.map((call) => call.method)).toEqual(["POST"]);
+    expect(calls[0]!.url).toContain(`/channels/${ROLE_CHANNEL}/messages`);
+    expect(labels(calls[0]!)).toEqual(["KMU", "UT", "NGT"]);
+  });
+
+  it("チームを削除すると、そのチームのボタンが消える（同じメッセージを、編集する）", async () => {
+    const { setRoleMessageIds } = await import("@uc/db");
+    await setRoleMessageIds(h.seeded.db, GUILD_ID, ["msg-1"]);
+
+    const response = await h.json(`/api/teams/${h.seeded.utId}`, { method: "DELETE", cookie });
+
+    expect(response.status).toBe(200);
+    expect(calls.map((call) => call.method)).toEqual(["PATCH"]);
+    expect(calls[0]!.url).toContain(`/channels/${ROLE_CHANNEL}/messages/msg-1`);
+    expect(labels(calls[0]!)).toEqual(["KMU"]);
+  });
+
+  it("投稿先が決まっていなければ、Discord には、何も送らない", async () => {
+    const { saveGuildSettings } = await import("@uc/db");
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings }, 2);
+
+    await h.json("/api/teams", { method: "POST", cookie, body: team });
+
+    expect(calls).toEqual([]);
+  });
+
+  it("メッセージの更新に失敗しても、チームの追加・削除は成功する（取り消さない）", async () => {
+    failNext = 500;
+
+    const added = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+    const removed = await h.json(`/api/teams/${added.body.id}`, { method: "DELETE", cookie });
+
+    expect(added.status).toBe(201);
+    expect(removed.status).toBe(200);
+  });
+
+  it("存在しないチームの削除（404）や、重複した追加（409）では、メッセージを更新しない", async () => {
+    await h.json("/api/teams/9999", { method: "DELETE", cookie });
+    await h.json("/api/teams", { method: "POST", cookie, body: { roleId: "400000000000000001" } });
+
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("チーム", () => {
   const team = { roleId: "400000000000000003" };
+
+  it("一覧に、各チームの試合数（そのチームが入った組分けの数）が付く。組まれていないチームは 0。/uc-teams と同じ数", async () => {
+    const { saveMatchResult } = await import("@uc/db");
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+
+    const { body } = await h.json<{ teams: { id: number; matchCount: number }[] }>("/api/teams", { cookie });
+
+    expect(body.teams.map((t) => [t.id, t.matchCount])).toEqual([[h.seeded.kmuId, 2], [h.seeded.utId, 2], [third.body.id, 0]]);
+  });
+
+  it("一覧に、規定数と、各チームの超過が付く（規定数なしなら null・超過なし）", async () => {
+    const { saveMatchResult, saveGuildSettings, defaultGuildSettings } = await import("@uc/db");
+    type Body = { teams: { id: number; matchOver: boolean }[]; matchLimit: number | null };
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+    expect((await h.json<Body>("/api/teams", { cookie })).body).toMatchObject({ matchLimit: null });
+
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, third.body.id]], now: 1 });
+    const { body } = await h.json<Body>("/api/teams", { cookie });
+
+    expect(body.matchLimit).toBe(1);
+    expect(body.teams.map((t) => [t.id, t.matchOver])).toEqual([[h.seeded.kmuId, true], [h.seeded.utId, false], [third.body.id, false]]);
+  });
 
   it("一覧できる。表示名は、ロールの名前（シード: KMU・UT）", async () => {
     const { body } = await h.json<{ teams: { name: string; roleId: string }[] }>("/api/teams", { cookie });
@@ -133,7 +236,7 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${created.body.id}`, { method: "DELETE", cookie })).status).toBe(404);
   });
 
-  it("使われているチームも削除できる（論理削除）。一覧と得点表から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
+  it("使われているチームも削除できる（論理削除）。一覧から消え、まだ組まれていない対戦枠の挙手は取り消される。組分けの名前は、履歴に残る", async () => {
     const { db, kmuId, utId } = h.seeded;
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: kmuId, raisedBy: "u", createdAt: 1 });
     await createHandup(db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 22, teamId: kmuId, raisedBy: "u", createdAt: 1 });
@@ -142,7 +245,6 @@ describe("チーム", () => {
     expect((await h.json(`/api/teams/${kmuId}`, { method: "DELETE", cookie })).status).toBe(200);
 
     expect((await h.json<{ teams: { name: string }[] }>("/api/teams", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
-    expect((await h.json<{ teams: { name: string }[] }>("/api/scores", { cookie })).body.teams.map((t) => t.name)).toEqual(["UT"]);
     const board = (await h.json<{ slots: { hour: number; handups: unknown[]; matches: { teamA: { name: string } }[] }[] }>("/api/board", { cookie })).body.slots;
     expect(board.map((slot) => slot.handups.length)).toEqual([0, 0, 1]);
     expect(board.find((slot) => slot.hour === 23)?.matches[0]?.teamA.name).toBe("KMU");

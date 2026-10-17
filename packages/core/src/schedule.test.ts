@@ -9,20 +9,21 @@ describe("scheduledJobsForDate", () => {
     const jobs = scheduledJobsForDate(plan);
 
     expect(jobs.map((j) => [j.key, j.kind, j.slotHour])).toEqual([
-      ["recruit:2026-10-07", "recruit", null],
+      ["recruit:2026-10-07:12", "recruit", null],
       ["cutoff:2026-10-07:21", "cutoff", 21],
       ["cutoff:2026-10-07:22", "cutoff", 22],
       ["cutoff:2026-10-07:23", "cutoff", 23],
     ]);
   });
 
-  it("募集開始は N 時から1時間、締切は試合の K 分前から試合開始の30分後まで", () => {
+  it("募集開始は N 時から 30 分、締切は試合の K 分前から 30 分（どちらも、実行する時刻から）", () => {
     const [recruit, cutoff21] = scheduledJobsForDate(plan);
 
     expect(recruit?.from).toEqual(jst("2026-10-07T12:00:00"));
     expect(recruit!.until.getTime() - recruit!.from.getTime()).toBe(RECRUIT_GRACE_MS);
     expect(cutoff21?.from).toEqual(jst("2026-10-07T20:53:00"));
-    expect(cutoff21?.until).toEqual(new Date(jst("2026-10-07T21:00:00").getTime() + CUTOFF_GRACE_MS));
+    expect(cutoff21?.until).toEqual(new Date(jst("2026-10-07T20:53:00").getTime() + CUTOFF_GRACE_MS));
+    expect(cutoff21!.until.getTime() - cutoff21!.from.getTime()).toBe(CUTOFF_GRACE_MS);
   });
 
   it("締切の分数・募集開始の時刻は、設定に従う", () => {
@@ -30,10 +31,12 @@ describe("scheduledJobsForDate", () => {
 
     expect(jobs[0]?.from).toEqual(jst("2026-10-07T09:00:00"));
     expect(jobs[1]?.from).toEqual(jst("2026-10-07T20:30:00"));
+    // 猶予の長さは、締切の分数に、よらない
+    expect(jobs[1]!.until.getTime() - jobs[1]!.from.getTime()).toBe(CUTOFF_GRACE_MS);
   });
 
   it("対戦枠がなければ、募集開始だけ。渡した配列は書き換えない", () => {
-    expect(scheduledJobsForDate({ ...plan, slotHours: [] }).map((j) => j.key)).toEqual(["recruit:2026-10-07"]);
+    expect(scheduledJobsForDate({ ...plan, slotHours: [] }).map((j) => j.key)).toEqual(["recruit:2026-10-07:12"]);
     const hours = [23, 21];
     scheduledJobsForDate({ ...plan, slotHours: hours });
     expect(hours).toEqual([23, 21]);
@@ -47,8 +50,14 @@ describe("jobState / isJobDue", () => {
   it("時刻の前は waiting、時刻から猶予の内は ready、過ぎたら expired", () => {
     expect(state("2026-10-07T20:52:59")).toBe("waiting");
     expect(state("2026-10-07T20:53:00")).toBe("ready");
-    expect(state("2026-10-07T21:29:59")).toBe("ready");
-    expect(state("2026-10-07T21:30:00")).toBe("expired");
+    expect(state("2026-10-07T21:22:59")).toBe("ready");
+    expect(state("2026-10-07T21:23:00")).toBe("expired"); // 締切（20:53）から 30 分
+  });
+
+  it("締切の分数を変えると、猶予の終わりも、その締切から 30 分後に変わる（3 分前なら、試合開始の 27 分後まで）", () => {
+    const [, cutoff] = scheduledJobsForDate({ ...plan, cutoffMinutes: 3 });
+    expect(cutoff?.from).toEqual(jst("2026-10-07T20:57:00"));
+    expect(cutoff?.until).toEqual(jst("2026-10-07T21:27:00"));
   });
 
   it("実行済みなら、時刻に関係なく done", () => {

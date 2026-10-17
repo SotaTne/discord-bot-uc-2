@@ -23,8 +23,6 @@ export type DevSnapshot = {
     channelId: string | null;
     recruitHour: number;
     cutoffMinutes: number;
-    fixedAfterMatches: number;
-    fixedPoints: number;
   };
   /** 登録されている試合時刻 */
   slotHours: number[];
@@ -40,7 +38,7 @@ export type DevSnapshot = {
     raisedBy: string;
     createdAt: number;
   }[];
-  /** チームごとの、挙手中の対戦枠・対戦数・除外された回数・勝利数・得点 */
+  /** チームごとの、挙手中の対戦枠・対戦数・除外された回数 */
   teamStats: {
     teamId: number;
     name: string;
@@ -50,9 +48,6 @@ export type DevSnapshot = {
     matches: number;
     /** 奇数で除外された回数 */
     excluded: number;
-    /** 有効な勝利の数（得点のクリア以降） */
-    wins: number;
-    total: number;
   }[];
   /** マッチングの記録。新しい順（最大30件） */
   rounds: {
@@ -61,25 +56,6 @@ export type DevSnapshot = {
     createdAt: number;
     pairs: { a: string; b: string }[];
     excluded: string | null;
-  }[];
-  /** 勝利の記録（無効なものも含む）。新しい順（最大50件） */
-  wins: {
-    id: number;
-    /** 勝ったチーム */
-    teamName: string;
-    /** 組分け（試合）の2チーム。対戦枠（日付 × 時刻）の中の、どの組分けかを表す */
-    match: { a: string; b: string };
-    slotDate: string;
-    slotHour: number;
-    points: number;
-    /** 集計に使われる点数と、そのチームの何試合目か（無効な記録は null） */
-    countedPoints: number | null;
-    matchNumber: number | null;
-    /** 有効か。無効な記録は、得点にも勝数にも数えない */
-    active: boolean;
-    recordedBy: string;
-    createdAt: number;
-    hasScreenshot: boolean;
   }[];
   /** cron で実行したジョブの履歴。新しい順（最大30件） */
   jobs: { key: string; createdAt: number }[];
@@ -91,6 +67,4 @@ export type DevSnapshot = {
     /** 有効なセッションの数 */
     sessions: number;
   };
-  /** 保存されている画像の数 */
-  screenshots: number;
 };

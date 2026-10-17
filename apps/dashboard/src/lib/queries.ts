@@ -10,12 +10,6 @@ export const keys = {
   slotHours: ["slot-hours"],
   teams: ["teams"],
   board: (date: string | undefined) => ["board", date ?? "today"],
-  scores: ["scores"],
-  // 「得点」の一部として、得点・勝利を変えたときに、いっしょに取り直される（キーの先頭が scores）
-  teamHistory: (teamId: number) => ["scores", "team", teamId],
-  wins: ["wins"],
-  // 勝利を変えたときに、いっしょに取り直される（キーの先頭が wins）
-  unrecordedMatches: ["wins", "unrecorded"],
   sessions: ["sessions"],
 } as const;
 
@@ -45,22 +39,6 @@ export const useBoard = (date: string | undefined) =>
     placeholderData: keepPreviousData,
   });
 
-export const useScores = () =>
-  useQuery({ queryKey: keys.scores, queryFn: () => unwrap(api.scores.$get()) });
-
-/**
- * 勝利が未記録の組分け（マッチング済み + 試合の開始時刻を過ぎている）。時間が過ぎると増えるので、30 秒ごとに取り直す。
- * 取れなかったとき（ログイン前など）は、印も一覧も出さない。
- */
-export const useUnrecordedMatches = () =>
-  useQuery({
-    queryKey: keys.unrecordedMatches,
-    queryFn: () => unwrap(api["unrecorded-matches"].$get()),
-    refetchInterval: 30_000,
-  });
-
-export const useWins = () => useQuery({ queryKey: keys.wins, queryFn: () => unwrap(api.wins.$get()) });
-
 export const useSessions = () =>
   useQuery({ queryKey: keys.sessions, queryFn: () => unwrap(api.sessions.$get()) });
 
@@ -77,11 +55,3 @@ export function useInvalidatingMutation<TVariables, TData>(
     },
   });
 }
-
-/** チームごとの、全組分けと結果（チームの行を押したときの詳細）。チームを選んでいないときは、取らない */
-export const useTeamHistory = (teamId: number | undefined) =>
-  useQuery({
-    queryKey: keys.teamHistory(teamId ?? 0),
-    queryFn: () => unwrap(api.teams[":id"].history.$get({ param: { id: String(teamId) } })),
-    enabled: teamId !== undefined,
-  });

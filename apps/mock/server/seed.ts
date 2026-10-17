@@ -21,6 +21,10 @@ export function defaultSeed(): Seed {
   return {
     guildId: "200000000000000001",
     channelId: "300000000000000001",
+    channels: [
+      { id: "300000000000000001", name: "マッチング" },
+      { id: "300000000000000002", name: "ロール登録" },
+    ],
     roles,
     users: [
       user(1, "alice (KMU)", [kmu.id]),
@@ -28,6 +32,7 @@ export function defaultSeed(): Seed {
       user(3, "carol (UT)", [ut.id]),
       user(4, "dave (NGT)", [ngt.id]),
       user(5, "admin", [], true),
+      user(6, "eve (チームなし)", []),
     ],
   };
 }

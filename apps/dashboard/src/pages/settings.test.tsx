@@ -4,10 +4,12 @@ import { SLOT_HOURS, TEAMS, installFakeBackend, loggedIn, renderApp } from "../t
 
 const SETTINGS = {
   channelId: "300000000000000001",
+  roleChannelId: null as string | null,
   recruitHour: 12,
   cutoffMinutes: 7,
-  fixedAfterMatches: 5,
-  fixedPoints: 100,
+  recruitMentionMode: "none" as const,
+  recruitMentionTargets: [] as string[],
+  matchLimit: null as number | null,
   revokeSessionsOnReissue: false,
 };
 const ROLES = { roles: [{ id: "400000000000000001", name: "KMU" }, { id: "400000000000000002", name: "UT" }, { id: "400000000000000003", name: "NGT" }] };
@@ -19,7 +21,7 @@ const apis = () => ({
   "GET /api/teams": { body: TEAMS },
   "GET /api/roles": { body: ROLES },
   "GET /api/sessions": { body: { sessions: [] } },
-  "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", rule: { fixedAfterMatches: 5, fixedPoints: 100 }, slots: [] } },
+  "GET /api/board": { body: { date: "2026-10-07", today: "2026-10-07", slots: [] } },
 });
 
 const region = (name: string) => within(screen.getByRole("region", { name }));
@@ -32,8 +34,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(((await screen.findByLabelText(/投稿先のチャンネル ID/)) as HTMLInputElement).value).toBe("300000000000000001");
     expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
     expect((screen.getByLabelText("締切（試合の何分前）") as HTMLInputElement).value).toBe("7");
-    expect((screen.getByLabelText("N（記録した点数で集計する試合数）") as HTMLInputElement).value).toBe("5");
-    expect((screen.getByLabelText("固定点") as HTMLInputElement).value).toBe("100");
     expect((screen.getByLabelText(/これまでのログインをすべて失効させる/) as HTMLInputElement).checked).toBe(false);
   });
 
@@ -57,28 +57,235 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(await region("投稿と募集").findByText("保存しました")).toBeTruthy();
     expect(backend.last("PUT", "/api/settings")?.json).toEqual({
       channelId: null,
+      roleChannelId: null,
       recruitHour: 10,
       cutoffMinutes: 15,
-      fixedAfterMatches: 5,
-      fixedPoints: 100,
+      recruitMentionMode: "none",
+      recruitMentionTargets: [],
+      matchLimit: null,
+      seasonStart: null,
+      seasonEnd: null,
       revokeSessionsOnReissue: false,
+    });
+  });
+
+  it("ロール登録の投稿先のチャンネルを、入力して保存できる。空にすると null。桁の違う ID は、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const input = await screen.findByLabelText("ロール登録のチャンネル ID");
+
+    fireEvent.change(input, { target: { value: "12345" } });
+    expect((region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: "300000000000000009" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ roleChannelId: "300000000000000009" }));
+  });
+
+  it("試合数の規定数を、入力して保存できる。空にすると、規定数なし（null）。範囲外は、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const input = await screen.findByLabelText("試合数の規定数");
+
+    fireEvent.change(input, { target: { value: "0" } });
+    expect((region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ matchLimit: 5 }));
+  });
+
+  it("大会の期間は、開始日と終了日を両方入れて保存する。片方だけ、または開始が終了よりあとなら、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const start = (await screen.findByLabelText("大会の開始日")) as HTMLInputElement;
+    const end = screen.getByLabelText("大会の終了日") as HTMLInputElement;
+    const save = () => region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement;
+
+    expect(start.value).toBe("");
+    expect(end.value).toBe("");
+
+    fireEvent.change(start, { target: { value: "2026-10-08" } });
+    expect(save().disabled).toBe(true);
+    expect(region("投稿と募集").getByRole("alert").textContent).toContain("両方");
+
+    fireEvent.change(end, { target: { value: "2026-10-07" } });
+    expect(save().disabled).toBe(true);
+    expect(region("投稿と募集").getByRole("alert").textContent).toContain("前");
+
+    fireEvent.change(end, { target: { value: "2026-10-10" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "キャンセル" }));
+    expect(start.value).toBe("");
+    expect(end.value).toBe("");
+
+    fireEvent.change(start, { target: { value: "2026-10-08" } });
+    fireEvent.change(end, { target: { value: "2026-10-10" } });
+    fireEvent.click(save());
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }));
+  });
+
+  describe("募集開始の時刻・締切の変更（投稿先があるとき、変更を知らせるかを、確認する）", () => {
+    const putOk = (notified = true) => ({ "PUT /api/settings": () => ({ body: { ok: true, notified, notifyFailed: false } }) });
+    const board = (handups: number) => ({
+      body: {
+        date: "2026-10-07",
+        today: "2026-10-07",
+        slots: [{ hour: 21, matched: false, handups: Array.from({ length: handups }, (_, id) => ({ id })) }],
+      },
+    });
+    const dialog = () => within(screen.getByRole("dialog"));
+    const changeAndSave = async (labelText: string, value: string) => {
+      fireEvent.change(await screen.findByLabelText(labelText), { target: { value } });
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+    };
+
+    it("募集開始の時刻を変えると、確認が出る。知らせる（初期）で変更すると、notifyChange: true で保存して、「通知しました」と出る", async () => {
+      let current = { ...SETTINGS };
+      const backend = installFakeBackend({
+        ...apis(),
+        "GET /api/settings": () => ({ body: current }),
+        "PUT /api/settings": (request) => {
+          current = { ...current, ...(request.json as object) };
+          return { body: { ok: true, notified: true, notifyFailed: false } };
+        },
+      });
+      renderApp("/settings");
+      await changeAndSave("募集開始時刻（JST）", "15");
+
+      expect(dialog().getByText("募集開始: 12:00 → 15:00")).toBeTruthy();
+      expect((dialog().getByLabelText("チャンネルに、変更を通知する") as HTMLInputElement).checked).toBe(true);
+      expect(dialog().getByText(/いまの設定: なし/)).toBeTruthy();
+      expect(backend.last("PUT", "/api/settings")).toBeUndefined(); // 確認するまで、保存しない
+
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ recruitHour: 15, notifyChange: true }));
+      expect(await screen.findByText("チャンネルに、変更を通知しました")).toBeTruthy();
+    });
+
+    it("通知のチェックを外すと、notifyChange: false で保存する（打ち間違いを、すぐ直すとき）", async () => {
+      const backend = installFakeBackend({ ...apis(), ...putOk(false) });
+      renderApp("/settings");
+      await changeAndSave("締切（試合の何分前）", "5");
+
+      expect(dialog().getByText("締切: 試合の 7 分前 → 5 分前")).toBeTruthy();
+      fireEvent.click(dialog().getByLabelText("チャンネルに、変更を通知する"));
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ cutoffMinutes: 5, notifyChange: false }));
+      expect(screen.queryByText("チャンネルに、変更を通知しました")).toBeNull();
+    });
+
+    it("募集開始を後ろにずらして、今日の挙手があるときは、「残るが、新しい時刻まで取り消せない」と警告する。前にずらすときは、警告しない", async () => {
+      installFakeBackend({ ...apis(), ...putOk(), "GET /api/board": board(2) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+      await waitFor(() => expect(screen.getByLabelText("募集開始時刻（JST）")).toBeTruthy());
+      await new Promise((resolve) => setTimeout(resolve, 50)); // 挙手の件数を、取るのを待つ
+      await changeAndSave("募集開始時刻（JST）", "15");
+      expect(dialog().getByRole("alert").textContent).toContain("今日の挙手が 2 件あります");
+      fireEvent.click(dialog().getByRole("button", { name: "キャンセル" }));
+
+      await changeAndSave("募集開始時刻（JST）", "10");
+      expect(dialog().queryByRole("alert")).toBeNull();
+    });
+
+    it("キャンセルすると、保存しない。通知先だけ・点数だけの変更や、投稿先が空のときは、確認を出さずに、保存する", async () => {
+      const backend = installFakeBackend({ ...apis(), ...putOk() });
+      renderApp("/settings");
+      await changeAndSave("募集開始時刻（JST）", "15");
+      fireEvent.click(dialog().getByRole("button", { name: "キャンセル" }));
+      expect(backend.last("PUT", "/api/settings")).toBeUndefined();
+
+      fireEvent.change(screen.getByLabelText("募集開始時刻（JST）"), { target: { value: "12" } });
+      fireEvent.click(screen.getByRole("radio", { name: "チーム全て" }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+      await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ recruitMentionMode: "teams" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect((backend.last("PUT", "/api/settings")?.json as { notifyChange?: boolean }).notifyChange).toBeUndefined();
+    });
+
+    it("通知に失敗したら、設定は保存したことと、通知に失敗したことを、出す", async () => {
+      installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true, notified: false, notifyFailed: true } }) });
+      renderApp("/settings");
+      await changeAndSave("締切（試合の何分前）", "5");
+      fireEvent.click(dialog().getByRole("button", { name: "変更する" }));
+
+      expect((await screen.findByRole("alert")).textContent).toContain("チャンネルへの通知に失敗しました");
+    });
+  });
+
+  describe("募集開始の通知先", () => {
+    const save = (backend: ReturnType<typeof installFakeBackend>) => backend.last("PUT", "/api/settings")?.json;
+
+    it("既定は「なし」。「チーム全て」にして保存できる", async () => {
+      const backend = installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true } }) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+
+      expect((screen.getByRole("radio", { name: "なし" }) as HTMLInputElement).checked).toBe(true);
+      expect(screen.queryByLabelText("通知するロール")).toBeNull();
+
+      fireEvent.click(screen.getByRole("radio", { name: "チーム全て" }));
+      expect(screen.getByText("登録済みのチームのロールに、通知します")).toBeTruthy();
+      expect(screen.queryByLabelText("通知するロール")).toBeNull();
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+      await waitFor(() => expect(save(backend)).toMatchObject({ recruitMentionMode: "teams", recruitMentionTargets: [] }));
+    });
+
+    it("「ロールを選ぶ」: ロール（複数）と @here を選んで、保存できる。選んだものは、あとで「なし」に戻しても、残る", async () => {
+      const backend = installFakeBackend({ ...apis(), "PUT /api/settings": () => ({ body: { ok: true } }) });
+      renderApp("/settings");
+      await screen.findByRole("region", { name: "投稿と募集" });
+      fireEvent.click(screen.getByRole("radio", { name: "ロールを選ぶ" }));
+
+      const [picker] = await screen.findAllByLabelText("通知するロール");
+      fireEvent.focus(picker!);
+      fireEvent.click(picker!);
+      // 候補の一覧は、画面の外に描かれる（jsdom では、見えない扱いになるので、hidden を付ける）
+      fireEvent.click(await screen.findByRole("option", { name: "@here（オンラインの人）", hidden: true }));
+      fireEvent.click(await screen.findByRole("option", { name: "NGT", hidden: true }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+      await waitFor(() => expect(save(backend)).toMatchObject({ recruitMentionMode: "roles", recruitMentionTargets: ["here", "400000000000000003"] }));
+    });
+
+    it("保存してある通知先を、画面に出す（一覧にないロールも、ID で見える）。キャンセルで、元に戻る", async () => {
+      installFakeBackend({
+        ...apis(),
+        "GET /api/settings": { body: { ...SETTINGS, recruitMentionMode: "roles", recruitMentionTargets: ["here", "400000000000000001", "999999999999999999"] } },
+      });
+      renderApp("/settings");
+
+      expect((await screen.findByRole("radio", { name: "ロールを選ぶ" }) as HTMLInputElement).checked).toBe(true);
+      // 選んである通知先が、画面に出ている（選択済みの表示と、候補の一覧の、両方にあるので、1 つ以上）
+      for (const label of ["@here（オンラインの人）", "KMU", "ロール 999999999999999999"]) {
+        expect((await screen.findAllByText(label)).length, label).toBeGreaterThan(0);
+      }
+
+      fireEvent.click(screen.getByRole("radio", { name: "なし" }));
+      fireEvent.click(region("投稿と募集").getByRole("button", { name: "キャンセル" }));
+      expect((screen.getByRole("radio", { name: "ロールを選ぶ" }) as HTMLInputElement).checked).toBe(true);
     });
   });
 
   it("変更がないときは、保存できない。変更すると、「保存していない変更があります」と出て、保存できる", async () => {
     installFakeBackend(apis());
     renderApp("/settings");
-    await screen.findByRole("region", { name: "得点の集計" });
-    const save = async () => (await region("得点の集計").findByRole("button", { name: "保存する" })) as HTMLButtonElement;
+    await screen.findByRole("region", { name: "投稿と募集" });
+    const save = async () => (await region("投稿と募集").findByRole("button", { name: "保存する" })) as HTMLButtonElement;
 
     expect((await save()).disabled).toBe(true);
-    expect(region("得点の集計").queryByText("保存していない変更があります")).toBeNull();
+    expect(region("投稿と募集").queryByText("保存していない変更があります")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "10" } });
     expect((await save()).disabled).toBe(false);
-    expect(region("得点の集計").getByText("保存していない変更があります")).toBeTruthy();
+    expect(region("投稿と募集").getByText("保存していない変更があります")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("締切（試合の何分前）"), { target: { value: "7" } });
     expect((await save()).disabled).toBe(true);
   });
 
@@ -96,8 +303,6 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect((screen.getByLabelText("募集開始時刻（JST）") as HTMLInputElement).value).toBe("12");
     expect(region("投稿と募集").queryByRole("button", { name: "キャンセル" })).toBeNull();
     expect(backend.count("PUT", "/api/settings")).toBe(0);
-    // 得点の集計には、触れていない
-    expect(region("得点の集計").queryByRole("button", { name: "キャンセル" })).toBeNull();
   });
 
   it("範囲を外れた入力は、その場で理由を出して、保存できない（API には送らない）", async () => {
@@ -133,25 +338,13 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     expect(screen.queryByLabelText("今日の予定")).toBeNull();
   });
 
-  it("「得点の集計」を保存すると、N と固定点だけが変わる", async () => {
-    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
-    renderApp("/settings");
-    fireEvent.change(await screen.findByLabelText("N（記録した点数で集計する試合数）"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("固定点"), { target: { value: "80" } });
-
-    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
-
-    await waitFor(() => expect(backend.count("PUT", "/api/settings")).toBe(1));
-    expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ channelId: "300000000000000001", fixedAfterMatches: 3, fixedPoints: 80 });
-  });
-
   it("ログインの設定は、切り替えると、その場で保存する（保存ボタンはない）", async () => {
     const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true } } });
     renderApp("/settings");
 
     fireEvent.click(await screen.findByLabelText(/これまでのログインをすべて失効させる/));
 
-    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ revokeSessionsOnReissue: true, fixedPoints: 100 }));
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ revokeSessionsOnReissue: true, cutoffMinutes: 7 }));
     expect(region("ログイン").queryByRole("button", { name: "保存する" })).toBeNull();
   });
 
@@ -159,10 +352,10 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
     installFakeBackend({ ...apis(), "PUT /api/settings": { status: 400, body: { success: false, error: { name: "ZodError" } } } });
     renderApp("/settings");
 
-    fireEvent.change(await screen.findByLabelText("固定点"), { target: { value: "80" } });
-    fireEvent.click(region("得点の集計").getByRole("button", { name: "保存する" }));
+    fireEvent.change(await screen.findByLabelText(/投稿先のチャンネル ID/), { target: { value: "300000000000000002" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
 
-    expect((await region("得点の集計").findByRole("alert")).textContent).toContain("入力内容を確認してください");
+    expect((await region("投稿と募集").findByRole("alert")).textContent).toContain("入力内容を確認してください");
   });
 
 });
@@ -216,7 +409,6 @@ describe("設定の画面: 試合時刻", () => {
       body: {
         date: "2026-10-07",
         today: "2026-10-07",
-        rule: { fixedAfterMatches: 5, fixedPoints: 100 },
         slots: [{ hour: 21, deleted: false, phase: "open", matched: false, excluded: null, handups: [handup(1), handup(2)], matches: [] }],
       },
     });

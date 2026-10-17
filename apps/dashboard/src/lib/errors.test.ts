@@ -29,6 +29,7 @@ describe("unwrap", () => {
 describe("errorMessage", () => {
   it("エラーコードに応じた、分かりやすい文面にする", () => {
     expect(errorMessage(new ApiError(409, "already_exists"))).toBe("すでに登録されています");
+    expect(errorMessage(new ApiError(409, "outside_season"))).toBe("いまは大会の期間外です");
     expect(errorMessage(new ApiError(401, "unauthorized"))).toContain("/uc-admin-dashboard");
   });
 

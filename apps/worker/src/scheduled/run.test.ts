@@ -1,7 +1,7 @@
-import { fixedClock } from "@uc/core";
-import { addMatch, createHandup, createTeam, defaultGuildSettings, ensureHandup, listMatchedSlots, saveGuildSettings, withdrawHandup } from "@uc/db";
+import { fixedClock, matchNumberKey, matchNumbers } from "@uc/core";
+import { addMatch, createHandup, createTeam, defaultGuildSettings, ensureHandup, listGuildMatches, listMatchedSlots, saveGuildSettings, withdrawHandup } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { GUILD_ID, KMU_ROLE, UT_ROLE, createSeededDb, jst } from "../test-helpers";
+import { GUILD_ID, KMU_ROLE, UT_ROLE, channelNoops, createSeededDb, jst } from "../test-helpers";
 import { runScheduled } from "./run";
 
 type Seeded = Awaited<ReturnType<typeof createSeededDb>>;
@@ -12,6 +12,20 @@ let posted: Posted[];
 let failNext = 0;
 const CHANNEL = "300000000000000001";
 
+/**
+ * 組分けの 1 行（各チームの何試合目かと、主催つき）。
+ * 主催は、保存された値（2 チームのどちらか。乱数で決まる）を、DB から読んで確かめる。何試合目かは、保存された組分けから数える。
+ */
+const pairLine = async (a: { id: number; role: string }, b: { id: number; role: string }) => {
+  const [slot] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07" });
+  const pair = slot?.pairs.find((p) => [p.teamAId, p.teamBId].sort().join() === [a.id, b.id].sort().join());
+  const host = pair?.hostTeamId;
+  expect([a.id, b.id]).toContain(host);
+  const numbers = matchNumbers(await listGuildMatches(seeded.db, GUILD_ID));
+  const n = (teamId: number) => numbers.get(matchNumberKey(teamId, pair!.matchId));
+  return `- <@&${a.role}>（${n(a.id)}試合目） vs <@&${b.role}>（${n(b.id)}試合目）・主催: <@&${host === a.id ? a.role : b.role}>`;
+};
+
 const rest = {
   async createMessage(channelId: string, payload: { content?: string; allowed_mentions?: unknown }) {
     if (failNext > 0) {
@@ -21,6 +35,7 @@ const rest = {
     posted.push({ channelId, content: payload.content ?? "", allowedMentions: payload.allowed_mentions });
     return { id: String(posted.length) };
   },
+  ...channelNoops,
 };
 
 beforeEach(async () => {
@@ -41,13 +56,89 @@ async function raise(teamName: string, roleId: string, slotHour: number, created
   await createHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour, teamId, raisedBy: "u", createdAt });
 }
 
+describe("大会の期間", () => {
+  const season = (start: string, end: string) =>
+    saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, seasonStart: start, seasonEnd: end }, 2);
+
+  it("期間の前は、募集も締切のマッチングもしない。開始日は、募集する", async () => {
+    await season("2026-10-08", "2026-10-09");
+    await raise("KMU", KMU_ROLE, 21, 100);
+    await raise("UT", UT_ROLE, 21, 200);
+
+    expect((await tick("2026-10-07T12:00:00")).ran).toEqual([]);
+    expect((await tick("2026-10-07T20:53:00")).ran).toEqual([]);
+    expect(posted).toEqual([]);
+    expect(await listMatchedSlots(seeded.db, { guildId: GUILD_ID })).toEqual([]);
+
+    expect((await tick("2026-10-08T12:00:00")).ran).toEqual(["recruit:2026-10-08:12"]);
+  });
+
+  it("終了日の締切は、マッチングする。終了の翌日は、募集しない", async () => {
+    await season("2026-10-07", "2026-10-07");
+    await raise("KMU", KMU_ROLE, 21, 100);
+    await raise("UT", UT_ROLE, 21, 200);
+
+    expect((await tick("2026-10-07T20:53:00")).ran).toContain("cutoff:2026-10-07:21");
+    posted = [];
+    expect((await tick("2026-10-08T12:00:00")).ran).toEqual([]);
+    expect(posted).toEqual([]);
+  });
+});
+
 describe("募集開始", () => {
   it("募集開始の時刻になると、設定したチャンネルに投稿する（通知はしない）", async () => {
     const summary = await tick("2026-10-07T12:00:00");
 
-    expect(summary.ran).toEqual(["recruit:2026-10-07"]);
+    expect(summary.ran).toEqual(["recruit:2026-10-07:12"]);
     expect(posted).toEqual([
-      { channelId: CHANNEL, content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [] } },
+      { channelId: CHANNEL, content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } },
+    ]);
+  });
+
+  describe("通知先（設定）", () => {
+    const withMention = (recruitMentionMode: "none" | "teams" | "roles", recruitMentionTargets: string[] = []) =>
+      saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitMentionMode, recruitMentionTargets }, 2);
+
+    it("チーム全て: 登録済みのチームのロールに、通知する", async () => {
+      await withMention("teams");
+      await tick("2026-10-07T12:00:00");
+
+      expect(posted).toEqual([
+        {
+          channelId: CHANNEL,
+          content: `<@&${KMU_ROLE}> <@&${UT_ROLE}>\n# 12:00になりましたので、本日の募集を開始します`,
+          allowedMentions: { parse: [], roles: [KMU_ROLE, UT_ROLE] },
+        },
+      ]);
+    });
+
+    it("ロールを選ぶ: 選んだロールと @here に、通知する", async () => {
+      await withMention("roles", ["200000000000000099", "here"]);
+      await tick("2026-10-07T12:00:00");
+
+      expect(posted[0]).toMatchObject({
+        content: "@here <@&200000000000000099>\n# 12:00になりましたので、本日の募集を開始します",
+        allowedMentions: { parse: ["everyone"], roles: ["200000000000000099"] },
+      });
+    });
+
+    it("ロールを選ぶ（選んだものがない）・なし: 誰にも通知しない（チームのロールを持っていても）", async () => {
+      await withMention("roles", []);
+      await tick("2026-10-07T12:00:00");
+      expect(posted[0]).toMatchObject({ content: "# 12:00になりましたので、本日の募集を開始します", allowedMentions: { parse: [], roles: [] } });
+    });
+  });
+
+  it("募集開始の時刻を変えると、新しい時刻で、もう一度、投稿する（同じ時刻では、1 日 1 回）", async () => {
+    await tick("2026-10-07T12:00:00");
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 13 }, 2);
+
+    expect((await tick("2026-10-07T12:30:00")).ran).toEqual([]);
+    expect((await tick("2026-10-07T13:00:00")).ran).toEqual(["recruit:2026-10-07:13"]);
+    expect((await tick("2026-10-07T13:01:00")).ran).toEqual([]);
+    expect(posted.map((post) => post.content)).toEqual([
+      "# 12:00になりましたので、本日の募集を開始します",
+      "# 13:00になりましたので、本日の募集を開始します",
     ]);
   });
 
@@ -106,7 +197,7 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
     expect(posted).toHaveLength(1);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"),
+      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
     );
     expect(posted[0]?.allowedMentions).toEqual({ parse: ["roles"] });
 
@@ -138,16 +229,18 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(await listMatchedSlots(seeded.db, { guildId: GUILD_ID })).toHaveLength(1);
   });
 
-  it("取り消された挙手は、マッチングに含めない", async () => {
+  it("挙手が 1 チームだけのときは、そのチームだけの専用の文面で投稿する（「十分ではありません」ではない）。挙手が 0 のときは、従来どおり", async () => {
     await raise("KMU", KMU_ROLE, 21, 100);
     await raise("UT", UT_ROLE, 21, 200);
     await withdrawHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: seeded.utId });
 
     await tick("2026-10-07T20:53:00");
 
-    expect(posted[0]?.content).toBe("## 試合 (時間:21時)\n試合に参加するチームが十分ではありません");
+    expect(posted[0]?.content).toBe(`## 試合 (時間:21時)\n<@&${KMU_ROLE}> だけの挙手だったため、組分けはありません`);
     const [round] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID });
     expect(round).toMatchObject({ pairs: [], excludedTeamId: seeded.kmuId });
+    // 案内の本文も、「奇数」ではなく、「1 チームだけ」
+    expect(posted[1]?.content).toContain("挙手が 1 チームだけだったため、21時は組まれませんでした");
   });
 
   it("挙手がなくても、その旨を投稿して、結果（空）を保存する", async () => {
@@ -214,7 +307,11 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
     const [slot] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07" });
     expect(slot?.pairs.map((pair) => [pair.teamAId, pair.teamBId])).toEqual([[seeded.kmuId, seeded.utId], [ngt, itf]]);
     expect(posted[0]?.content).toBe(
-      ["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`, "- <@&r-ngt> vs <@&r-itf>"].join("\n"),
+      [
+        "## 試合 (時間:21時) の組分け:",
+        await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE }),
+        await pairLine({ id: ngt, role: "r-ngt" }, { id: itf, role: "r-itf" }),
+      ].join("\n"),
     );
   });
 
@@ -236,7 +333,9 @@ describe("管理者が追加した組分けと、自動のマッチング", () =
 
     await tick("2026-10-07T20:53:00");
 
-    expect(posted[0]?.content).toBe(["## 試合 (時間:21時) の組分け:", `- <@&${KMU_ROLE}> vs <@&${UT_ROLE}>`].join("\n"));
+    expect(posted[0]?.content).toBe(
+      ["## 試合 (時間:21時) の組分け:", await pairLine({ id: seeded.kmuId, role: KMU_ROLE }, { id: seeded.utId, role: UT_ROLE })].join("\n"),
+    );
   });
 
   it("投稿に失敗してやり直しても、組分けは重複しない。勝利が紐づいた組分けの ID も、変わらない", async () => {
@@ -274,16 +373,16 @@ describe("失敗したとき", () => {
   });
 
   it("募集開始の投稿に失敗しても、同じ tick の締切のジョブは続けて実行する", async () => {
-    // 募集開始（12:00 から1時間）と締切が重なる設定
-    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 20 }, 2);
+    // 募集開始（20:00 から 30 分）と締切（試合の 40 分前 = 20:20 から）が重なる設定
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, channelId: CHANNEL, recruitHour: 20, cutoffMinutes: 40 }, 2);
     await raise("KMU", KMU_ROLE, 21, 100);
     await raise("UT", UT_ROLE, 21, 200);
 
     failNext = 1;
-    const summary = await tick("2026-10-07T20:53:00");
+    const summary = await tick("2026-10-07T20:20:00");
 
     expect(summary.errors).toHaveLength(1);
-    expect(summary.errors[0]).toContain("recruit:2026-10-07");
+    expect(summary.errors[0]).toContain("recruit:2026-10-07:20");
     expect(summary.ran).toEqual(["cutoff:2026-10-07:21"]);
   });
 });

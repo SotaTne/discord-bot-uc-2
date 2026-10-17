@@ -4,12 +4,11 @@ import {
   handupDeadline,
   handupPhase,
   isAcceptingHandups,
+  isContinuedRecruit,
   jstDateOf,
-  resolveRecentSlotDate,
   slotHoursOnDate,
   slotPhase,
   slotStart,
-  winRecordability,
 } from "./slot-time";
 
 const jst = (text: string) => new Date(`${text}+09:00`);
@@ -33,28 +32,6 @@ describe("slotStart / handupDeadline", () => {
   it("0〜23 以外の時は拒否する", () => {
     expect(() => slotStart("2026-10-07", 24)).toThrow(RangeError);
     expect(() => slotStart("2026-10-07", 1.5)).toThrow(RangeError);
-  });
-});
-
-describe("resolveRecentSlotDate", () => {
-  it("今日の対戦枠がもう始まっていれば今日", () => {
-    expect(resolveRecentSlotDate(jst("2026-10-07T22:30:00"), 21)).toBe("2026-10-07");
-  });
-
-  it("対戦枠の開始ちょうどは、その日として扱う", () => {
-    expect(resolveRecentSlotDate(jst("2026-10-07T21:00:00"), 21)).toBe("2026-10-07");
-  });
-
-  it("今日の対戦枠がまだなら、前日", () => {
-    expect(resolveRecentSlotDate(jst("2026-10-07T22:30:00"), 23)).toBe("2026-10-06");
-  });
-
-  it("日付が変わった後でも、前日の遅い対戦枠を指せる", () => {
-    expect(resolveRecentSlotDate(jst("2026-10-08T00:30:00"), 23)).toBe("2026-10-07");
-  });
-
-  it("月をまたいでも前日を返す", () => {
-    expect(resolveRecentSlotDate(jst("2026-11-01T10:00:00"), 21)).toBe("2026-10-31");
   });
 });
 
@@ -133,6 +110,26 @@ describe("formatJstTime", () => {
   });
 });
 
+describe("isContinuedRecruit（継続募集中か）", () => {
+  const waiting = { status: "matched" as const, excludedTeamId: 3, waitingSince: 1, slotDate: "2026-10-07", slotHour: 21 };
+
+  it("マッチング済みで、待機中のチームがいて、試合開始の前なら、継続募集中", () => {
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T20:57:00"))).toBe(true);
+  });
+
+  it("試合開始の時刻を過ぎたら、何も保存し直さなくても、終わる（ちょうどの時刻も、終わり）", () => {
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T21:00:00"))).toBe(false);
+    expect(isContinuedRecruit(waiting, jst("2026-10-07T21:30:00"))).toBe(false);
+  });
+
+  it("待機していない・組まれなかったチームがいない・未マッチングなら、継続募集中ではない", () => {
+    const now = jst("2026-10-07T20:57:00");
+    expect(isContinuedRecruit({ ...waiting, waitingSince: null }, now)).toBe(false);
+    expect(isContinuedRecruit({ ...waiting, excludedTeamId: null }, now)).toBe(false);
+    expect(isContinuedRecruit({ ...waiting, status: "open" }, now)).toBe(false);
+  });
+});
+
 describe("slotHoursOnDate（その日の、対戦枠にする試合時刻）", () => {
   const entries = [
     { hour: 23, deletedAt: null },
@@ -162,21 +159,3 @@ describe("slotHoursOnDate（その日の、対戦枠にする試合時刻）", (
   });
 });
 
-describe("winRecordability（勝利を追加できる状態: マッチング済み + 開始時刻を過ぎている）", () => {
-  const base = { slotDate: "2026-10-07", slotHour: 21 };
-
-  it("マッチング済みで、開始時刻を過ぎていれば ok。ちょうど開始時刻も ok", () => {
-    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T21:30:00") })).toBe("ok");
-    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T21:00:00") })).toBe("ok");
-    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-09T00:00:00") })).toBe("ok");
-  });
-
-  it("開始前なら not-started", () => {
-    expect(winRecordability({ ...base, matched: true, now: jst("2026-10-07T20:59:59") })).toBe("not-started");
-  });
-
-  it("マッチング済みでなければ、時刻を過ぎていても not-matched（開始前でも、not-matched が先）", () => {
-    expect(winRecordability({ ...base, matched: false, now: jst("2026-10-07T22:00:00") })).toBe("not-matched");
-    expect(winRecordability({ ...base, matched: false, now: jst("2026-10-07T20:00:00") })).toBe("not-matched");
-  });
-});

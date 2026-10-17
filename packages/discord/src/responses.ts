@@ -62,10 +62,13 @@ export const confirmMessage = (input: {
   },
 });
 
-/** ボタンが押されたメッセージを、新しい本文に置き換える（ボタンは消える） */
-export const updateMessage = (content: string): InteractionResponse => ({
+/**
+ * ボタンが押されたメッセージを、新しい本文に置き換える。components を渡さなければ、ボタンは消える。
+ * 編集では、メンションは通知されない（通知したいときは、新しいメッセージを投稿する）。
+ */
+export const updateMessage = (content: string, components: ActionRow[] = []): InteractionResponse => ({
   type: InteractionResponseType.UpdateMessage,
-  data: { content, components: [], allowed_mentions: { parse: [] } },
+  data: { content, components, allowed_mentions: { parse: [] } },
 });
 
 /** 3秒以内に応答できない処理のために、まず「考え中」を返す（あとで編集する） */

@@ -2,7 +2,7 @@
 
 大学対抗戦の対戦マッチング Bot。仕様は [SPEC.md](SPEC.md) を参照。
 
-挙手 → 試合の K 分前にマッチングを確定 → 勝利の記録 → 得点、までを、Discord のコマンドと管理者用のダッシュボードで扱う。
+挙手 → 試合の K 分前にマッチングを確定、までを、Discord のコマンドと管理者用のダッシュボードで扱う。
 
 ## セットアップ
 
@@ -21,7 +21,7 @@ pnpm check   # 型チェックとテスト
 | `apps/worker` | Hono。`/interactions`（Discord）、`/api`（ダッシュボード用）、cron、ダッシュボードの配信 |
 | `apps/dashboard` | Vite + React + Mantine の管理画面。API の型は Hono RPC で受け取る。`src/` は、本番に載る画面のコードだけ。開発専用の設定（`/api` の proxy）は `dev/` に置き、`vite.config.ts` が、開発サーバー（`command === "serve"`）のときだけ使う |
 | `apps/mock` | 開発専用の疑似 Discord。`server/`（Discord のサーバー役 `discord/` と、画面用の API `api/`）・`client/`（画面。Vite + React + Mantine + TanStack Query。サーバーには HTTP で話すだけ）・`scripts/`（開発の準備）。1 つの Vite の開発サーバーで動く（コードを変えても、メッセージなどの状態は残る） |
-| `packages/core` | 純粋なドメイン規則（マッチング、得点、勝利の記録の確認、時刻）。依存なし |
+| `packages/core` | 純粋なドメイン規則（マッチング、時刻、cron の予定）。依存なし |
 | `packages/db` | Drizzle のスキーマ、D1 のマイグレーション、リポジトリ |
 | `packages/discord` | 署名検証、REST クライアント、コマンド定義と登録 |
 | `packages/api` | zod スキーマ（worker の検証とフォームの検証で共有） |
@@ -50,13 +50,13 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 
 - **いま**: 日付（◀ ▶ で1日ずつ）・時刻（直せる）・イベントの時刻（募集開始・各対戦枠の締切・各対戦枠の試合開始）のボタン・「現在時刻」。動かすと、cron が自動で1回動く（本番は毎分動くので、それと同じ）。
 - **実行者**: 複数選べる。選んだ全員として、コマンドを順に実行する（alice と carol が同時に `/uc-handup`、など）。
-- **コマンド**: 選ぶと、そのフォームが出る。時刻は対戦枠の選択、チームはロールの選択、点数は数値、画像はファイル、日付は日付。
-- **Discord**: 公開メッセージも、本人にだけ見える返信も、時刻順に並ぶ。確認ボタンも押せる。
-- **状態**: チームごとの 挙手中（対戦枠と挙手した人）・対戦数・勝利数・得点、マッチングログ、勝利記録（対戦枠・組分け・勝ったチーム・点数 → 集計の点数、何勝目、無効、画像）。
+- **コマンド**: 選ぶと、そのフォームが出る。時刻は対戦枠の選択、チームはロールの選択、日付は日付。
+- **Discord**: 公開メッセージも、本人にだけ見える返信も、時刻順に並ぶ。ボタンも押せる（本人にだけ見える返信は、その本人として。公開メッセージは、選んでいる実行者として。奇数のときの「待機する」「対戦する」を、チームごとに押し分けられる）。
+- **状態**: チームごとの 挙手中（対戦枠と挙手した人）・対戦数、マッチングログ。
 - 今日の対戦枠が、「未マッチング」か「マッチング済み」かが見える。マッチング済みの対戦枠は、時計を戻しても、挙手を受け付けない（もう一度試すときは、日付を ◀ ▶ で動かすか、「データを初期化」）。
-- 「データを初期化」で、挙手・マッチング・得点・ログイン・メッセージ・時計を、初期状態に戻せる（設定・対戦枠・チームは残る）。
+- 「データを初期化」で、挙手・マッチング・ログイン・メッセージ・時計を、初期状態に戻せる（設定・対戦枠・チームは残る）。
 
-時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示・勝利の未記録の印）が、同じ時計に従う。
+時計は、「本物の時刻 + ずれ」で、worker が持つ（mock が、`PUT /dev/clock` で伝える）。時刻へ移っても、時間は進む。worker の API・Discord・cron、そして、ダッシュボード（ログインの期限・「今」の表示）が、同じ時計に従う。
 `/dev/*`（時計・状態・cron・初期化）と、疑似時計は、**開発専用の入口**（`apps/worker/src/dev/entry.ts`。`pnpm dev` だけが使う）にだけある。本番の入口（`src/index.ts`）は、`src/dev/` を、読み込まない。分岐や、ビルドの設定で隠すのでなく、入口が違うので、本番に出る可能性が、構造上、ない（`tests/worker-imports.test.ts` が、読み込みを、`tests/worker-build.test.ts` が、実際のビルドの結果を、確かめる）。
 
 ### DB を変えるとき（マイグレーション）
@@ -70,8 +70,7 @@ mock は本物と同じ形式・同じ署名でリクエストを送るので、
 
 1. 「12:00 募集開始」を押す。実行者 alice と carol を選んで、`/uc-handup`（21:00）を実行する → 「チーム」の挙手中に出る。
 2. 「20:53 21時の締切」を押す（cron が動く）→ 21時のマッチング結果が Discord に出る。「マッチングログ」と「対戦」にも反映される。
-3. 実行者を admin にして `/uc-admin-win`（21:00、UT、80、画像）→ 「勝利記録」と「得点」に出る。
-4. admin で `/uc-admin-dashboard` → 返信のリンクを開いて、「ダッシュボードへ入る」を押す。
+3. admin で `/uc-admin-dashboard` → 返信のリンクを開いて、「ダッシュボードへ入る」を押す。
 
 スキーマが変わったあと（古いローカルの DB が残っているとき）は、`rm -rf apps/worker/.wrangler/state` で、ローカルの DB を作り直してから、`pnpm dev` を起動する。
 
@@ -105,7 +104,7 @@ pnpm register-commands                                    # 全サーバー（�
 
 | ブランチ | 役割 | デプロイ先（GitHub Actions が、自動で行う） |
 |---|---|---|
-| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-staging`） |
+| `develop` | 統合。機能の PR は、ここに入る | **ステージング**（`uc-bot-stg`） |
 | `main` | リリース済み | **本番**（`uc-bot`） |
 
 1. 機能の PR を、`develop` に、マージする（スカッシュ）。ステージングに出る。
@@ -137,14 +136,12 @@ pnpm register-commands                                    # 全サーバー（�
 
 ### 初回のセットアップ（環境ごとに、1回）
 
-1. D1 と R2 を作る。出力された D1 の ID を、`wrangler.jsonc` の、その環境の `database_id` に書く（ID は、秘密ではない）。
+1. D1 を作る。出力された D1 の ID を、`wrangler.jsonc` の、その環境の `database_id` に書く（ID は、秘密ではない）。
 
    ```bash
    cd apps/worker
    pnpm exec wrangler d1 create uc-bot-staging
-   pnpm exec wrangler r2 bucket create uc-bot-staging-screenshots
    pnpm exec wrangler d1 create uc-bot
-   pnpm exec wrangler r2 bucket create uc-bot-screenshots
    ```
 
 2. **シークレットは、GitHub だけに置く**（Cloudflare に、手動で、`wrangler secret put` しない）。CD が、デプロイのたびに、`wrangler deploy --secrets-file` で、Cloudflare に渡す。値を変えるときは、GitHub の値を変えて、CD を再実行する。
@@ -166,7 +163,7 @@ pnpm register-commands                                    # 全サーバー（�
 
    | 名前 | 種類 | 内容 |
    |---|---|---|
-   | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1・R2 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
+   | `CLOUDFLARE_API_TOKEN` | Secret | Workers・D1 の編集権限に、絞る（足りない権限は、デプロイのエラーに従って、足す）。同じトークンを、両方の環境に、登録してもよい |
    | `DISCORD_BOT_TOKEN` | Secret | Bot のトークン（**秘密は、この2つだけ**）。Worker の実行時と、コマンドの登録に、使う |
    | `DISCORD_APPLICATION_ID` | Variable | アプリの ID（公開してよい） |
    | `DISCORD_PUBLIC_KEY` | Variable | Interactions の署名の検証に使う、公開鍵（公開してよい） |
@@ -177,7 +174,7 @@ pnpm register-commands                                    # 全サーバー（�
    - 本番だけ、Required reviewers（承認者）を付けると、本番へのデプロイの前に、承認の画面が出る（任意）。
 
 5. Developer Portal の「Interactions Endpoint URL」に、各環境の `https://<worker の URL>/interactions` を設定する（環境ごとのアプリで）。スラッシュコマンドの登録は、CD が、デプロイのたびに行う（手動の登録は、要らない）。
-6. Bot を、チャンネルに投稿できる権限で、サーバーに招待する（ロール管理の権限は要らない）。
+6. Bot を、チャンネルに投稿できる権限と、**「ロールの管理」の権限**で、サーバーに招待する（ロール登録で、メンバーにチームのロールを付けるため）。Discord のサーバー設定で、**Bot のロールを、チームのロールより上**に置く（下だと、ロールを付けられない）。
 7. Discord で、管理者が `/uc-admin-dashboard` を実行して、ダッシュボードに入り、「設定」で、投稿先のチャンネル・試合時刻・チームを登録する。
 
 cron（毎分）は、環境ごとに、`wrangler.jsonc` の `triggers.crons` で、デプロイと一緒に登録される。

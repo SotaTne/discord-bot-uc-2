@@ -1,0 +1,1 @@
+ALTER TABLE `matches` ADD `host_team_id` integer REFERENCES teams(id);

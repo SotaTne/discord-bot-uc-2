@@ -1,25 +1,29 @@
-import { isJobDue, jstDateOf, scheduledJobsForDate, type Clock } from "@uc/core";
+import { dateInSeason, isJobDue, jstDateOf, scheduledJobsForDate, seasonAccess, slotStart, type Clock, type ScheduledJobSpec, type SeasonWindow } from "@uc/core";
 import {
   claimJob,
   deleteExpiredCredentials,
   listConfiguredGuilds,
+  listMatchSlots,
   listSlotHours,
+  listSlotsWithWaitingMessages,
+  listTeams,
   releaseJob,
   type Db,
   type GuildSettingsValues,
 } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
+import { closeWaitingMessages } from "../usecases/close-waiting-messages";
 import { confirmMatching } from "../usecases/confirm-matching";
-import { recruitMessage } from "./messages";
+import { postRecruit, recruitMention } from "../messages";
 
 export type ScheduledDeps = {
   db: Db;
-  rest: Pick<DiscordRest, "createMessage">;
+  rest: Pick<DiscordRest, "createMessage" | "editMessage" | "deleteMessage">;
   clock: Clock;
 };
 
 export type ScheduledSummary = {
-  /** 今回の実行で、実際に行ったジョブ（例: recruit:2026-10-07） */
+  /** 今回の実行で、実際に行ったジョブ（例: recruit:2026-10-07:12） */
   ran: string[];
   errors: string[];
 };
@@ -61,6 +65,13 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
 
   const now = clock.now();
   const today = jstDateOf(now);
+  const season = { start: guild.seasonStart, end: guild.seasonEnd };
+
+  // 期間内の日の待機は、試合開始の時刻を過ぎていれば閉じる（大会が終わったあとでも。cron がその時刻を逃した場合のため）
+  await closeExpiredWaitingMessages(deps, guild.guildId, channelId, now, season);
+
+  // 今日が開催日でないときは、募集も締切のマッチングもしない
+  if (seasonAccess(today, today, season) !== "play") return;
 
   // 予定（いつ、どのジョブを実行するか）は、画面に出すものと同じ規則（@uc/core）で決める
   const slots = await listSlotHours(db, guild.guildId);
@@ -71,6 +82,8 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
     slotHours: slots.map((slot) => slot.hour),
   });
 
+  await releaseStaleCutoffClaims(deps, guild.guildId, specs, today, now);
+
   const jobs: Job[] = specs
     .filter((spec) => isJobDue(spec, now))
     .map((spec) => ({
@@ -78,9 +91,10 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       run:
         spec.kind === "recruit"
           ? async () => {
-              await deps.rest.createMessage(channelId, {
-                content: recruitMessage(guild.recruitHour),
-                allowed_mentions: { parse: [] },
+              await postRecruit(deps.rest, {
+                channelId,
+                hour: guild.recruitHour,
+                mention: recruitMention(guild, guild.recruitMentionMode === "teams" ? await listTeams(db, guild.guildId) : []),
               });
             }
           : () =>
@@ -104,6 +118,42 @@ async function runGuild(deps: ScheduledDeps, guild: GuildConfig, summary: Schedu
       console.error(`ジョブに失敗しました: ${job.key}`, error);
       summary.errors.push(`${job.key}: ${errorText(error)}`);
     }
+  }
+}
+
+/**
+ * フック: 「試合開始の時刻（00 分）になったら」、継続募集のメッセージを、終わりにする。
+ * 募集のメッセージ（「対戦する」「待機をキャンセル」）は削除し、案内のメッセージ（「待機する」）は、ボタンを外す。
+ * 終わりにしたあと、メッセージの ID を空にするので、毎分実行しても、1 度しか、処理しない。
+ */
+async function closeExpiredWaitingMessages(deps: ScheduledDeps, guildId: string, channelId: string, now: Date, season: SeasonWindow) {
+  for (const slot of await listSlotsWithWaitingMessages(deps.db, guildId)) {
+    if (!dateInSeason(slot.slotDate, season)) continue;
+    if (now.getTime() < slotStart(slot.slotDate, slot.slotHour).getTime()) continue;
+    await closeWaitingMessages(deps, {
+      slot,
+      channelId,
+      offerContent: `${slot.slotHour}時: 待機の受付は、終わりました。`,
+    });
+  }
+}
+
+/**
+ * 締切のジョブの「実行済み」の記録のうち、古くなったものを、解除する。
+ * 締切を過ぎてから「やり直す」を実行すると、自動で確定し直さないように、記録を残す。そのあとで、締切を後ろにずらす（7 分前 → 5 分前 など）と、
+ * 新しい締切は、まだ先なのに、古い記録が残っていて、マッチングが、行われなくなる。
+ * そこで、「対戦枠が、マッチング済みではなく、締切の時刻が、まだ来ていない」ジョブの記録は、古いものとして、解除する。
+ * 締切を過ぎているときの記録は、解除しない（過ぎてからやり直したものは、管理者が確定するまで、そのまま）
+ */
+async function releaseStaleCutoffClaims(deps: ScheduledDeps, guildId: string, specs: readonly ScheduledJobSpec[], today: string, now: Date) {
+  const waiting = specs.filter((spec) => spec.kind === "cutoff" && now.getTime() < spec.from.getTime());
+  if (waiting.length === 0) return;
+
+  const matchedHours = new Set(
+    (await listMatchSlots(deps.db, { guildId, slotDate: today })).filter((slot) => slot.status === "matched").map((slot) => slot.slotHour),
+  );
+  for (const spec of waiting) {
+    if (!matchedHours.has(spec.slotHour ?? -1)) await releaseJob(deps.db, guildId, spec.key);
   }
 }
 

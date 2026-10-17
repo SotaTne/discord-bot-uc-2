@@ -25,17 +25,63 @@ export const teamInputSchema = z.object({
   roleId: snowflakeSchema,
 });
 
-/** 点数の上限（勝利の点数・固定点）。桁あふれと、入力ミスを防ぐ。Discord のコマンドの max_value と同じ値 */
-export const MAX_POINTS = 100_000;
+/** 募集開始の通知先の選び方。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: 選んだもの */
+export const RECRUIT_MENTION_MODES = ["none", "teams", "roles"] as const;
 
-export const settingsInputSchema = z.object({
+/** 通知先として選べる、特別な宛先（@here）。ロールの ID と同じ配列に入れる */
+export const HERE_TARGET = "here";
+
+/** 通知先（mode が roles のとき）: Discord のロールの ID か、"here"。重ならない */
+const mentionTargetsSchema = z
+  .array(z.union([snowflakeSchema, z.literal(HERE_TARGET)]))
+  .max(25)
+  .refine((targets) => new Set(targets).size === targets.length, { message: "同じ通知先が、重なっています" });
+
+const settingsObjectSchema = z.object({
   channelId: snowflakeSchema.nullable(),
+  /** ロール登録のメッセージを投稿するチャンネル。null（省略も）は、使わない */
+  roleChannelId: snowflakeSchema.nullable().default(null),
   recruitHour: hourSchema,
   cutoffMinutes: z.number().int().min(1).max(180),
-  fixedAfterMatches: z.number().int().min(0).max(100),
-  fixedPoints: z.number().int().min(0).max(MAX_POINTS),
+  recruitMentionMode: z.enum(RECRUIT_MENTION_MODES),
+  recruitMentionTargets: mentionTargetsSchema,
+  /** チームの試合数の規定数。null は、規定数なし（省略も、なし） */
+  matchLimit: z.number().int().min(1).max(999).nullable().default(null),
+  /** 大会の期間（JST の日付）。両方空（省略も）は、期間を設けない。片方だけでは、保存できない */
+  seasonStart: dateSchema.nullable().default(null),
+  seasonEnd: dateSchema.nullable().default(null),
   revokeSessionsOnReissue: z.boolean(),
 });
+
+/** 開始日と終了日は、両方入れるか、両方空。入れるときは、開始が終了より後にならない */
+function withSeason<T extends z.ZodTypeAny>(schema: T) {
+  return schema.superRefine((value, ctx) => {
+    const start = (value as { seasonStart: string | null }).seasonStart;
+    const end = (value as { seasonEnd: string | null }).seasonEnd;
+    if ((start === null) !== (end === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "開始日と終了日は、両方入れるか、両方空にしてください",
+        path: ["seasonEnd"],
+      });
+    } else if (start !== null && end !== null && start > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "開始日は、終了日と同じか、それより前にしてください",
+        path: ["seasonEnd"],
+      });
+    }
+  });
+}
+
+export const settingsInputSchema = withSeason(settingsObjectSchema);
+
+/**
+ * 設定の保存。notifyChange が true で、募集開始の時刻か締切が変わったときは、変更を、投稿先のチャンネルに知らせる
+ * （通知先は、募集開始の投稿と同じ。省略は、知らせない）
+ * 期間の規則は、入力と同じ（refine したスキーマは extend できないので、こちらでも付ける）
+ */
+export const settingsUpdateSchema = withSeason(settingsObjectSchema.extend({ notifyChange: z.boolean().optional() }));
 
 /** 管理者による、代理の挙手 */
 export const adminHandupInputSchema = z.object({
@@ -44,6 +90,9 @@ export const adminHandupInputSchema = z.object({
   /** 省略すると今日 */
   slotDate: dateSchema.optional(),
 });
+
+/** 組分けの削除。notify は、クエリ文字列（"true" で、Discord に、組分けの変更を投稿する。条件は、追加と同じ） */
+export const matchDeleteQuerySchema = z.object({ notify: z.enum(["true", "false"]).optional() });
 
 /** 日付の絞り込み（クエリ文字列）。省略すると今日 */
 export const dateQuerySchema = z.object({ date: dateSchema.optional() });
@@ -56,6 +105,8 @@ export const matchInputSchema = z
     slotHour: hourSchema,
     /** 省略すると今日 */
     slotDate: dateSchema.optional(),
+    /** マッチング済みで、試合開始前の対戦枠で、Discord に、組分けの変更を投稿する（省略は、投稿しない。それ以外の対戦枠では、無視する） */
+    notify: z.boolean().optional(),
   })
   .refine((value) => value.teamAId !== value.teamBId, { message: "別のチームを選んでください", path: ["teamBId"] });
 
@@ -69,22 +120,6 @@ export const matchSlotInputSchema = z.object({
 /** 対戦枠のやり直し。notify（省略は true）が true なら、Discord に、マッチングのキャンセルを投稿する */
 export const matchSlotReopenInputSchema = matchSlotInputSchema.extend({ notify: z.boolean().optional() });
 
-/**
- * 組分けへの、勝利の記録（multipart/form-data）。フォームの値はすべて文字列で届くので、数値に変換する。
- * どの組分けかは、URL で決まる。画像（image）は、ファイルなのでこのスキーマには含めない。
- */
-export const matchWinFormSchema = z.object({
-  /** 勝ったチーム。その組分けの、2チームのどちらか */
-  teamId: z.coerce.number().int().positive(),
-  points: z.coerce.number().int().min(0).max(MAX_POINTS),
-});
-
-/** 勝利の記録を、有効にする / 無効にする */
-export const winActiveInputSchema = z.object({ active: z.boolean() });
-
-/** 勝利の記録の、点数（生の点数）の修正 */
-export const winPointsInputSchema = z.object({ points: z.number().int().min(0).max(MAX_POINTS) });
-
 /** ログインリンクのトークン（フラグメントで渡される） */
 export const loginInputSchema = z.object({
   token: z.string().min(16).max(256),
@@ -93,6 +128,7 @@ export const loginInputSchema = z.object({
 export type SlotHourInput = z.infer<typeof slotHourInputSchema>;
 export type TeamInput = z.infer<typeof teamInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
+export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;
 export type MatchSlotInput = z.infer<typeof matchSlotInputSchema>;
 export type MatchSlotReopenInput = z.infer<typeof matchSlotReopenInputSchema>;
 export type MatchInput = z.infer<typeof matchInputSchema>;

@@ -34,7 +34,6 @@ const client = (fetchImpl: typeof fetch) =>
   createDiscordInteractions(
     {
       workerUrl: "http://localhost:8787/",
-      mockUrl: "http://localhost:8788",
       keys,
       applicationId: "100000000000000001",
       fetch: fetchImpl,
@@ -90,17 +89,6 @@ describe("createDiscordInteractions", () => {
     expect((JSON.parse(sent[0]!.body) as Interaction).member?.permissions).toBe("8");
   });
 
-  it("ロールは名前で指定でき、ID に変換される", async () => {
-    await client(fakeWorker({ type: 4, data: { content: "ok" } })).sendCommand({
-      userId: admin().id,
-      name: "uc-admin-win",
-      options: { time: 21, "team-role": "KMU", point: 80, image: state.addAttachment({ filename: "a.png", contentType: "image/png", bytes: new Uint8Array([1]) }).id },
-    });
-
-    const interaction = JSON.parse(sent[0]!.body) as Interaction;
-    expect(interaction.data?.options?.find((o) => o.name === "team-role")).toEqual({ name: "team-role", type: 8, value: state.findRole("KMU")!.id });
-  });
-
   describe("応答の扱い", () => {
     it("ephemeral の返信は、実行したユーザーにだけ見えるメッセージとして記録する", async () => {
       await client(fakeWorker({ type: 4, data: { content: "受け付けました", flags: 64 } })).sendCommand({
@@ -113,7 +101,7 @@ describe("createDiscordInteractions", () => {
     it("ephemeral でない返信は、公開メッセージとして記録する", async () => {
       await client(fakeWorker({ type: 4, data: { content: "公開の返信" } })).sendCommand({
         userId: alice().id,
-        name: "uc-teams",
+        name: "uc-admin-status",
       });
       expect(state.messages).toMatchObject([{ content: "公開の返信", visibleTo: null }]);
     });
@@ -163,13 +151,10 @@ describe("createDiscordInteractions", () => {
       ).rejects.toThrow("オプション");
     });
 
-    it("整数でない値・存在しないロールは拒否する", async () => {
+    it("整数でない値は拒否する", async () => {
       await expect(
         run({ userId: alice().id, name: "uc-handup", options: { time: "abc" } }),
       ).rejects.toThrow("整数");
-      await expect(
-        run({ userId: admin().id, name: "uc-admin-win", options: { time: 21, "team-role": "なし", point: 80 } }),
-      ).rejects.toThrow("ロール");
     });
 
     it("拒否したときは、worker に何も送らない", async () => {

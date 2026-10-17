@@ -5,7 +5,6 @@ import { createAuthRoutes } from "../api/auth";
 import { createBoardRoutes } from "../api/board";
 import { createCatalogRoutes } from "../api/catalog";
 import { createHandupRoutes } from "../api/handups";
-import { createScoreRoutes } from "../api/scores";
 import { createSessionRoutes } from "../api/sessions";
 import { createSettingsRoutes } from "../api/settings";
 import type { ApiDeps, ApiEnv } from "../api/types";
@@ -54,8 +53,7 @@ export function createApiRoutes(deps: ApiDeps = { clock: systemClock }) {
     .route("/", createSettingsRoutes(deps))
     .route("/", createCatalogRoutes(deps))
     .route("/", createBoardRoutes(deps))
-    .route("/", createHandupRoutes(deps))
-    .route("/", createScoreRoutes(deps));
+    .route("/", createHandupRoutes(deps));
 }
 
 /** ダッシュボードが `hc<ApiType>` で使う型。dist/types に宣言ファイルとして出力される */

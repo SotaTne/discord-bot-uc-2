@@ -12,12 +12,9 @@ import {
   deleteSlotHour,
   deleteTeam,
   findActiveSession,
-  findWin,
   findTeamById,
-  deleteAllWins,
   getGuildSettings,
   findMatchForTeam,
-  insertWin,
   isUniqueViolation,
   findTeamsByRoleIds,
   listHandupsForSlot,
@@ -31,14 +28,14 @@ import {
   listMatchedSlots,
   findSlotHour,
   listSlotHours,
-  listWins,
   releaseJob,
   saveMatchResult,
-  setWinActive,
   revokeAllSessions,
   revokeSession,
   saveGuildSettings,
   defaultGuildSettings,
+  getRoleMessageIds,
+  setRoleMessageIds,
   withdrawHandupById,
   matches,
 } from "./index";
@@ -140,84 +137,6 @@ describe("マッチング結果", () => {
     expect(await findMatchForTeam(db, { ...key, teamId: b })).toMatchObject({ teamAId: a, teamBId: b });
     expect(await findMatchForTeam(db, { ...key, teamId: c })).toBeUndefined();
     expect(await findMatchForTeam(db, { ...key, slotHour: 22, teamId: a })).toBeUndefined();
-  });
-});
-
-/** KMU と UT が、21時に対戦する試合 */
-async function playedMatch() {
-  const [kmu, ut] = [await team("KMU", "r1"), await team("UT", "r2")];
-  await save({ pairs: [[kmu, ut]] });
-  const matchId = (await listMatchedSlots(db, { guildId: GUILD }))[0]!.pairs[0]!.matchId;
-  return { kmu, ut, matchId };
-}
-
-describe("勝利の記録", () => {
-  const record = (over: { teamId: number; matchId: number; points?: number; key?: string | null; guildId?: string; createdAt?: number }) =>
-    insertWin(db, {
-      guildId: over.guildId ?? GUILD,
-      teamId: over.teamId,
-      matchId: over.matchId,
-      points: over.points ?? 80,
-      screenshotKey: over.key ?? null,
-      recordedBy: "admin",
-      createdAt: over.createdAt ?? 1,
-    });
-
-  it("記録した順に読み出せる。はじめは有効で、試合の日付・時刻も取れる", async () => {
-    const { kmu, ut, matchId } = await playedMatch();
-    const first = await record({ teamId: kmu, matchId, key: "shots/a.png" });
-    const second = await record({ teamId: ut, matchId, points: 10, createdAt: 2 });
-
-    const rows = await listWins(db, GUILD);
-
-    expect(rows.map((r) => [r.id, r.teamId, r.active])).toEqual([[first, kmu, true], [second, ut, true]]);
-    expect(rows[0]).toMatchObject({ points: 80, screenshotKey: "shots/a.png", matchId, slotDate: DATE, slotHour: 21, recordedBy: "admin" });
-  });
-
-  it("無効にしても、行は残る。有効に戻せる。見つからなければ false", async () => {
-    const { kmu, matchId } = await playedMatch();
-    const id = await record({ teamId: kmu, matchId });
-
-    expect(await setWinActive(db, { guildId: GUILD, id, active: false })).toBe(true);
-    expect((await findWin(db, GUILD, id))?.active).toBe(false);
-    expect(await listWins(db, GUILD)).toHaveLength(1);
-
-    expect(await setWinActive(db, { guildId: GUILD, id, active: true })).toBe(true);
-    expect((await findWin(db, GUILD, id))?.active).toBe(true);
-
-    expect(await setWinActive(db, { guildId: GUILD, id: 999, active: false })).toBe(false);
-    expect(await setWinActive(db, { guildId: OTHER, id, active: false })).toBe(false);
-    expect((await findWin(db, GUILD, id))?.active).toBe(true);
-  });
-
-  it("サーバーごとに分かれる。id とサーバーで1件を探せる", async () => {
-    const { kmu, matchId } = await playedMatch();
-    const id = await record({ teamId: kmu, matchId });
-
-    expect(await listWins(db, OTHER)).toEqual([]);
-    expect(await findWin(db, GUILD, id)).toMatchObject({ id });
-    expect(await findWin(db, OTHER, id)).toBeUndefined();
-  });
-
-  it("得点のクリア: そのサーバーの記録をすべて削除して（無効なものも）、画像のキーを返す。別のサーバーには影響しない。試合は残る", async () => {
-    const { kmu, matchId } = await playedMatch();
-    const first = await record({ teamId: kmu, matchId, key: "shots/a.png" });
-    await record({ teamId: kmu, matchId, points: 10, createdAt: 2 });
-    await setWinActive(db, { guildId: GUILD, id: first, active: false });
-    await save({ guildId: OTHER });
-    const other = await createTeam(db, { guildId: OTHER, roleId: "x1", createdAt: 1 });
-    const otherSlot = (await listMatchedSlots(db, { guildId: OTHER }))[0]!;
-    await db.insert(matches).values({ matchSlotId: otherSlot.id, teamAId: other, teamBId: kmu });
-    const otherMatchId = (await listMatchedSlots(db, { guildId: OTHER }))[0]!.pairs[0]!.matchId;
-    await record({ teamId: other, matchId: otherMatchId, guildId: OTHER, key: "shots/other.png" });
-
-    const keys = await deleteAllWins(db, GUILD);
-
-    expect(keys).toEqual(["shots/a.png"]);
-    expect(await listWins(db, GUILD)).toEqual([]);
-    expect(await listWins(db, OTHER)).toHaveLength(1);
-    expect((await listMatchedSlots(db, { guildId: GUILD }))[0]?.pairs).toHaveLength(1);
-    expect(await deleteAllWins(db, GUILD)).toEqual([]);
   });
 });
 
@@ -436,8 +355,34 @@ describe("画面のための参照（cron の履歴・ログインリンク）",
   });
 });
 
+describe("ロール登録の投稿先とメッセージの ID", () => {
+  it("投稿先は、設定として保存・読み出しできる。設定のないサーバーは、空", async () => {
+    expect((await getGuildSettings(db, GUILD)).roleChannelId).toBeNull();
+
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002" }, 1);
+
+    expect((await getGuildSettings(db, GUILD)).roleChannelId).toBe("300000000000000002");
+    expect((await getGuildSettings(db, OTHER)).roleChannelId).toBeNull();
+  });
+
+  it("メッセージの ID は、投稿順の配列で、設定とは別に保存する。設定を保存し直しても、消えない。サーバーごとに別", async () => {
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002" }, 1);
+    await saveGuildSettings(db, OTHER, { ...defaultGuildSettings }, 1);
+    expect(await getRoleMessageIds(db, GUILD)).toEqual([]);
+
+    await setRoleMessageIds(db, GUILD, ["m1", "m2"]);
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, roleChannelId: "300000000000000002", cutoffMinutes: 9 }, 2);
+
+    expect(await getRoleMessageIds(db, GUILD)).toEqual(["m1", "m2"]);
+    expect(await getRoleMessageIds(db, OTHER)).toEqual([]);
+
+    await setRoleMessageIds(db, GUILD, []);
+    expect(await getRoleMessageIds(db, GUILD)).toEqual([]);
+  });
+});
+
 describe("開発用: 活動の記録の初期化", () => {
-  it("挙手・マッチング・得点・ジョブ・ログインを消して、設定・対戦枠・チームは残す。別のサーバーには影響しない", async () => {
+  it("挙手・マッチング・ジョブ・ログインを消して、設定・対戦枠・チームは残す。別のサーバーには影響しない", async () => {
     const a = await team("A", "r1");
     const b = await team("B", "r2");
     const other = await team("X", "r9", OTHER);
@@ -445,8 +390,6 @@ describe("開発用: 活動の記録の初期化", () => {
     await createSlotHour(db, { guildId: GUILD, hour: 21, createdAt: 1 });
     await createHandup(db, { guildId: GUILD, slotDate: DATE, slotHour: 21, teamId: a, raisedBy: "u", createdAt: 1 });
     await save({ pairs: [[a, b]] });
-    const matchId = (await listMatchedSlots(db, { guildId: GUILD }))[0]!.pairs[0]!.matchId;
-    await insertWin(db, { guildId: GUILD, teamId: a, matchId, points: 1, screenshotKey: null, recordedBy: "a", createdAt: 1 });
     await claimJob(db, GUILD, "recruit:x", 1);
     await createDashboardLink(db, { tokenHash: "h", guildId: GUILD, issuedBy: "a", expiresAt: 9, createdAt: 1 });
     await createSession(db, { sessionHash: "s", guildId: GUILD, userId: "a", userAgent: null, createdAt: 1, expiresAt: 9 });
@@ -456,7 +399,6 @@ describe("開発用: 活動の記録の初期化", () => {
 
     expect(await listHandupsOnDate(db, { guildId: GUILD, slotDate: DATE })).toEqual([]);
     expect(await listMatchedSlots(db, { guildId: GUILD })).toEqual([]);
-    expect(await listWins(db, GUILD)).toEqual([]);
     expect(await listJobRuns(db, GUILD)).toEqual([]);
     expect(await listDashboardLinks(db, GUILD)).toEqual([]);
     expect(await listActiveSessions(db, GUILD, 0)).toEqual([]);

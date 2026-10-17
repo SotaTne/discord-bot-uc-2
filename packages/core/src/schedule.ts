@@ -1,8 +1,11 @@
 import { handupDeadline, slotStart } from "./slot-time";
 
-/** cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない */
-export const RECRUIT_GRACE_MS = 60 * 60 * 1000;
+/** cron が遅れても取りこぼさないための猶予。これを過ぎたら、もう実行しない。どちらも、そのジョブを実行する時刻（募集開始・締切）から 30 分 */
+export const RECRUIT_GRACE_MS = 30 * 60 * 1000;
 export const CUTOFF_GRACE_MS = 30 * 60 * 1000;
+
+/** 募集開始ジョブのキー。時刻を含むので、募集開始の時刻を変えると、新しい時刻で、もう一度、投稿できる（同じ時刻では、1 日 1 回） */
+export const recruitJobKey = (date: string, hour: number) => `recruit:${date}:${hour}`;
 
 /** 対戦枠の締切ジョブのキー。cron と、管理者の手動の確定が、同じキーで「実行する権利」を取り合う */
 export const cutoffJobKey = (date: string, hour: number) => `cutoff:${date}:${hour}`;
@@ -10,7 +13,7 @@ export const cutoffJobKey = (date: string, hour: number) => `cutoff:${date}:${ho
 export type ScheduledJobKind = "recruit" | "cutoff";
 
 export type ScheduledJobSpec = {
-  /** job_runs に記録するキー（例: recruit:2026-10-07 / cutoff:2026-10-07:21）。同じキーのジョブは、1回しか実行されない */
+  /** job_runs に記録するキー（例: recruit:2026-10-07:12 / cutoff:2026-10-07:21）。同じキーのジョブは、1回しか実行されない */
   key: string;
   kind: ScheduledJobKind;
   /** cutoff のときの試合時刻。recruit は null */
@@ -24,7 +27,7 @@ export type ScheduledJobSpec = {
 /**
  * ある日の、cron が実行するジョブの予定。
  * - 募集開始（N 時から1時間）
- * - 各対戦枠の締切（試合の K 分前から、試合開始の30分後まで）。マッチングの確定と投稿
+ * - 各対戦枠の締切（試合の K 分前から 30 分）。マッチングの確定と投稿
  * 実行する側（runScheduled）と、画面に出す予定の両方が、この関数を使う。
  */
 export function scheduledJobsForDate(input: {
@@ -37,7 +40,7 @@ export function scheduledJobsForDate(input: {
   const recruitFrom = slotStart(input.date, input.recruitHour);
   const jobs: ScheduledJobSpec[] = [
     {
-      key: `recruit:${input.date}`,
+      key: recruitJobKey(input.date, input.recruitHour),
       kind: "recruit",
       slotHour: null,
       from: recruitFrom,
@@ -51,7 +54,7 @@ export function scheduledJobsForDate(input: {
       kind: "cutoff",
       slotHour: hour,
       from: handupDeadline(input.date, hour, input.cutoffMinutes),
-      until: new Date(slotStart(input.date, hour).getTime() + CUTOFF_GRACE_MS),
+      until: new Date(handupDeadline(input.date, hour, input.cutoffMinutes).getTime() + CUTOFF_GRACE_MS),
     });
   }
   return jobs;

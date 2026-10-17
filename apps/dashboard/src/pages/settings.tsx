@@ -1,15 +1,16 @@
 import { handupDeadline, formatJstTime } from "@uc/core";
-import { Anchor, Badge, Button, Checkbox, Group, Stack, Text, TextInput } from "@mantine/core";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { HERE_TARGET, type SettingsInput, type SettingsUpdate } from "@uc/api";
+import { Alert, Anchor, Badge, Button, Checkbox, Group, Modal, MultiSelect, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Async, ConfirmButton, ErrorNote, HourSelect, PageTitle, Section } from "../components/ui";
 import { api } from "../lib/api";
 import { unwrap } from "../lib/errors";
 import { formatHour, todayJst } from "../lib/format";
-import { validateChannelId, validateCutoffMinutes, validateFixedAfterMatches, validateFixedPoints, validateRecruitHour } from "../lib/settings-validation";
-import { useBoard, useInvalidatingMutation, useSettings, useSlotHours } from "../lib/queries";
+import { validateChannelId, validateCutoffMinutes, validateMatchLimit, validateRecruitHour, validateSeason } from "../lib/settings-validation";
+import { useBoard, useInvalidatingMutation, useRoles, useSettings, useSlotHours } from "../lib/queries";
 import { Sessions } from "./sessions";
 
-/** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 得点の集計 / 試合時刻 / ログイン） */
+/** 設定は、関わる人・仕組みごとに、別々のセクションにする（投稿と募集 / 試合時刻 / ログイン） */
 export function SettingsPage() {
   const settings = useSettings();
   return (
@@ -19,7 +20,6 @@ export function SettingsPage() {
         {(data) => (
           <>
             <PostSettings initial={data} />
-            <ScoreRule initial={data} />
           </>
         )}
       </Async>
@@ -30,20 +30,13 @@ export function SettingsPage() {
   );
 }
 
-type SettingsValues = {
-  channelId: string | null;
-  recruitHour: number;
-  cutoffMinutes: number;
-  fixedAfterMatches: number;
-  fixedPoints: number;
-  revokeSessionsOnReissue: boolean;
-};
+type SettingsValues = SettingsInput;
 
 /** 設定の保存。API は全項目をまとめて受け取るので、いまの設定に、そのセクションの項目だけを重ねて送る */
 function useSaveSettings(initial: SettingsValues) {
   const save = useInvalidatingMutation(
-    (values: Partial<SettingsValues>) => unwrap(api.settings.$put({ json: { ...initial, ...values } })),
-    [["settings"], ["scores"]],
+    (values: Partial<SettingsUpdate>) => unwrap(api.settings.$put({ json: { ...initial, ...values } })),
+    [["settings"]],
   );
   return save;
 }
@@ -99,27 +92,150 @@ function SaveRow({ pending, saved, dirty, valid, error, onCancel }: { pending: b
 
 const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
+/** 通知するロール（複数）と、@here を選ぶ。ロール一覧は、Discord から取る（取れなくても、選んだものは、そのまま見える） */
+function MentionTargets({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  const roles = useRoles();
+  const known = new Map((roles.data?.roles ?? []).map((role) => [role.id, role.name]));
+  const data = [
+    { value: HERE_TARGET, label: "@here（オンラインの人）" },
+    ...(roles.data?.roles ?? []).map((role) => ({ value: role.id, label: role.name })),
+    // 一覧にない（消されたロール・一覧を取れなかった）選択済みのものは、ID で見せる
+    ...value.filter((id) => id !== HERE_TARGET && !known.has(id)).map((id) => ({ value: id, label: `ロール ${id}` })),
+  ];
+  return (
+    <>
+      <MultiSelect aria-label="通知するロール" placeholder="ロールを選ぶ" w={320} searchable clearable data={data} value={value} onChange={onChange} />
+      {roles.isError && (
+        <Text size="xs" c="dimmed">
+          Discord からロール一覧を取得できませんでした（@here は、選べます）
+        </Text>
+      )}
+    </>
+  );
+}
+
+const MENTION_LABEL = { none: "なし", teams: "チーム全て", roles: "選んだロール" } as const;
+
+/**
+ * 募集開始の時刻・締切を変えるときの確認。参加者の行動に、かかわるので、変更を、チャンネルに知らせるかを、選ばせる
+ * （打ち間違いを、すぐ直すときに、知らせないでおける）。通知先は、募集開始の投稿と同じ。
+ */
+function ChangeDialog(props: {
+  opened: boolean;
+  onClose: () => void;
+  recruit: { from: number; to: number } | null;
+  cutoff: { from: number; to: number } | null;
+  /** 今日の挙手の件数。募集開始を後ろにずらすと、新しい時刻まで、取り消せなくなる */
+  handups: number;
+  mentionMode: keyof typeof MENTION_LABEL;
+  onConfirm: (notify: boolean) => void;
+}) {
+  const [notify, setNotify] = useState(true);
+  // 開くたびに、初期値（知らせる）に戻す
+  useEffect(() => {
+    if (props.opened) setNotify(true);
+  }, [props.opened]);
+  const later = props.recruit !== null && props.recruit.to > props.recruit.from;
+  return (
+    <Modal opened={props.opened} onClose={props.onClose} title="募集開始・締切を変更します" centered>
+      <Stack gap="md">
+        <Stack gap={2}>
+          {props.recruit && <Text size="sm">募集開始: {pad(props.recruit.from)} → {pad(props.recruit.to)}</Text>}
+          {props.cutoff && <Text size="sm">締切: 試合の {props.cutoff.from} 分前 → {props.cutoff.to} 分前</Text>}
+        </Stack>
+        {later && props.handups > 0 && (
+          <Alert color="yellow" role="alert" p="xs">
+            今日の挙手が {props.handups} 件あります。挙手は残りますが、新しい時刻まで、取り消せません。
+          </Alert>
+        )}
+        <Checkbox
+          label="チャンネルに、変更を通知する"
+          description={`通知先は、募集開始の投稿と同じです（いまの設定: ${MENTION_LABEL[props.mentionMode]}）`}
+          checked={notify}
+          onChange={(event) => setNotify(event.currentTarget.checked)}
+        />
+        <Group gap="xs" wrap="nowrap" justify="flex-end">
+          <Button variant="default" onClick={props.onClose}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={() => {
+              props.onClose();
+              props.onConfirm(notify);
+            }}
+          >
+            変更する
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 /** Discord への投稿（募集開始・マッチング結果）の設定 */
 function PostSettings({ initial }: { initial: SettingsValues }) {
   const slotHours = useSlotHours();
   const [channelId, setChannelId] = useState(initial.channelId ?? "");
+  const [roleChannelId, setRoleChannelId] = useState(initial.roleChannelId ?? "");
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
+  const [matchLimit, setMatchLimit] = useState(initial.matchLimit === null ? "" : String(initial.matchLimit));
+  const [seasonStart, setSeasonStart] = useState(initial.seasonStart ?? "");
+  const [seasonEnd, setSeasonEnd] = useState(initial.seasonEnd ?? "");
+  const [mentionMode, setMentionMode] = useState(initial.recruitMentionMode);
+  const [mentionTargets, setMentionTargets] = useState(initial.recruitMentionTargets);
+  const [confirming, setConfirming] = useState(false);
   const save = useSaveSettings(initial);
+  // 今日の挙手の件数を、確認に出す
+  const board = useBoard(undefined);
+  const handupsToday = (board.data?.slots ?? []).reduce((total, slot) => total + slot.handups.length, 0);
 
   const errors = {
     channelId: validateChannelId(channelId),
+    roleChannelId: validateChannelId(roleChannelId),
     recruitHour: validateRecruitHour(recruitHour),
     cutoffMinutes: validateCutoffMinutes(cutoffMinutes),
+    matchLimit: validateMatchLimit(matchLimit),
+    season: validateSeason(seasonStart, seasonEnd),
   };
-  const valid = !errors.channelId && !errors.recruitHour && !errors.cutoffMinutes;
+  const valid = !errors.channelId && !errors.roleChannelId && !errors.recruitHour && !errors.cutoffMinutes && !errors.matchLimit && !errors.season;
   const dirty =
-    channelId.trim() !== (initial.channelId ?? "") || recruitHour.trim() !== String(initial.recruitHour) || cutoffMinutes.trim() !== String(initial.cutoffMinutes);
+    channelId.trim() !== (initial.channelId ?? "") ||
+    roleChannelId.trim() !== (initial.roleChannelId ?? "") ||
+    recruitHour.trim() !== String(initial.recruitHour) ||
+    cutoffMinutes.trim() !== String(initial.cutoffMinutes) ||
+    matchLimit.trim() !== (initial.matchLimit === null ? "" : String(initial.matchLimit)) ||
+    seasonStart !== (initial.seasonStart ?? "") ||
+    seasonEnd !== (initial.seasonEnd ?? "") ||
+    mentionMode !== initial.recruitMentionMode ||
+    mentionTargets.join(",") !== initial.recruitMentionTargets.join(",");
+
+  const recruitChange = valid && Number(recruitHour) !== initial.recruitHour ? { from: initial.recruitHour, to: Number(recruitHour) } : null;
+  const cutoffChange = valid && Number(cutoffMinutes) !== initial.cutoffMinutes ? { from: initial.cutoffMinutes, to: Number(cutoffMinutes) } : null;
+  const nextChannelId = channelId.trim() === "" ? null : channelId.trim();
+
+  function saveWith(notifyChange: boolean | undefined) {
+    save.mutate({
+      channelId: nextChannelId,
+      roleChannelId: roleChannelId.trim() === "" ? null : roleChannelId.trim(),
+      recruitHour: Number(recruitHour),
+      cutoffMinutes: Number(cutoffMinutes),
+      matchLimit: matchLimit.trim() === "" ? null : Number(matchLimit),
+      seasonStart: seasonStart.trim() === "" ? null : seasonStart.trim(),
+      seasonEnd: seasonEnd.trim() === "" ? null : seasonEnd.trim(),
+      recruitMentionMode: mentionMode,
+      // 「ロールを選ぶ」以外のときは、選んだ通知先は、使われない（残しておくと、あとで戻したときに、選び直さなくてよい）
+      recruitMentionTargets: mentionTargets,
+      ...(notifyChange === undefined ? {} : { notifyChange }),
+    });
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!valid) return;
-    save.mutate({ channelId: channelId.trim() === "" ? null : channelId.trim(), recruitHour: Number(recruitHour), cutoffMinutes: Number(cutoffMinutes) });
+    // 募集開始の時刻・締切を変えて、投稿先があるときは、変更を知らせるかを、確認する
+    if ((recruitChange || cutoffChange) && nextChannelId) setConfirming(true);
+    else saveWith(undefined);
   }
 
   // 今の入力で、今日の予定がどうなるか（保存する前に、確かめられる）
@@ -136,11 +252,54 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
           <SettingRow title="投稿先のチャンネル" description="募集開始とマッチング結果を投稿します。空にすると、投稿しません">
             <TextInput aria-label="投稿先のチャンネル ID" name="channelId" placeholder="チャンネル ID" spellCheck={false} inputMode="numeric" w={280} value={channelId} error={errors.channelId ?? false} onChange={(event) => setChannelId(event.target.value)} />
           </SettingRow>
+          <SettingRow title="ロール登録の投稿先" description="チームのロールを選ぶボタンの、メッセージを置くチャンネル。決めたら、Discord で /uc-admin-role を実行します。チームが 21 以上のときは、メッセージが分かれます。空にすると、使いません">
+            <TextInput aria-label="ロール登録のチャンネル ID" name="roleChannelId" placeholder="チャンネル ID" spellCheck={false} inputMode="numeric" w={280} value={roleChannelId} error={errors.roleChannelId ?? false} onChange={(event) => setRoleChannelId(event.target.value)} />
+          </SettingRow>
           <SettingRow title="募集開始時刻" description="この時（0〜23, JST）に、その日の募集を始めます">
             <TextInput aria-label="募集開始時刻（JST）" name="recruitHour" type="number" min={0} max={23} w={120} value={recruitHour} error={errors.recruitHour ?? false} onChange={(event) => setRecruitHour(event.target.value)} />
           </SettingRow>
+          <SettingRow title="募集開始の通知先" description="募集開始の投稿で、誰に通知するか。「なし」が、既定です">
+            <Stack gap="xs">
+              <SegmentedControl
+                aria-label="募集開始の通知先"
+                w={320}
+                value={mentionMode}
+                onChange={(value) => setMentionMode(value as typeof mentionMode)}
+                data={[
+                  { value: "none", label: "なし" },
+                  { value: "teams", label: "チーム全て" },
+                  { value: "roles", label: "ロールを選ぶ" },
+                ]}
+              />
+              {mentionMode === "teams" && (
+                <Text size="xs" c="dimmed">
+                  登録済みのチームのロールに、通知します
+                </Text>
+              )}
+              {mentionMode === "roles" && <MentionTargets value={mentionTargets} onChange={setMentionTargets} />}
+            </Stack>
+          </SettingRow>
           <SettingRow title="締切" description="試合の何分前に、挙手を締め切って、マッチング処理を行うか">
             <TextInput aria-label="締切（試合の何分前）" name="cutoffMinutes" type="number" min={1} max={180} w={120} value={cutoffMinutes} error={errors.cutoffMinutes ?? false} onChange={(event) => setCutoffMinutes(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="試合数の規定数" description="チームの試合数がこれを超えると、/uc-teams と「チーム」の画面に「超過」と出ます（挙手やマッチングは止めません。挙手が奇数のとき、規定数を超えたチームが、先に、組まれない候補になります）。空にすると、規定数なしです">
+            <TextInput aria-label="試合数の規定数" name="matchLimit" type="number" min={1} max={999} w={120} placeholder="なし" value={matchLimit} error={errors.matchLimit ?? false} onChange={(event) => setMatchLimit(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="大会の期間" description="この開始日から終了日まで（両方の日を含む。時刻は決めません）募集・挙手・マッチングを行います。両方空にすると、期間を設けません。期間のあとでも、組分けの削除と、やり直しはできます">
+            <Stack gap={4}>
+              <Group>
+                <TextInput aria-label="大会の開始日" name="seasonStart" type="date" w={160} value={seasonStart} error={Boolean(errors.season)} onChange={(event) => setSeasonStart(event.target.value)} />
+                <Text c="dimmed" size="sm">
+                  〜
+                </Text>
+                <TextInput aria-label="大会の終了日" name="seasonEnd" type="date" w={160} value={seasonEnd} error={Boolean(errors.season)} onChange={(event) => setSeasonEnd(event.target.value)} />
+              </Group>
+              {errors.season && (
+                <Text size="xs" c="red" role="alert">
+                  {errors.season}
+                </Text>
+              )}
+            </Stack>
           </SettingRow>
           <SettingRow title="今日の予定" description="いまの入力で計算します（保存する前に確かめられます）">
             {schedule === null ? (
@@ -164,6 +323,15 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
             )}
           </SettingRow>
         </Stack>
+        <ChangeDialog
+          opened={confirming}
+          onClose={() => setConfirming(false)}
+          recruit={recruitChange}
+          cutoff={cutoffChange}
+          handups={handupsToday}
+          mentionMode={mentionMode}
+          onConfirm={(notify) => saveWith(notify)}
+        />
         <Stack mt="md">
           <SaveRow
             pending={save.isPending}
@@ -173,71 +341,26 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
             error={save.error}
             onCancel={() => {
               setChannelId(initial.channelId ?? "");
+              setRoleChannelId(initial.roleChannelId ?? "");
               setRecruitHour(String(initial.recruitHour));
               setCutoffMinutes(String(initial.cutoffMinutes));
+              setMatchLimit(initial.matchLimit === null ? "" : String(initial.matchLimit));
+              setSeasonStart(initial.seasonStart ?? "");
+              setSeasonEnd(initial.seasonEnd ?? "");
+              setMentionMode(initial.recruitMentionMode);
+              setMentionTargets(initial.recruitMentionTargets);
             }}
           />
-        </Stack>
-      </form>
-    </Section>
-  );
-}
-
-/** 得点の集計の規則（N と固定点） */
-function ScoreRule({ initial }: { initial: SettingsValues }) {
-  const [fixedAfterMatches, setFixedAfterMatches] = useState(String(initial.fixedAfterMatches));
-  const [fixedPoints, setFixedPoints] = useState(String(initial.fixedPoints));
-  const save = useSaveSettings(initial);
-
-  const errors = { fixedAfterMatches: validateFixedAfterMatches(fixedAfterMatches), fixedPoints: validateFixedPoints(fixedPoints) };
-  const valid = !errors.fixedAfterMatches && !errors.fixedPoints;
-  const dirty = fixedAfterMatches.trim() !== String(initial.fixedAfterMatches) || fixedPoints.trim() !== String(initial.fixedPoints);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!valid) return;
-    save.mutate({ fixedAfterMatches: Number(fixedAfterMatches), fixedPoints: Number(fixedPoints) });
-  }
-
-  return (
-    <Section title="得点の集計">
-      <form onSubmit={submit}>
-        <Stack gap={0}>
-          <SettingRow title="N（記録した点数で集計する試合数）" description="勝ったとき、N 試合目までは、記録した点数で集計します">
-            <TextInput aria-label="N（記録した点数で集計する試合数）" name="fixedAfterMatches" type="number" min={0} max={100} w={120} value={fixedAfterMatches} error={errors.fixedAfterMatches ?? false} onChange={(event) => setFixedAfterMatches(event.target.value)} />
-          </SettingRow>
-          <SettingRow title="固定点" description="N 試合を超えた試合（N+1 試合目から）で勝ったときの点数">
-            <TextInput aria-label="固定点" name="fixedPoints" type="number" min={0} w={120} value={fixedPoints} error={errors.fixedPoints ?? false} onChange={(event) => setFixedPoints(event.target.value)} />
-          </SettingRow>
-          <SettingRow title="集計の例" description="いまの入力で計算します">
-            {valid ? (
-              <Stack gap={2}>
-                <Text size="sm">
-                  {Number(fixedAfterMatches) === 0 ? "すべての試合で" : `1〜${fixedAfterMatches} 試合目で勝つと`}、{Number(fixedAfterMatches) === 0 ? "勝つと" : ""}記録した点数
-                </Text>
-                <Text size="sm">
-                  {Number(fixedAfterMatches) + 1} 試合目からは、勝つと {fixedPoints}pt 固定
-                </Text>
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">
-                入力を直すと、例が出ます
-              </Text>
-            )}
-          </SettingRow>
-        </Stack>
-        <Stack mt="md">
-          <SaveRow
-            pending={save.isPending}
-            saved={save.isSuccess}
-            dirty={dirty}
-            valid={valid}
-            error={save.error}
-            onCancel={() => {
-              setFixedAfterMatches(String(initial.fixedAfterMatches));
-              setFixedPoints(String(initial.fixedPoints));
-            }}
-          />
+          {!dirty && save.data?.notified && (
+            <Text size="sm" c="green" role="status">
+              チャンネルに、変更を通知しました
+            </Text>
+          )}
+          {save.data?.notifyFailed && (
+            <Text size="sm" c="red" role="alert">
+              設定は保存しましたが、チャンネルへの通知に失敗しました
+            </Text>
+          )}
         </Stack>
       </form>
     </Section>

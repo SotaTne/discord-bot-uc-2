@@ -37,6 +37,10 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
   return {
     guildId: "200000000000000001",
     channelId: "300000000000000001",
+    channels: [
+      { id: "300000000000000001", name: "マッチング" },
+      { id: "300000000000000002", name: "ロール登録" },
+    ],
     users: [
       { id: ids.alice, username: "alice (KMU)", roleIds: ["400000000000000001"], isAdmin: false },
       { id: ids.carol, username: "carol (UT)", roleIds: ["400000000000000002"], isAdmin: false },
@@ -58,7 +62,7 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
       now: new Date(jst("2026-10-07T20:53:00")).toISOString(),
       clock: { offsetMs: 8 * 3_600_000 + 12 * 60_000 },
       today: "2026-10-07",
-      settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
+      settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7 },
       slotHours: [21, 22],
       matchSlots: [{ slotHour: 22, status: "matched" }],
       teams: [
@@ -67,21 +71,16 @@ export function sampleState(over: Partial<MockStateData> = {}): MockStateData {
       ],
       handups: [{ id: 1, slotHour: 21, teamId: 1, teamName: "KMU", raisedBy: ids.alice, createdAt: jst("2026-10-07T15:00:00") }],
       teamStats: [
-        { teamId: 1, name: "KMU", activeHandups: [21], matches: 2, excluded: 1, wins: 1, total: 80 },
-        { teamId: 2, name: "UT", activeHandups: [], matches: 3, excluded: 0, wins: 4, total: 310 },
+        { teamId: 1, name: "KMU", activeHandups: [21], matches: 2, excluded: 1 },
+        { teamId: 2, name: "UT", activeHandups: [], matches: 3, excluded: 0 },
       ],
       rounds: [
         { slotDate: "2026-10-06", slotHour: 21, createdAt: 0, pairs: [{ a: "KMU", b: "UT" }], excluded: "NGT" },
         { slotDate: "2026-10-06", slotHour: 22, createdAt: 0, pairs: [], excluded: "UT" },
       ],
-      wins: [
-        { id: 2, teamName: "UT", match: { a: "KMU", b: "UT" }, slotDate: "2026-10-06", slotHour: 21, points: 30, countedPoints: 100, matchNumber: 6, active: true, recordedBy: ids.admin, createdAt: 0, hasScreenshot: true },
-        { id: 1, teamName: "KMU", match: { a: "KMU", b: "NGT" }, slotDate: "2026-10-05", slotHour: 21, points: 80, countedPoints: null, matchNumber: null, active: false, recordedBy: ids.admin, createdAt: 0, hasScreenshot: false },
-      ],
       jobs: [],
       schedule: [],
       dashboard: { links: [], sessions: 0 },
-      screenshots: 1,
     },
     snapshotError: null,
     ...over,

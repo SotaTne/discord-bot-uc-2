@@ -1,0 +1,130 @@
+import { createHandup, createTeam, defaultGuildSettings, findMatchSlot, saveGuildSettings, saveMatchResult, startWaiting, type Handup, type Team } from "@uc/db";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  ALICE,
+  BOB,
+  CAROL,
+  GUILD_ID,
+  KMU_ROLE,
+  UT_ROLE,
+  commandContext,
+  commandInteraction,
+  contentOf,
+  createSeededDb,
+  jst,
+  timeOption,
+} from "../test-helpers";
+import { handdown } from "./handdown";
+import { handup } from "./handup";
+import { status } from "./status";
+
+let seeded: Awaited<ReturnType<typeof createSeededDb>>;
+
+beforeEach(async () => {
+  seeded = await createSeededDb();
+});
+
+const call = (
+  handler: typeof status,
+  input: Parameters<typeof commandInteraction>[0],
+  now: Date,
+) => handler(commandContext(seeded.db, commandInteraction(input), now));
+
+describe("/uc-status", () => {
+  it("試合数が規定数（サーバー設定）を超えていれば、その旨を出す。超えていなければ、出さない", async () => {
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-05", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    const text = async () => contentOf(await call(status, { name: "uc-status" }, jst("2026-10-07T12:30:00")));
+
+    expect(await text()).not.toContain("規定数");
+
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 2 }, 1);
+    expect(await text()).not.toContain("規定数");
+
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    expect(await text()).toContain("-# 試合数が規定数（1試合）を超えています");
+  });
+
+  it("今日組まれた試合が規定数を超える試合なら、その対戦枠の行にも「規定数超過」が付く", async () => {
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+
+    const text = contentOf(await call(status, { name: "uc-status" }, jst("2026-10-07T12:30:00")));
+
+    expect(text).toMatch(/- 21時: .* と対戦（2試合目・規定数超過・主催: /);
+  });
+
+  it("自チームの、対戦枠ごとの挙手状況と受付の段階を返す（取り消した対戦枠は、未挙手に戻る）", async () => {
+    await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(21)] }, jst("2026-10-07T14:05:00"));
+    await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(23)] }, jst("2026-10-07T14:06:00"));
+    await call(handdown, { name: "uc-handdown", userId: BOB, options: [timeOption(23)] }, jst("2026-10-07T14:10:00"));
+
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T21:30:00"));
+
+    expect(contentOf(response)).toBe(
+      [
+        `<@&${KMU_ROLE}> の挙手状況（2026-10-07）`,
+        "これまで 0 試合（次の試合は 1 試合目）",
+        `- 21時: 挙手済み（by <@${ALICE}>, 14:05）・締切（マッチング待ち）`,
+        "- 22時: 未挙手・受付中",
+        "- 23時: 未挙手・受付中",
+      ].join("\n"),
+    );
+    expect(response.data?.flags).toBe(64);
+  });
+
+  it("継続募集中は、「マッチング済み」「締切」ではなく、継続募集中と、待機中のチームを出す。待機しているのが自チームなら、待機中", async () => {
+    // UT と ITF が組まれ、NGT が組まれなかった。KMU（このコマンドを使う人）は、まだ組まれていない
+    const ngt = await createTeam(seeded.db, { guildId: GUILD_ID, roleId: "400000000000000003", createdAt: 1 });
+    const itf = await createTeam(seeded.db, { guildId: GUILD_ID, roleId: "400000000000000004", createdAt: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: ngt, pairs: [[seeded.utId, itf]], now: 1 });
+    const slot = (await findMatchSlot(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21 }))!;
+    await startWaiting(seeded.db, { id: slot.id, since: 2 });
+
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T20:56:00"));
+
+    expect(contentOf(response)).toContain("- 21時: 継続募集中（<@&400000000000000003> が待機中。21:00 までに、先着 1 チームが対戦できます）");
+    expect(contentOf(response)).not.toContain("21時: 未挙手・締切");
+  });
+
+  it("募集開始前は、未挙手と「受付前」が出る", async () => {
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T09:00:00"));
+
+    expect(contentOf(response)).toContain("- 21時: 未挙手・受付前");
+  });
+
+  it("他のチームの挙手は、一切見せない", async () => {
+    await call(handup, { name: "uc-handup", userId: CAROL, roleIds: [UT_ROLE], options: [timeOption(21)] }, jst("2026-10-07T14:00:00"));
+
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T15:00:00"));
+
+    const text = contentOf(response);
+    expect(text).toContain("- 21時: 未挙手・受付中");
+    expect(text).not.toContain(CAROL);
+    expect(text).not.toContain(UT_ROLE);
+  });
+
+  it("前日の挙手は含めない（日付で区切る）", async () => {
+    await createHandup(seeded.db, {
+      guildId: GUILD_ID,
+      slotDate: "2026-10-06",
+      slotHour: 21,
+      teamId: seeded.kmuId,
+      raisedBy: ALICE,
+      createdAt: jst("2026-10-06T14:00:00").getTime(),
+    });
+
+    const response = await call(status, { name: "uc-status" }, jst("2026-10-07T15:00:00"));
+
+    expect(contentOf(response)).toContain("- 21時: 未挙手・受付中");
+  });
+
+  it("チームのロールを持っていない人・複数持っている人には、理由を返す", async () => {
+    const none = await call(status, { name: "uc-status", roleIds: [] }, jst("2026-10-07T15:00:00"));
+    const many = await call(status, { name: "uc-status", roleIds: [KMU_ROLE, UT_ROLE] }, jst("2026-10-07T15:00:00"));
+
+    expect(contentOf(none)).toBe("チームに所属していません");
+    expect(contentOf(many)).toBe("複数のチームロールを持っているため、確認できません");
+  });
+});

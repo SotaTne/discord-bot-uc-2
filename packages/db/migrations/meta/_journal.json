@@ -15,6 +15,69 @@
       "when": 1791525582343,
       "tag": "0001_rename_slots_to_slot_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791567165077,
+      "tag": "0002_add_recruit_mention",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792046324586,
+      "tag": "0003_remove_scoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792068839252,
+      "tag": "0004_add_match_host",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792072426908,
+      "tag": "0005_add_waiting",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792073873359,
+      "tag": "0006_add_waiting_announce",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792233735791,
+      "tag": "0007_add_match_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792239153133,
+      "tag": "0008_add_role_registration",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792242000000,
+      "tag": "0009_role_message_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792246885238,
+      "tag": "0010_add_season",
+      "breakpoints": true
     }
   ]
 }

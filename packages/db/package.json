@@ -9,7 +9,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "typecheck": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:schema": "rm -rf .schema-check && cp -r migrations .schema-check && drizzle-kit generate --dialect sqlite --schema ./src/schema.ts --out ./.schema-check | grep -q 'No schema changes'; code=$?; rm -rf .schema-check; exit $code"
   },
   "dependencies": {
     "drizzle-orm": "catalog:"

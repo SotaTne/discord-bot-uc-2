@@ -6,10 +6,10 @@ import {
   hourSchema,
   loginInputSchema,
   settingsInputSchema,
+  settingsUpdateSchema,
   snowflakeSchema,
   teamInputSchema,
   matchInputSchema,
-  matchWinFormSchema,
 } from "./schemas";
 
 describe("hourSchema", () => {
@@ -80,8 +80,8 @@ describe("settingsInputSchema", () => {
     channelId: "1234567890123456789",
     recruitHour: 12,
     cutoffMinutes: 7,
-    fixedAfterMatches: 5,
-    fixedPoints: 100,
+    recruitMentionMode: "none",
+    recruitMentionTargets: [],
     revokeSessionsOnReissue: false,
   };
 
@@ -90,9 +90,33 @@ describe("settingsInputSchema", () => {
     expect(settingsInputSchema.safeParse({ ...valid, channelId: null }).success).toBe(true);
   });
 
+  it("募集開始の通知先: 既定は、誰にも通知しない（空）。ロールの ID と @here を、選べる。重なり・形の違う値は、拒否する", () => {
+    const roles = { ...valid, recruitMentionMode: "roles" };
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["1234567890123456789", "here"] }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, recruitMentionMode: "teams" }).success).toBe(true);
+
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["here", "here"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["everyone"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...roles, recruitMentionTargets: ["12"] }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, recruitMentionMode: "all" }).success).toBe(false);
+  });
+
   it("締切の分数が 0 や大きすぎる値は拒否する", () => {
     expect(settingsInputSchema.safeParse({ ...valid, cutoffMinutes: 0 }).success).toBe(false);
     expect(settingsInputSchema.safeParse({ ...valid, cutoffMinutes: 181 }).success).toBe(false);
+  });
+
+  it("大会の期間は、省略すると空。両方入れるか、両方空。開始は、終了と同じか、それより前", () => {
+    expect(settingsInputSchema.parse(valid)).toMatchObject({ seasonStart: null, seasonEnd: null });
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-08" }).success).toBe(true);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: null }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: null, seasonEnd: "2026-10-10" }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-10-10", seasonEnd: "2026-10-08" }).success).toBe(false);
+    expect(settingsInputSchema.safeParse({ ...valid, seasonStart: "2026-02-30", seasonEnd: "2026-03-01" }).success).toBe(false);
+    // 保存用のスキーマ（notifyChange つき）でも、同じ規則
+    expect(settingsUpdateSchema.safeParse({ ...valid, notifyChange: true, seasonStart: "2026-10-10", seasonEnd: "2026-10-08" }).success).toBe(false);
+    expect(settingsUpdateSchema.safeParse({ ...valid, seasonStart: "2026-10-08", seasonEnd: "2026-10-10" }).success).toBe(true);
   });
 });
 
@@ -116,18 +140,5 @@ describe("dateQuerySchema", () => {
     expect(dateQuerySchema.safeParse({}).success).toBe(true);
     expect(dateQuerySchema.safeParse({ date: "2026-10-07" }).success).toBe(true);
     expect(dateQuerySchema.safeParse({ date: "10/07" }).success).toBe(false);
-  });
-});
-
-describe("matchWinFormSchema", () => {
-  it("フォームの文字列を、数値にする", () => {
-    expect(matchWinFormSchema.parse({ teamId: "3", points: "80" })).toEqual({ teamId: 3, points: 80 });
-  });
-
-  it("不正なチーム・点数は拒否する", () => {
-    expect(matchWinFormSchema.safeParse({ teamId: "abc", points: "80" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3", points: "-1" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3", points: "1.5" }).success).toBe(false);
-    expect(matchWinFormSchema.safeParse({ teamId: "3" }).success).toBe(false);
   });
 });

@@ -15,7 +15,7 @@ const session = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const SETTINGS = { channelId: null, recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100, revokeSessionsOnReissue: false };
+const SETTINGS = { channelId: null, recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100, recruitMentionMode: "none", recruitMentionTargets: [], revokeSessionsOnReissue: false };
 /** ログイン中の端末は、設定の画面の中にある */
 const apis = (sessions: unknown[] = [session()]) => ({
   ...loggedIn,

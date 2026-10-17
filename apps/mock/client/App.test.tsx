@@ -9,14 +9,14 @@ const stateRoute = (state = sampleState()) => ({ "GET /mock-api/state": { body: 
 const message = (over: Record<string, unknown> = {}) => ({ id: "m1", channelId: "c", content: "こんにちは", createdAt: jst("2026-10-07T12:00:00"), visibleTo: null, ...over });
 
 describe("画面の構成", () => {
-  it("時計・実行者・コマンド・Discord・状態（対戦枠・チーム・マッチングログ・勝利記録）が出る", async () => {
+  it("時計・実行者・コマンド・Discord・状態（対戦枠・チーム・マッチングログ）が出る", async () => {
     installFakeApi(stateRoute());
     renderApp();
 
     expect(await screen.findByLabelText("いまの時刻")).toBeTruthy();
     expect((screen.getByLabelText("いまの時刻") as HTMLInputElement).value).toBe("20:53");
     expect(screen.getByRole("heading", { name: "実行者" })).toBeTruthy();
-    for (const name of ["対戦枠（今日）", "チーム", "マッチングログ", "勝利記録"]) expect(screen.getByRole("region", { name })).toBeTruthy();
+    for (const name of ["対戦枠（今日）", "チーム", "マッチングログ"]) expect(screen.getByRole("region", { name })).toBeTruthy();
     // メッセージがなければ、その旨だけ出す
     expect(screen.getByText("まだ何もありません")).toBeTruthy();
   });
@@ -36,6 +36,18 @@ describe("画面の構成", () => {
     expect((await run()).disabled).toBe(true);
   });
 
+  it("実行者が 3 人以上のときは、実行ボタンの文字を「alice (KMU) ほか 2 人」と短くする（長くすると、列が広がって、はみ出す）。全員の名前は、title に出す", async () => {
+    installFakeApi(stateRoute());
+    renderApp();
+    const run = async () => (await screen.findByRole("button", { name: /で実行/ })) as HTMLButtonElement;
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "carol (UT)" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "admin" }));
+
+    expect((await run()).textContent).toBe("alice (KMU) ほか 2 人 で実行");
+    expect((await run()).title).toBe("alice (KMU)・carol (UT)・admin");
+  });
+
   it("コマンドは、選ぶと、そのフォームだけが出る（はじめは /uc-handup）。管理者のコマンドには、印がある", async () => {
     installFakeApi(stateRoute());
     renderApp();
@@ -43,26 +55,21 @@ describe("画面の構成", () => {
     const tabs = await screen.findAllByRole("tab");
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("form", { name: "/uc-handup" })).toBeTruthy();
-    expect(screen.queryByRole("form", { name: "/uc-admin-win" })).toBeNull();
-    expect(screen.getByRole("tab", { name: /uc-admin-win/ }).textContent).toContain("管理者");
+    expect(screen.queryByRole("form", { name: "/uc-admin-status" })).toBeNull();
+    expect(screen.getByRole("tab", { name: /uc-admin-status/ }).textContent).toContain("管理者");
 
-    fireEvent.click(screen.getByRole("tab", { name: /uc-admin-win/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /uc-admin-status/ }));
 
-    expect(screen.getByRole("form", { name: "/uc-admin-win" })).toBeTruthy();
+    expect(screen.getByRole("form", { name: "/uc-admin-status" })).toBeTruthy();
     expect(screen.queryByRole("form", { name: "/uc-handup" })).toBeNull();
   });
 
-  it("入力欄は、オプションの型に合わせる: 時刻は対戦枠の選択（登録された試合時刻から）、チームはロールの選択、点数は数値、画像はファイル", async () => {
+  it("入力欄は、オプションの型に合わせる: 時刻は対戦枠の選択（登録された試合時刻から）", async () => {
     installFakeApi(stateRoute());
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: /uc-admin-win/ }));
-    const form = within(screen.getByRole("form", { name: "/uc-admin-win" }));
+    const form = within(await screen.findByRole("form", { name: "/uc-handup" }));
 
     expect(within(form.getByLabelText(/^試合の開始時刻（時）/)).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択", "21:00", "22:00"]);
-    expect(within(form.getByLabelText(/^勝ったチームのロール/)).getAllByRole("option").map((o) => o.textContent)).toEqual(["選択", "KMU", "UT"]);
-    expect((form.getByLabelText(/^点数/) as HTMLInputElement).type).toBe("number");
-    expect((form.getByLabelText(/^結果の画像/) as HTMLInputElement).type).toBe("file");
-    expect((form.getByLabelText(/試合の日付/) as HTMLInputElement).type).toBe("date");
   });
 
   it("worker の状態を取れないときは、理由を出す。時計・実行者・コマンドは、使える", async () => {
@@ -93,14 +100,14 @@ describe("状態", () => {
     expect(panel.getByText("22:00").parentElement?.textContent).toContain("マッチング済み");
   });
 
-  it("チームごとに、挙手中（対戦枠と挙手した人）・対戦数・勝利数・得点を出す", async () => {
+  it("チームごとに、挙手中（対戦枠と挙手した人）・対戦数を出す", async () => {
     installFakeApi(stateRoute());
     renderApp();
 
     const rows = within(await screen.findByRole("region", { name: "チーム" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      ["KMU", "21:00 alice (KMU)", "2", "1", "80"],
-      ["UT", "", "3", "4", "310"],
+      ["KMU", "21:00 alice (KMU)", "2"],
+      ["UT", "", "3"],
     ]);
   });
 
@@ -114,37 +121,95 @@ describe("状態", () => {
     expect(log.getByText("組めず")).toBeTruthy();
   });
 
-  it("勝利記録は、組分け・勝ったチーム・点数（入力 → 集計）・何試合目を出す。削除した記録は、（削除済み）と出す", async () => {
-    installFakeApi(stateRoute());
-    renderApp();
-
-    const wins = within(await screen.findByRole("region", { name: "勝利記録" }));
-    const [first, second] = wins.getAllByText(/の勝利/);
-    expect(first?.parentElement?.textContent).toContain("UT の勝利 30 → 100pt · 6試合目");
-    expect(second?.parentElement?.textContent).toContain("KMU の勝利 80pt（削除済み）");
-  });
-
-  it("勝利記録の「画像」は、青いリンク。押すと、別のページには移らず、ポップアップで画像を出す", async () => {
-    installFakeApi(stateRoute());
-    renderApp();
-
-    const link = await screen.findByRole("link", { name: "画像" });
-    expect(link.getAttribute("href")).toBe("/mock-api/screenshots/2");
-    fireEvent.click(link);
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("img").getAttribute("src")).toBe("/mock-api/screenshots/2");
-  });
-
   it("まだ何もないときは、「まだありません」とだけ出す", async () => {
     const empty = sampleState();
     empty.snapshot!.rounds = [];
-    empty.snapshot!.wins = [];
     installFakeApi(stateRoute(empty));
     renderApp();
 
     expect(within(await screen.findByRole("region", { name: "マッチングログ" })).getByText("まだありません")).toBeTruthy();
-    expect(within(screen.getByRole("region", { name: "勝利記録" })).getByText("まだありません")).toBeTruthy();
+  });
+});
+
+describe("Discord の画面: 返信", () => {
+  it("返信のメッセージは、返信の相手の 1 行目を、上に見せる。相手が削除されていれば、その旨", async () => {
+    installFakeApi(
+      stateRoute(
+        sampleState({
+          messages: [
+            message({ id: "m1", content: "案内の 1 行目\n案内の 2 行目" }),
+            message({ id: "m2", content: "募集です", replyTo: "m1" }),
+            message({ id: "m3", content: "消えた相手への返信", replyTo: "gone" }),
+          ] as never,
+        }),
+      ),
+    );
+    renderApp();
+
+    const log = within(await screen.findByRole("log", { name: "Discord のメッセージ" }));
+    const replies = log.getAllByLabelText("返信の相手");
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.textContent).toContain("案内の 1 行目");
+    expect(replies[0]?.textContent).not.toContain("案内の 2 行目");
+    expect(replies[1]?.textContent).toContain("元のメッセージは、削除されました");
+    // 返信でない、最初のメッセージには、返信の表示は、出ない
+    const messages = document.querySelectorAll(".msg");
+    expect(messages[0]?.querySelector(".reply")).toBeNull();
+    expect(messages[1]?.querySelector(".reply")).not.toBeNull();
+  });
+});
+
+describe("Discord の画面: チャンネルの選択", () => {
+  const A = "300000000000000001";
+  const B = "300000000000000002";
+  const withChannels = () =>
+    stateRoute(
+      sampleState({
+        messages: [
+          message({ id: "m1", channelId: A, content: "マッチングの投稿" }),
+          message({ id: "m2", channelId: B, content: "ロール登録の投稿" }),
+        ] as never,
+      }),
+    );
+
+  it("既定は、すべてのチャンネル。メッセージに、チャンネルの名前を添える", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+
+    const log = within(await screen.findByRole("log", { name: "Discord のメッセージ" }));
+    expect(log.getByText("マッチングの投稿").closest(".msg")?.textContent).toContain("#マッチング");
+    expect(log.getByText("ロール登録の投稿").closest(".msg")?.textContent).toContain("#ロール登録");
+    expect((screen.getByLabelText("表示するチャンネル") as HTMLSelectElement).value).toBe("all");
+  });
+
+  it("選べる項目は、「すべてのチャンネル」と、チャンネルごとの「○○ のみ」", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+
+    const select = await screen.findByLabelText("表示するチャンネル");
+    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual(["すべてのチャンネル", "マッチング のみ", "ロール登録 のみ"]);
+  });
+
+  it("1 つのチャンネルを選ぶと、そのチャンネルのメッセージだけを出す。「すべて」に戻すと、全部出る", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+    const select = await screen.findByLabelText("表示するチャンネル");
+
+    fireEvent.change(select, { target: { value: B } });
+    const log = within(screen.getByRole("log", { name: "Discord のメッセージ" }));
+    expect(log.queryByText("マッチングの投稿")).toBeNull();
+    expect(log.getByText("ロール登録の投稿").closest(".msg")?.textContent).not.toContain("#ロール登録");
+
+    fireEvent.change(select, { target: { value: "all" } });
+    expect(within(screen.getByRole("log")).getByText("マッチングの投稿")).toBeTruthy();
+  });
+
+  it("一覧にないチャンネルのメッセージも、ID のまま、選べる", async () => {
+    installFakeApi(stateRoute(sampleState({ messages: [message({ id: "m1", channelId: "c9", content: "謎のチャンネル" })] as never })));
+    renderApp();
+
+    const select = await screen.findByLabelText("表示するチャンネル");
+    expect(within(select).getByRole("option", { name: "c9 のみ" })).toBeTruthy();
   });
 });
 
@@ -182,17 +247,19 @@ describe("Discord の画面", () => {
     const api = installFakeApi({
       ...stateRoute(
         sampleState({
-          messages: [message({ visibleTo: USER_IDS.admin, components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }] })] as never,
+          messages: [message({ visibleTo: USER_IDS.admin, components: [{ type: 1, components: [{ type: 2, style: 4, label: "確認", custom_id: "sample:confirm" }] }] })] as never,
         }),
       ),
       "POST /mock-api/click": ok,
     });
     renderApp();
 
-    fireEvent.click(await screen.findByRole("button", { name: "全てクリア" }));
+    fireEvent.click(await screen.findByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(api.callsTo("POST", "/mock-api/click")).toHaveLength(1));
-    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toEqual({ custom_id: "score-clear:confirm", message_id: "m1" });
+    // 押した人（選んでいる実行者）も、送る。本人にだけ見える返信は、サーバーが、その本人として押す
+    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toMatchObject({ custom_id: "sample:confirm", message_id: "m1" });
+    expect(api.callsTo("POST", "/mock-api/click")[0]?.form).toHaveProperty("users");
   });
 });
 

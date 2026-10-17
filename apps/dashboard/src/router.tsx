@@ -1,10 +1,10 @@
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet, type RouterHistory } from "@tanstack/react-router";
 import { BoardPage } from "./pages/board";
+import { GuidePage } from "./pages/guide";
 import { AppLayout } from "./pages/layout";
 import { LoginPage } from "./pages/login";
 import { SettingsPage } from "./pages/settings";
 import { TeamsPage } from "./pages/teams";
-import { WinsPage } from "./pages/wins";
 
 const rootRoute = createRootRoute({ component: Outlet });
 
@@ -22,12 +22,12 @@ const boardRoute = createRoute({
     typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date) ? { date: search.date } : {},
 });
 const teamsRoute = createRoute({ getParentRoute: () => appRoute, path: "/teams", component: TeamsPage });
-const winsRoute = createRoute({ getParentRoute: () => appRoute, path: "/wins", component: WinsPage });
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: "/settings", component: SettingsPage });
+const guideRoute = createRoute({ getParentRoute: () => appRoute, path: "/guide", component: GuidePage });
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([boardRoute, teamsRoute, winsRoute, settingsRoute]),
+  appRoute.addChildren([boardRoute, teamsRoute, settingsRoute, guideRoute]),
 ]);
 
 export function createAppRouter(options: { initialPath?: string; history?: RouterHistory } = {}) {

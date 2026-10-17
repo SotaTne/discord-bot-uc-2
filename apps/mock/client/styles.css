@@ -76,8 +76,9 @@ h1, h2, h3 { text-wrap: balance; }
 .step[aria-pressed="true"] span { color: rgb(255 255 255 / 0.85); }
 
 /* 操作パネル（実行者・コマンド・フォーム） */
-.controls { display: grid; gap: 14px; padding: 14px 16px; }
-.command-pane { display: grid; gap: 14px; }
+/* 列は、内容の幅ではなく、枠の幅で決める（minmax(0, 1fr)）。決めないと、長い文字（実行ボタンなど）で、列が枠より広がって、はみ出す */
+.controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 14px 16px; }
+.command-pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 
 .command-list { display: grid; gap: 1px; margin: 0 -6px; }
 .command {
@@ -96,6 +97,8 @@ h1, h2, h3 { text-wrap: balance; }
 .discord { background: var(--dc-bg); color: var(--dc-text); border-radius: var(--mantine-radius-md); overflow: hidden; border: 1px solid var(--dc-line); display: grid; grid-template-rows: auto minmax(0, 1fr);  }
 .discord-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 44px; background: var(--dc-bar); border-bottom: 1px solid var(--dc-line); color: var(--dc-strong); font-weight: 600; font-size: 15px; }
 .discord-head .hash { color: var(--dc-muted); font-size: 20px; font-weight: 400; }
+.channel-select { background: transparent; color: var(--dc-strong); border: 1px solid var(--dc-line); border-radius: 4px; padding: 3px 6px; font: inherit; font-size: 14px; }
+.msg-head .channel-tag { font-size: 12px; color: var(--dc-muted); }
 .msgs { overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 12px; }
 .msgs-empty { display: grid; place-items: center; height: 100%; color: var(--dc-muted); font-size: 14px; }
 .msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; padding: 6px 16px 6px 12px; border-left: 4px solid transparent; }
@@ -108,6 +111,10 @@ h1, h2, h3 { text-wrap: balance; }
 .msg-head time, .msg-head .to { font-size: 12px; color: var(--dc-muted); }
 .msg-head .to { border: 1px solid var(--dc-line); border-radius: 999px; padding: 0 7px; }
 .msg.private .msg-head .to { border-color: var(--dc-blurple); color: #c9cdfb; }
+/* 返信の相手（1 行。長ければ、…で省く） */
+.msg .reply { display: flex; align-items: center; gap: 6px; min-width: 0; margin-bottom: 2px; font-size: 12px; color: var(--dc-muted); }
+.msg .reply-arrow { flex: none; }
+.msg .reply-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg .body { color: var(--dc-text); line-height: 1.5; min-width: 0; }
 .msg .body a { color: var(--dc-link); }
 .msg .body strong { color: var(--dc-strong); }

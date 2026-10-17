@@ -12,10 +12,25 @@ export const guildSettings = sqliteTable("guild_settings", {
   recruitHour: integer("recruit_hour").notNull().default(12),
   /** 試合開始の何分前に打ち切るか */
   cutoffMinutes: integer("cutoff_minutes").notNull().default(7),
-  /** そのチームの、この試合数目までは、勝つと、記録した点数（生点）を使う。それを超えた試合（N+1 試合目から）は、勝つと、固定点 */
-  fixedAfterMatches: integer("fixed_after_matches").notNull().default(5),
-  /** N 試合を超えた試合で、勝ったときの固定点 */
-  fixedPoints: integer("fixed_points").notNull().default(100),
+  /** 募集開始の投稿で、誰に通知するか。none: 誰にも / teams: 登録済みのチームのロール全部 / roles: recruit_mention_targets で選んだもの */
+  recruitMentionMode: text("recruit_mention_mode", { enum: ["none", "teams", "roles"] }).notNull().default("none"),
+  /** recruit_mention_mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here）の配列（JSON） */
+  recruitMentionTargets: text("recruit_mention_targets", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+  /** ロール登録のメッセージ（チームのロールを選ぶボタン）を投稿するチャンネル。空は、ロール登録を使わない */
+  roleChannelId: text("role_channel_id"),
+  /**
+   * 投稿したロール登録のメッセージの ID（投稿順の JSON 配列）。
+   * チームは 20 ごとにメッセージを分けるので、2 件以上になる。チームを登録・削除したとき、このメッセージを編集する（設定の保存では変わらない）。
+   */
+  roleMessageIds: text("role_message_id", { mode: "json" }).$type<string[] | null>(),
+  /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。挙手・マッチングは止めない。奇数のとき、除外するチームを決めるのには使う */
+  matchLimit: integer("match_limit"),
+  /**
+   * 大会の期間（JST の日付。YYYY-MM-DD）。開始日と終了日は、どちらも含む。両方空なら、期間を設けない。
+   * 時刻は持たない（終了日の試合は、その日の試合開始まで行う）。
+   */
+  seasonStart: text("season_start"),
+  seasonEnd: text("season_end"),
   /** ダッシュボードのリンクを再発行したときに、古いセッションを失効させるか */
   revokeSessionsOnReissue: integer("revoke_sessions_on_reissue", { mode: "boolean" })
     .notNull()
@@ -81,6 +96,15 @@ export const matchSlots = sqliteTable(
     matchedAt: integer("matched_at"),
     /** 奇数などで、組まれなかったチーム（処理済みのときだけ入りうる） */
     excludedTeamId: integer("excluded_team_id").references(() => teams.id),
+    /**
+     * 継続募集: 組まれなかったチームが、「待機する」を押した時刻。空なら、待機していない。
+     * 待機しているチームは、excluded_team_id。継続募集中かどうかは、これと時刻から、計算する（`isContinuedRecruit`）
+     */
+    waitingSince: integer("waiting_since"),
+    /** 継続募集の案内（「待機する」のボタン）を投稿した、Discord のメッセージの ID（ボタンの編集に使う） */
+    waitingMessageId: text("waiting_message_id"),
+    /** 継続募集の募集のメッセージ（「対戦する」「待機をキャンセル」のボタン）の ID。最初の待機のとき、1 回だけ投稿し、あとは、編集する */
+    waitingAnnounceMessageId: text("waiting_announce_message_id"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
@@ -115,8 +139,8 @@ export const handups = sqliteTable(
 );
 
 /**
- * 組分け（試合）: 対戦枠で組まれた2チーム。勝利は、これに紐づく。
- * 対戦枠のマッチングを処理すると作られる（作り直さない。勝利が紐づくため）。
+ * 組分け: 対戦枠で組まれた2チーム。
+ * 対戦枠のマッチングを処理すると作られる。
  */
 export const matches = sqliteTable(
   "matches",
@@ -131,42 +155,13 @@ export const matches = sqliteTable(
     teamBId: integer("team_b_id")
       .notNull()
       .references(() => teams.id),
+    /** 主催（マリオカートの部屋を立てる側）。組分けを作るときに、2 チームから無作為に決めて保存する。古い行は空（表示では、計算で補う） */
+    hostTeamId: integer("host_team_id").references(() => teams.id),
   },
   (t) => [
     index("matches_match_slot").on(t.matchSlotId),
     check("matches_distinct_teams", sql`${t.teamAId} <> ${t.teamBId}`),
   ],
-);
-
-/**
- * 勝利の記録。どの試合（組分け）の、どのチームの勝利かを持つ。
- * 間違えた記録は、削除せずに「無効」にする（`active = false`。あとで有効に戻せる）。無効な記録は、得点に数えない。
- * 「得点のクリア」は、このテーブルの行をすべて削除する（履歴も 0 になる）。
- */
-export const wins = sqliteTable(
-  "wins",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    guildId: text("guild_id").notNull(),
-    /** 勝った試合（組分け） */
-    matchId: integer("match_id")
-      .notNull()
-      .references(() => matches.id),
-    /** 勝ったチーム。その試合の2チームのどちらか（記録のときに確かめる） */
-    teamId: integer("team_id")
-      .notNull()
-      .references(() => teams.id),
-    /** 入力された生の点数（N 試合を超えた試合の固定点は、集計時に適用する） */
-    points: integer("points").notNull(),
-    /** 有効か。false の記録は、得点にも、勝数にも数えない */
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    /** 画像の R2 キー */
-    screenshotKey: text("screenshot_key"),
-    /** 記録した人（Discord のユーザー ID など） */
-    recordedBy: text("recorded_by").notNull(),
-    createdAt: integer("created_at").notNull(),
-  },
-  (t) => [index("wins_guild").on(t.guildId, t.id), index("wins_match").on(t.matchId)],
 );
 
 export const dashboardLinks = sqliteTable("dashboard_links", {
@@ -198,7 +193,7 @@ export const jobRuns = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     guildId: text("guild_id").notNull(),
-    /** 例: recruit:2026-10-07 / cutoff:2026-10-07:21 */
+    /** 例: recruit:2026-10-07:12 / cutoff:2026-10-07:21 */
     jobKey: text("job_key").notNull(),
     createdAt: integer("created_at").notNull(),
   },

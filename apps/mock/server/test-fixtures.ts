@@ -20,7 +20,7 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
     now: new Date(jst("2026-10-07T20:53:00")).toISOString(),
     clock: { offsetMs: 0 },
     today: "2026-10-07",
-    settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7, fixedAfterMatches: 5, fixedPoints: 100 },
+    settings: { channelId: "300000000000000001", recruitHour: 12, cutoffMinutes: 7 },
     slotHours: [21, 22, 23],
     matchSlots: [
       { slotHour: 21, status: "open" },
@@ -34,25 +34,20 @@ export function makeSnapshot(over: Partial<DevSnapshot> = {}): DevSnapshot {
       { id: 1, slotHour: 21, teamId: 1, teamName: "KMU", raisedBy: alice, createdAt: jst("2026-10-07T15:00:00") },
     ],
     teamStats: [
-      { teamId: 1, name: "KMU", activeHandups: [21], matches: 2, excluded: 1, wins: 1, total: 80 },
-      { teamId: 2, name: "UT", activeHandups: [], matches: 3, excluded: 0, wins: 4, total: 310 },
+      { teamId: 1, name: "KMU", activeHandups: [21], matches: 2, excluded: 1 },
+      { teamId: 2, name: "UT", activeHandups: [], matches: 3, excluded: 0 },
     ],
     rounds: [
       { slotDate: "2026-10-06", slotHour: 21, createdAt: jst("2026-10-06T20:53:00"), pairs: [{ a: "KMU", b: "UT" }], excluded: "NGT" },
       { slotDate: "2026-10-06", slotHour: 22, createdAt: jst("2026-10-06T21:53:00"), pairs: [], excluded: "UT" },
     ],
-    wins: [
-      { id: 2, teamName: "UT", match: { a: "KMU", b: "UT" }, slotDate: "2026-10-06", slotHour: 21, points: 30, countedPoints: 100, matchNumber: 6, active: true, recordedBy: admin, createdAt: jst("2026-10-07T10:00:00"), hasScreenshot: true },
-      { id: 1, teamName: "KMU", match: { a: "KMU", b: "NGT" }, slotDate: "2026-10-05", slotHour: 21, points: 80, countedPoints: null, matchNumber: null, active: false, recordedBy: admin, createdAt: jst("2026-10-06T10:00:00"), hasScreenshot: false },
-    ],
-    jobs: [{ key: "recruit:2026-10-07", createdAt: jst("2026-10-07T12:00:00") }],
+    jobs: [{ key: "recruit:2026-10-07:12", createdAt: jst("2026-10-07T12:00:00") }],
     schedule: [
-      { key: "recruit:2026-10-07", label: "12:00 募集開始の投稿", from: new Date(jst("2026-10-07T12:00:00")).toISOString(), until: new Date(jst("2026-10-07T13:00:00")).toISOString(), state: "done" },
+      { key: "recruit:2026-10-07:12", label: "12:00 募集開始の投稿", from: new Date(jst("2026-10-07T12:00:00")).toISOString(), until: new Date(jst("2026-10-07T13:00:00")).toISOString(), state: "done" },
       { key: "cutoff:2026-10-07:21", label: "21時の試合の締切（7分前）: マッチングの確定と投稿", from: new Date(jst("2026-10-07T20:53:00")).toISOString(), until: new Date(jst("2026-10-07T21:30:00")).toISOString(), state: "ready" },
       { key: "cutoff:2026-10-07:22", label: "22時の試合の締切（7分前）: マッチングの確定と投稿", from: new Date(jst("2026-10-07T21:53:00")).toISOString(), until: new Date(jst("2026-10-07T22:30:00")).toISOString(), state: "waiting" },
     ],
     dashboard: { links: [{ issuedBy: admin, createdAt: jst("2026-10-07T16:00:00"), expiresAt: jst("2026-10-07T17:00:00"), usedAt: jst("2026-10-07T16:01:00") }], sessions: 1 },
-    screenshots: 1,
     ...over,
   };
 }
@@ -72,7 +67,6 @@ export function createFakeWorker(options: {
   /** PUT /dev/clock の HTTP ステータス */
   clockStatus?: number;
   resetStatus?: number;
-  screenshot?: { status: number; contentType?: string; bytes?: number[] };
 } = {}) {
   const calls: WorkerCall[] = [];
   const snapshot = options.snapshot ?? makeSnapshot();
@@ -103,13 +97,6 @@ export function createFakeWorker(options: {
     }
     if (url.pathname === "/dev/tick") return json(options.tick ?? { ran: [], errors: [] }, options.tickStatus ?? 200);
     if (url.pathname === "/dev/reset") return json({ ok: true }, options.resetStatus ?? 200);
-    if (url.pathname.startsWith("/dev/screenshots/")) {
-      const shot = options.screenshot ?? { status: 404 };
-      return new Response(shot.status === 200 ? new Uint8Array(shot.bytes ?? [1, 2, 3]) : "not found", {
-        status: shot.status,
-        headers: shot.contentType ? { "Content-Type": shot.contentType } : {},
-      });
-    }
     return json({ error: "unexpected" }, 500);
   };
 
@@ -122,7 +109,7 @@ export async function createTestMock(options: Parameters<typeof createFakeWorker
   const state = createMockState(defaultSeed(), { realNow });
   const worker = createFakeWorker(options);
   const discord = createDiscordServer(
-    { workerUrl: "http://worker.local", mockUrl: "http://mock.local", keys, applicationId: "100000000000000001", fetch: worker.fetchImpl },
+    { workerUrl: "http://worker.local", keys, applicationId: "100000000000000001", fetch: worker.fetchImpl },
     state,
   );
   const workerDev = createWorkerDev({ workerUrl: "http://worker.local", fetch: worker.fetchImpl }, state);

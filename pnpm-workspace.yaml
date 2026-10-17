@@ -23,8 +23,11 @@ catalog:
   drizzle-orm: 0.45.3
   hono: 4.13.13
   jsdom: 30.1.2
+  mermaid: 12.1.0
   react: 19.3.0
   react-dom: 19.3.0
+  react-markdown: 10.1.0
+  remark-gfm: 4.0.1
   tsx: 4.23.15
   turbo: 2.11.7
   typescript: 6.0.3

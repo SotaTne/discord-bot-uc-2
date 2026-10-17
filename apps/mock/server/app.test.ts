@@ -22,6 +22,7 @@ const json = async (response: Response) => (await response.json()) as { ok: bool
 type StateBody = {
   guildId: string;
   channelId: string;
+  channels: { id: string; name: string }[];
   users: { id: string; username: string; isAdmin: boolean; roleIds: string[] }[];
   roles: { id: string; name: string }[];
   messages: { content: string; visibleTo: string | null; components?: unknown[] }[];
@@ -33,11 +34,10 @@ type StateBody = {
 const stateOf = async (mock: Mock) => (await (await mock.app.request("/mock-api/state")).json()) as StateBody;
 
 describe("構成: Discord のサーバー役と、画面用の API は、別の入口", () => {
-  it("worker が呼ぶ REST と添付ファイルは、/api/v10 と /attachments。画面用の API は、/mock-api", async () => {
+  it("worker が呼ぶ REST と添付ファイルは、/api/v10。画面用の API は、/mock-api", async () => {
     const mock = await createTestMock();
 
     expect((await mock.app.request("/api/v10/guilds/200000000000000001/roles", { headers: { Authorization: "Bot x" } })).status).toBe(200);
-    expect((await mock.app.request("/attachments/nothing")).status).toBe(404);
     expect((await mock.app.request("/mock-api/state")).status).toBe(200);
     // 画面用の API は、Discord の入口の下には、ない。Discord の入口は、画面用の API の下には、ない
     expect((await mock.app.request("/api/v10/mock-api/state")).status).toBe(404);
@@ -53,7 +53,7 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
 
     const body = await stateOf(mock);
 
-    expect(body.users.map((user) => user.username)).toEqual(["alice (KMU)", "bob (KMU)", "carol (UT)", "dave (NGT)", "admin"]);
+    expect(body.users.map((user) => user.username)).toEqual(["alice (KMU)", "bob (KMU)", "carol (UT)", "dave (NGT)", "admin", "eve (チームなし)"]);
     expect(body.users.find((user) => user.id === ADMIN)?.isAdmin).toBe(true);
     expect(body.roles.map((role) => role.name)).toEqual(["KMU", "UT", "NGT", "ITF"]);
     expect(body.messages.map((message) => [message.content, message.visibleTo])).toEqual([["こんにちは", null], ["内緒", ADMIN]]);
@@ -78,7 +78,7 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     expect(body.snapshot).toBeNull();
     expect(body.snapshotError).toContain("500");
     expect(body.clockSteps).toEqual([]);
-    expect(body.users).toHaveLength(5);
+    expect(body.users).toHaveLength(6);
   });
 
   it("状態を取りに行くとき、worker の時計が、mock の時計とずれていれば、mock の時計を伝え直す（worker を作り直したときなど）", async () => {
@@ -166,31 +166,11 @@ describe("コマンドの実行（POST /mock-api/send）", () => {
 
   it("空の任意の項目は、オプションに入れない。管理者のコマンドは、管理者の権限で送る", async () => {
     const mock = await createTestMock();
-    await post(mock.app, "/mock-api/send", { users: ADMIN, command: "uc-admin-win", time: "21", "team-role": "UT", point: "80", image: new File([new Uint8Array([1])], "a.png", { type: "image/png" }), date: "" });
+    await post(mock.app, "/mock-api/send", { users: ADMIN, command: "uc-admin-dashboard", extra: "" });
 
     const interaction = JSON.parse(mock.worker.callsTo("/interactions")[0]!.body) as Interaction;
     expect(interaction.data?.options?.map((o) => o.name)).not.toContain("date");
     expect(interaction.member?.permissions).toBe("8");
-  });
-
-  it("画像をアップロードすると、添付ファイルとして渡り、mock の URL から取得できる", async () => {
-    const mock = await createTestMock({ interaction: { type: 5, data: { flags: 64 } } });
-    const file = new File([new Uint8Array([137, 80, 78, 71])], "shot.png", { type: "image/png" });
-
-    const result = await json(
-      await post(mock.app, "/mock-api/send", { users: ADMIN, command: "uc-admin-win", time: "21", "team-role": "UT", point: "80", image: file, date: "" }),
-    );
-
-    expect(result.ok).toBe(true);
-    const interaction = JSON.parse(mock.worker.callsTo("/interactions")[0]!.body) as Interaction;
-    expect(interaction.data?.options?.map((o) => o.name)).toEqual(["time", "team-role", "point", "image"]);
-    const [attachment] = Object.values(interaction.data?.resolved?.attachments ?? {});
-    expect(attachment).toMatchObject({ filename: "shot.png", content_type: "image/png", size: 4 });
-
-    const served = await mock.app.request(new URL(attachment!.url).pathname);
-    expect(served.headers.get("content-type")).toBe("image/png");
-    expect(new Uint8Array(await served.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71]));
-    expect((await mock.app.request("/attachments/unknown")).status).toBe(404);
   });
 
   it("知らないコマンドは、理由を返す", async () => {
@@ -211,22 +191,83 @@ describe("コマンドの実行（POST /mock-api/send）", () => {
 
 describe("ボタンを押す（POST /mock-api/click）", () => {
   it("本人にだけ見えるメッセージは、その本人として押す。メッセージが置き換わる", async () => {
-    const mock = await createTestMock({ interaction: { type: 7, data: { content: "クリアしました", components: [] } } });
+    const mock = await createTestMock({ interaction: { type: 7, data: { content: "完了しました", components: [] } } });
     const message = mock.state.addMessage({
       channelId: mock.state.channelId,
       content: "確認",
       visibleTo: ADMIN,
-      components: [{ type: 1, components: [{ type: 2, style: 4, label: "全てクリア", custom_id: "score-clear:confirm" }] }],
+      components: [{ type: 1, components: [{ type: 2, style: 4, label: "確認", custom_id: "sample:confirm" }] }],
     });
 
-    const result = await json(await post(mock.app, "/mock-api/click", { custom_id: "score-clear:confirm", message_id: message.id }));
+    const result = await json(await post(mock.app, "/mock-api/click", { custom_id: "sample:confirm", message_id: message.id }));
 
     expect(result.ok).toBe(true);
     const interaction = JSON.parse(mock.worker.callsTo("/interactions")[0]!.body) as Interaction;
     expect(interaction.member?.user.id).toBe(ADMIN);
-    expect(interaction.data?.custom_id).toBe("score-clear:confirm");
-    expect(mock.state.messages[0]).toMatchObject({ content: "クリアしました" });
+    expect(interaction.data?.custom_id).toBe("sample:confirm");
+    expect(mock.state.messages[0]).toMatchObject({ content: "完了しました" });
     expect(mock.state.messages[0]?.components).toBeUndefined();
+  });
+});
+
+describe("チャンネル", () => {
+  it("画面用の状態に、サーバーのチャンネルの一覧を含める（マッチングとロール登録）", async () => {
+    const mock = await createTestMock();
+
+    const body = await stateOf(mock);
+
+    expect(body.channels).toEqual([
+      { id: mock.state.channelId, name: "マッチング" },
+      { id: "300000000000000002", name: "ロール登録" },
+    ]);
+  });
+
+  it("ボタンを押した返信は、押されたメッセージがあるチャンネルに出る（そのチャンネルとして、worker に渡す）", async () => {
+    const mock = await createTestMock({ interaction: { type: 4, data: { content: "付けました", flags: 64 } } });
+    const roleChannel = "300000000000000002";
+    const message = mock.state.addMessage({
+      channelId: roleChannel,
+      content: "ロール登録",
+      components: [{ type: 1, components: [{ type: 2, style: 1, label: "KMU", custom_id: "role-set:1" }] }],
+    });
+
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "role-set:1", message_id: message.id, users: ADMIN }));
+
+    const interaction = JSON.parse(mock.worker.callsTo("/interactions")[0]!.body) as Interaction;
+    expect(interaction.channel_id).toBe(roleChannel);
+    expect(mock.state.messages.at(-1)).toMatchObject({ channelId: roleChannel, content: "付けました", visibleTo: ADMIN });
+  });
+});
+
+describe("公開メッセージのボタンを押す（選んでいる実行者として）", () => {
+  const publicButton = (mock: Awaited<ReturnType<typeof createTestMock>>) =>
+    mock.state.addMessage({
+      channelId: mock.state.channelId,
+      content: "待機の案内",
+      components: [{ type: 1, components: [{ type: 2, style: 3, label: "待機する", custom_id: "wait:2026-10-07:21" }] }],
+    });
+
+  it("選んでいる実行者として押す（複数なら、順に 1 人ずつ）。選んでいなければ、最初のユーザー", async () => {
+    const mock = await createTestMock({ interaction: { type: 4, data: { content: "ok", flags: 64 } } });
+    const message = publicButton(mock);
+
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id, users: `${CAROL},${ALICE}` }));
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id }));
+
+    const pressedBy = mock.worker
+      .callsTo("/interactions")
+      .map((call) => (JSON.parse(call.body) as Interaction).member?.user.id);
+    expect(pressedBy).toEqual([CAROL, ALICE, mock.state.users[0]!.id]);
+  });
+
+  it("押した人の、どれかで worker が失敗したら、だれの操作が失敗したかを返す", async () => {
+    const mock = await createTestMock({ interactionStatus: 401 });
+    const message = publicButton(mock);
+
+    const result = await json(await post(mock.app, "/mock-api/click", { custom_id: "wait:2026-10-07:21", message_id: message.id, users: ALICE }));
+
+    expect(result.ok).toBe(false);
+    expect(result.notice).toContain("worker が 401 を返しました");
   });
 });
 
@@ -318,17 +359,5 @@ describe("初期化（POST /mock-api/reset）", () => {
 
     expect((await json(await post(mock.app, "/mock-api/reset", {}))).ok).toBe(false);
     expect(mock.state.messages).toHaveLength(1);
-  });
-});
-
-
-describe("保存された画像の表示（GET /mock-api/screenshots/:seq）", () => {
-  it("worker から画像を取って、そのまま返す。なければ 404", async () => {
-    const mock = await createTestMock({ screenshot: { status: 200, contentType: "image/png", bytes: [9, 8, 7] } });
-    const response = await mock.app.request("/mock-api/screenshots/2");
-
-    expect(response.headers.get("content-type")).toBe("image/png");
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([9, 8, 7]));
-    expect((await (await createTestMock()).app.request("/mock-api/screenshots/2")).status).toBe(404);
   });
 });

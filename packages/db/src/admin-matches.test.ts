@@ -2,24 +2,18 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   MatchTeamTakenError,
   addMatch,
-  countMatchesByTeam,
   createHandup,
   createTeam,
-  deleteAllMatches,
-  deleteAllWins,
   deleteMatch,
   ensureHandup,
   findHandup,
   findMatch,
   findMatchForTeam,
   findMatchSlot,
-  hasActiveWin,
-  insertWin,
   listHandupsForSlot,
+  listMatchedSlots,
   listMatchesOnDate,
-  listWins,
   saveMatchResult,
-  setWinActive,
 } from "./index";
 import { createTestDb } from "./testing";
 
@@ -45,8 +39,6 @@ beforeEach(async () => {
 
 const add = (teamAId: number, teamBId: number, over: Partial<typeof slot> = {}) =>
   addMatch(db, { ...slot, ...over, teamAId, teamBId, createdAt: 10 });
-const win = (matchId: number, teamId: number, key: string | null = null) =>
-  insertWin(db, { guildId: GUILD, matchId, teamId, points: 50, screenshotKey: key, recordedBy: "admin", createdAt: 20 });
 
 describe("ensureHandup（自動挙手）", () => {
   it("なければ作る。あれば、そのまま（二重にならない）", async () => {
@@ -73,7 +65,7 @@ describe("addMatch（管理者による、組分けの追加）", () => {
   it("組分けを追加できる。対戦枠は、未マッチングのまま（自動のマッチングが、あとで残りを組める）", async () => {
     const id = await add(a, b);
 
-    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toEqual([{ id, slotHour: 21, teamAId: a, teamBId: b }]);
+    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toMatchObject([{ id, slotHour: 21, teamAId: a, teamBId: b }]);
     expect(await findMatchSlot(db, slot)).toMatchObject({ status: "open" });
     expect(await findMatchForTeam(db, { ...slot, teamId: b })).toMatchObject({ matchId: id });
   });
@@ -128,95 +120,41 @@ describe("自動のマッチングと、管理者が追加した組分け", () =
   });
 });
 
+describe("主催（部屋を立てる側）", () => {
+  const hostOf = async () => (await listMatchedSlots(db, { guildId: GUILD, slotDate: DATE })).flatMap((s) => s.pairs.map((p) => p.hostTeamId));
+
+  it("組分けを作るときに、2 チームから無作為に決めて保存する（乱数が小さければ 1 チーム目、大きければ 2 チーム目）", async () => {
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[a, b]], now: 5, random: () => 0.1 });
+    expect(await hostOf()).toEqual([a]);
+
+    await saveMatchResult(db, { ...slot, slotHour: 22, excludedTeamId: null, pairs: [[c, d]], now: 5, random: () => 0.9 });
+    expect((await listMatchedSlots(db, { guildId: GUILD, slotDate: DATE })).flatMap((s) => s.pairs.map((p) => p.hostTeamId))).toEqual([a, d]);
+  });
+
+  it("管理者が追加した組分けにも、主催が付く。保存し直しても、主催は変わらない", async () => {
+    await addMatch(db, { ...slot, teamAId: a, teamBId: b, createdAt: 10, random: () => 0.9 });
+    await saveMatchResult(db, { ...slot, excludedTeamId: null, pairs: [[a, b]], now: 5, random: () => 0.1 });
+
+    expect(await hostOf()).toEqual([b]);
+  });
+});
+
 describe("deleteMatch（組分けの削除）", () => {
-  it("組分けと、その勝利の記録（無効なものも）を削除して、画像のキーを返す。ほかの組分けには影響しない", async () => {
+  it("組分けを削除する。ほかの組分けには影響しない", async () => {
     const target = await add(a, b);
     const other = await add(c, d);
-    const first = await win(target, a, "shots/1.png");
-    await win(target, b, "shots/2.png");
-    await setWinActive(db, { guildId: GUILD, id: first, active: false });
-    await win(other, c, "shots/other.png");
 
-    const result = await deleteMatch(db, { guildId: GUILD, id: target });
+    expect(await deleteMatch(db, { guildId: GUILD, id: target })).toBe(true);
 
-    expect(result?.screenshotKeys.sort()).toEqual(["shots/1.png", "shots/2.png"]);
     expect((await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).map((m) => m.id)).toEqual([other]);
-    expect((await listWins(db, GUILD)).map((w) => w.matchId)).toEqual([other]);
   });
 
-  it("見つからない・ほかのサーバーのものは null。削除したあとは、同じチームで、組み直せる", async () => {
+  it("見つからない・ほかのサーバーのものは false。削除したあとは、同じチームで、組み直せる", async () => {
     const id = await add(a, b);
 
-    expect(await deleteMatch(db, { guildId: "999", id })).toBeNull();
-    expect(await deleteMatch(db, { guildId: GUILD, id: 9999 })).toBeNull();
-    expect(await deleteMatch(db, { guildId: GUILD, id })).toEqual({ screenshotKeys: [] });
+    expect(await deleteMatch(db, { guildId: "999", id })).toBe(false);
+    expect(await deleteMatch(db, { guildId: GUILD, id: 9999 })).toBe(false);
+    expect(await deleteMatch(db, { guildId: GUILD, id })).toBe(true);
     await expect(add(a, c)).resolves.toBeTypeOf("number");
-  });
-});
-
-describe("hasActiveWin", () => {
-  it("有効な勝利があるときだけ true。無効にすると false、有効に戻すと true", async () => {
-    const matchId = await add(a, b);
-    expect(await hasActiveWin(db, matchId)).toBe(false);
-
-    const id = await win(matchId, a);
-    expect(await hasActiveWin(db, matchId)).toBe(true);
-
-    await setWinActive(db, { guildId: GUILD, id, active: false });
-    expect(await hasActiveWin(db, matchId)).toBe(false);
-
-    await setWinActive(db, { guildId: GUILD, id, active: true });
-    expect(await hasActiveWin(db, matchId)).toBe(true);
-  });
-});
-
-describe("countMatchesByTeam（チームごとの試合数）", () => {
-  it("組分けに入った数を、チームごとに数える（勝ち負けに関係なく）。入っていないチームは含まれない", async () => {
-    const first = await add(a, b);
-    await add(a, c, { slotHour: 22 });
-    await win(first, b);
-
-    const counts = await countMatchesByTeam(db, GUILD);
-
-    expect([...counts]).toEqual([[a, 2], [b, 1], [c, 1]]);
-    expect(counts.has(d)).toBe(false);
-  });
-
-  it("別のサーバーの組分けは、数えない。削除した組分けも、数えない", async () => {
-    const id = await add(a, b);
-    await addMatch(db, { guildId: "999", slotDate: DATE, slotHour: 21, teamAId: a, teamBId: b, createdAt: 1 });
-
-    await deleteMatch(db, { guildId: GUILD, id });
-
-    expect((await countMatchesByTeam(db, GUILD)).size).toBe(0);
-    expect((await countMatchesByTeam(db, "999")).get(a)).toBe(1);
-  });
-});
-
-describe("deleteAllMatches（試合数を 0 に戻す）", () => {
-  it("そのサーバーの組分けを、すべて削除する。組まれなかったチームも外れる。別のサーバーと、挙手は、残る", async () => {
-    await saveMatchResult(db, { ...slot, excludedTeamId: c, pairs: [[a, b]], now: 5 });
-    await ensureHandup(db, { ...slot, teamId: a, raisedBy: "u", createdAt: 1 });
-    await addMatch(db, { guildId: "999", slotDate: DATE, slotHour: 21, teamAId: a, teamBId: b, createdAt: 1 });
-
-    await deleteAllMatches(db, GUILD);
-
-    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toEqual([]);
-    expect((await findMatchSlot(db, slot))?.excludedTeamId).toBeNull();
-    expect((await countMatchesByTeam(db, GUILD)).size).toBe(0);
-    expect((await countMatchesByTeam(db, "999")).get(a)).toBe(1);
-    expect(await findHandup(db, { ...slot, teamId: a })).toBeDefined();
-  });
-
-  it("勝利の記録を先に削除すれば、外部キーに引っかからない。何もなければ、何もしない", async () => {
-    const matchId = await add(a, b);
-    await win(matchId, a);
-
-    await deleteAllWins(db, GUILD);
-    await deleteAllMatches(db, GUILD);
-    await deleteAllMatches(db, GUILD);
-
-    expect(await listWins(db, GUILD)).toEqual([]);
-    expect(await listMatchesOnDate(db, { guildId: GUILD, slotDate: DATE })).toEqual([]);
   });
 });

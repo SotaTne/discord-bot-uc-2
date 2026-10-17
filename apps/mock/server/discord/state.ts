@@ -21,13 +21,18 @@ export type MockMessage = {
   visibleTo: string | null;
   /** ボタン（確認ボタンなど）。押すと、メッセージが置き換わって消える */
   components?: ActionRow[];
+  /** 返信の相手のメッセージの ID（別のメッセージへの返信として投稿されたとき） */
+  replyTo?: string;
 };
 
-export type MockAttachment = { id: string; filename: string; contentType: string; bytes: Uint8Array<ArrayBuffer> };
+export type MockChannel = { id: string; name: string };
 
 export type Seed = {
   guildId: string;
+  /** コマンドの実行・返信が出る、既定のチャンネル（channels のどれか） */
   channelId: string;
+  /** サーバーのチャンネル（画面で、見るチャンネルを選べる） */
+  channels: MockChannel[];
   users: MockUser[];
   roles: MockRole[];
 };
@@ -43,7 +48,6 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
   const realNow = options.realNow ?? Date.now;
   const messages: MockMessage[] = [];
   const pending = new Map<string, PendingInteraction>();
-  const attachments = new Map<string, MockAttachment>();
   let counter = 0;
   /**
    * 疑似時計。worker が持つ時計と、同じもの（worker に、PUT /dev/clock で伝える）。
@@ -57,6 +61,7 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
   return {
     guildId: seed.guildId,
     channelId: seed.channelId,
+    channels: seed.channels,
     users: seed.users,
     roles: seed.roles,
     messages,
@@ -73,6 +78,8 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
       content: string;
       visibleTo?: string | null;
       components?: ActionRow[] | undefined;
+      /** 返信の相手（別のメッセージの ID） */
+      replyTo?: string | undefined;
     }): MockMessage {
       const message: MockMessage = {
         id: newId(),
@@ -82,8 +89,17 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
         visibleTo: input.visibleTo ?? null,
       };
       if (input.components && input.components.length > 0) message.components = input.components;
+      if (input.replyTo) message.replyTo = input.replyTo;
       messages.push(message);
       return message;
+    },
+
+    /** メッセージを削除する（Bot が、チャンネルのメッセージを削除したとき）。なければ false */
+    deleteMessage(id: string): boolean {
+      const index = messages.findIndex((m) => m.id === id);
+      if (index === -1) return false;
+      messages.splice(index, 1);
+      return true;
     },
 
     /** メッセージの本文とボタンを置き換える（ボタンが押されたときの UpdateMessage） */
@@ -103,14 +119,6 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
     /** deferred で返したインタラクションを、あとの編集で解決できるように覚えておく */
     markPending: (token: string, interaction: PendingInteraction) => void pending.set(token, interaction),
     getPending: (token: string) => pending.get(token),
-
-    /** アップロードされた画像（コマンドの添付ファイルとして、worker が URL から取得する） */
-    addAttachment(input: Omit<MockAttachment, "id">): MockAttachment {
-      const attachment = { id: newId(), ...input };
-      attachments.set(attachment.id, attachment);
-      return attachment;
-    },
-    getAttachment: (id: string) => attachments.get(id),
 
     /** 疑似時計の状態 */
     clock: (): DevClock => clock,
@@ -135,7 +143,6 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
     reset() {
       messages.length = 0;
       pending.clear();
-      attachments.clear();
     },
   };
 }
