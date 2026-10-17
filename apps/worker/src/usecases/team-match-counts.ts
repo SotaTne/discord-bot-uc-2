@@ -6,7 +6,7 @@ export type TeamMatchCount = {
   count: number;
   /** サーバー設定の規定数（null は、なし） */
   limit: number | null;
-  /** 試合数が、規定数を超えている（表示だけ。挙手・マッチングは止めない） */
+  /** 試合数が、規定数を超えている（挙手・マッチングは止めない。奇数のとき、除外する候補にはなる） */
   over: boolean;
 };
 

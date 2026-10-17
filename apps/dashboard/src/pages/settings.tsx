@@ -282,7 +282,7 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
           <SettingRow title="締切" description="試合の何分前に、挙手を締め切って、マッチング処理を行うか">
             <TextInput aria-label="締切（試合の何分前）" name="cutoffMinutes" type="number" min={1} max={180} w={120} value={cutoffMinutes} error={errors.cutoffMinutes ?? false} onChange={(event) => setCutoffMinutes(event.target.value)} />
           </SettingRow>
-          <SettingRow title="試合数の規定数" description="チームの試合数がこれを超えると、/uc-teams と「チーム」の画面に「超過」と出ます（表示だけで、挙手やマッチングは止めません）。空にすると、規定数なしです">
+          <SettingRow title="試合数の規定数" description="チームの試合数がこれを超えると、/uc-teams と「チーム」の画面に「超過」と出ます（挙手やマッチングは止めません。挙手が奇数のとき、規定数を超えたチームが、先に、組まれない候補になります）。空にすると、規定数なしです">
             <TextInput aria-label="試合数の規定数" name="matchLimit" type="number" min={1} max={999} w={120} placeholder="なし" value={matchLimit} error={errors.matchLimit ?? false} onChange={(event) => setMatchLimit(event.target.value)} />
           </SettingRow>
           <SettingRow title="大会の期間" description="この開始日から終了日まで（両方の日を含む。時刻は決めません）募集・挙手・マッチングを行います。両方空にすると、期間を設けません。期間のあとでも、組分けの削除と、やり直しはできます">

@@ -23,7 +23,7 @@ export const guildSettings = sqliteTable("guild_settings", {
    * チームは 20 ごとにメッセージを分けるので、2 件以上になる。チームを登録・削除したとき、このメッセージを編集する（設定の保存では変わらない）。
    */
   roleMessageIds: text("role_message_id", { mode: "json" }).$type<string[] | null>(),
-  /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。表示だけで、挙手・マッチングは止めない */
+  /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。挙手・マッチングは止めない。奇数のとき、除外するチームを決めるのには使う */
   matchLimit: integer("match_limit"),
   /**
    * 大会の期間（JST の日付。YYYY-MM-DD）。開始日と終了日は、どちらも含む。両方空なら、期間を設けない。
