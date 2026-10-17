@@ -1,7 +1,7 @@
 import type { MatchingResult } from "@uc/core";
 import type { Team } from "@uc/db";
 import type { DiscordRest } from "@uc/discord";
-import { matchingCancelledMessage, matchingMessage } from "./matching";
+import { matchingCancelledMessage, matchingChangedMessage, matchingMessage, type MatchingChange } from "./matching";
 import { NO_MENTION, recruitMessage, type RecruitMention } from "./recruit";
 import { settingsChangeMessage, type SettingsChange } from "./settings-change";
 import { waitingAnnounce, waitingMessage } from "./waiting";
@@ -56,6 +56,17 @@ export async function postMatchingCancelled(
 ): Promise<void> {
   await rest.createMessage(input.channelId, {
     content: matchingCancelledMessage({ hour: input.hour, pairs: input.pairs, excluded: input.excluded, teamById: teamsById(input.teams) }),
+    allowed_mentions: { parse: ["roles"] },
+  });
+}
+
+/** 組分けの変更（マッチング済みの対戦枠で、管理者が追加・削除した）。変更された組分けのチームのロールに、通知する */
+export async function postMatchingChanged(
+  rest: ChannelPoster,
+  input: { channelId: string; hour: number; change: MatchingChange; matchLimit?: number | null; teams: readonly Team[] },
+): Promise<void> {
+  await rest.createMessage(input.channelId, {
+    content: matchingChangedMessage({ hour: input.hour, change: input.change, matchLimit: input.matchLimit ?? null, teamById: teamsById(input.teams) }),
     allowed_mentions: { parse: ["roles"] },
   });
 }

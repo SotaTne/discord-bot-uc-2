@@ -13,7 +13,7 @@
     "dev:setup": "pnpm --filter @uc/mock run setup-dev && pnpm --filter @uc/worker run db:migrate && pnpm --filter @uc/worker run db:seed",
     "tunnel": "pnpm --filter @uc/worker tunnel",
     "typecheck": "turbo run typecheck",
-    "test": "vitest run && turbo run test",
+    "test": "vitest run && turbo run test --concurrency=2",
     "check": "pnpm typecheck && pnpm test",
     "register-commands": "pnpm --filter @uc/discord run register-commands"
   },

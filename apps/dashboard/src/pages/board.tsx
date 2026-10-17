@@ -144,7 +144,7 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
           onConfirm={() => cancelWaiting.mutate()}
         />
       )}
-      {slot.matched
+      {slot.canReopen
         ? canRepair && (
             <ConfirmButton
               label="やり直す"
@@ -165,7 +165,8 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
               onConfirm={() => reopen.mutate()}
             />
           )
-        : canPlay && (
+        : canPlay &&
+          slot.canRunMatching && (
             <ConfirmButton
               label="マッチング処理を実行する"
               confirmLabel="実行して、投稿する"
@@ -201,6 +202,12 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
         {slot.waiting && (
           <Text size="xs" c="dimmed">
             {slot.waiting.name} が待機中
+          </Text>
+        )}
+        {/* 補正モード（マッチング済み・試合開始後）: 直しても、マッチングはしない */}
+        {slot.mode === "correct" && !slot.deleted && (
+          <Text size="xs" c="dimmed" maw={160}>
+            記録の補正: 挙手や組分けを直しても、マッチングはしません
           </Text>
         )}
       </Stack>
@@ -240,7 +247,7 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
                         {handup.raisedByName}・{formatJstDateTime(handup.createdAt)}
                       </Text>
                     </Stack>
-                    {canPlay && !slot.matched && (
+                    {canPlay && !matched.has(handup.team.id) && (
                       <CloseButton
                         size="sm"
                         disabled={withdraw.isPending}
@@ -254,7 +261,7 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
             </SimpleGrid>
           )}
           {/* 挙手の追加は、カードの下に、間をあけて置く。幅は、カード 1 枚分にそろえる（カードの格子と同じ列の幅） */}
-          {canPlay && !slot.matched && !slot.deleted && (
+          {canPlay && !slot.deleted && (
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs" mt="sm">
               <AddHandup date={date} hour={slot.hour} candidates={notHandedUp} />
             </SimpleGrid>
@@ -281,7 +288,7 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
                 </Table.Thead>
                 <Table.Tbody>
                   {slot.matches.map((match) => (
-                    <MatchRow key={match.id} match={match} canDelete={canRepair} />
+                    <MatchRow key={match.id} match={match} canDelete={canRepair} canNotifyEdit={slot.canNotifyEdit} />
                   ))}
                 </Table.Tbody>
               </Table>
@@ -292,7 +299,7 @@ function SlotCard({ date, slot, access }: { date: string; slot: Slot; access: Se
               組まれなかったチーム: {slot.excluded.name}
             </Text>
           )}
-          {canPlay && <AddMatch date={date} hour={slot.hour} candidates={free} />}
+          {canPlay && <AddMatch date={date} hour={slot.hour} candidates={free} canNotifyEdit={slot.canNotifyEdit} />}
         </Stack>
       </Stack>
     </section>
@@ -330,13 +337,21 @@ function AddHandup({ date, hour, candidates }: { date: string; hour: number; can
   );
 }
 
-function AddMatch({ date, hour, candidates }: { date: string; hour: number; candidates: Team[] }) {
+function AddMatch({ date, hour, candidates, canNotifyEdit }: { date: string; hour: number; candidates: Team[]; canNotifyEdit: boolean }) {
   const [teamAId, setTeamAId] = useState<number | "">("");
   const [teamBId, setTeamBId] = useState<number | "">("");
+  // マッチング済みで、試合開始前のときは、確認のダイアログで、Discord に知らせるかを選ぶ（初期は、知らせない）
+  const [confirming, setConfirming] = useState(false);
+  const [notify, setNotify] = useState(false);
   const add = useInvalidatingMutation(
-    (input: { teamAId: number; teamBId: number }) => unwrap(api.matches.$post({ json: { ...input, slotHour: hour, slotDate: date } })),
+    (input: { teamAId: number; teamBId: number; notify: boolean }) => unwrap(api.matches.$post({ json: { ...input, slotHour: hour, slotDate: date } })),
     REFRESH,
   );
+  const reset = () => {
+    setTeamAId("");
+    setTeamBId("");
+    setNotify(false);
+  };
   const teams = useTeams();
   if (candidates.length < 2) return null;
 
@@ -352,7 +367,8 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
       onSubmit={(event) => {
         event.preventDefault();
         if (teamAId === "" || teamBId === "") return;
-        add.mutate({ teamAId, teamBId }, { onSuccess: () => { setTeamAId(""); setTeamBId(""); } });
+        if (canNotifyEdit) setConfirming(true);
+        else add.mutate({ teamAId, teamBId, notify: false }, { onSuccess: reset });
       }}
     >
       <Group gap="xs">
@@ -383,20 +399,39 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
         </Text>
       )}
       <ErrorNote error={add.error} />
+      {add.data?.notifyFailed && (
+        <Text size="sm" c="red" role="alert">
+          組分けは追加しましたが、Discord への投稿に失敗しました。必要なら、チームに、直接お知らせください。
+        </Text>
+      )}
+      <ConfirmDialog
+        opened={confirming}
+        onClose={() => setConfirming(false)}
+        title="組分けを追加"
+        description={`${candidates.find((team) => team.id === teamAId)?.name ?? ""} vs ${candidates.find((team) => team.id === teamBId)?.name ?? ""} を追加します。この対戦枠は、マッチング済みです。`}
+        extra={<Checkbox label="Discord に、組分けの変更を投稿する（組分けのチームに通知します）" checked={notify} onChange={(event) => setNotify(event.currentTarget.checked)} />}
+        confirmLabel="追加を実行する"
+        disabled={add.isPending}
+        onConfirm={() => {
+          if (teamAId !== "" && teamBId !== "") add.mutate({ teamAId, teamBId, notify }, { onSuccess: reset });
+        }}
+      />
     </form>
   );
 }
 
 /** 組分けの 1 行（表の行）。右端に「削除」のボタンを置く */
-function MatchRow({ match, canDelete }: { match: Match; canDelete: boolean }) {
+function MatchRow({ match, canDelete, canNotifyEdit }: { match: Match; canDelete: boolean; canNotifyEdit: boolean }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
   // 表示は、各チームが何試合目かを添える（そのチームが入った組分けの数。サーバーが、組分けから数える）
   // 規定数を超えた試合には、「超過」を添える
   const numberOf = (number: number, over: boolean) => `${number}試合目${over ? "・超過" : ""}`;
   const shown = `${match.teamA.name}（${numberOf(match.matchNumberA, match.overA)}） vs ${match.teamB.name}（${numberOf(match.matchNumberB, match.overB)}）`;
   const [removing, setRemoving] = useState(false);
+  // マッチング済みで、試合開始前のときは、確認のダイアログで、Discord に知らせるかを選ぶ（初期は、知らせない）
+  const [notify, setNotify] = useState(false);
   const removeMatch = useInvalidatingMutation(
-    (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),
+    (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) }, query: canNotifyEdit && notify ? { notify: "true" } : {} })),
     REFRESH,
   );
 
@@ -432,6 +467,7 @@ function MatchRow({ match, canDelete }: { match: Match; canDelete: boolean }) {
         onClose={() => setRemoving(false)}
         title={`${label}の組分けを削除`}
         description="この組分けを削除します。"
+        extra={canNotifyEdit && <Checkbox label="Discord に、組分けの変更を投稿する（組分けのチームに通知します）" checked={notify} onChange={(event) => setNotify(event.currentTarget.checked)} />}
         confirmLabel="削除を実行する"
         disabled={removeMatch.isPending}
         onConfirm={() => removeMatch.mutate(match.id)}

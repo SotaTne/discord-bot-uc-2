@@ -147,13 +147,16 @@ export async function findHandupById(db: Db, input: { guildId: string; id: numbe
   return row;
 }
 
-/** ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング済みなら、取り消せない */
-export async function withdrawHandupById(db: Db, input: { guildId: string; id: number }): Promise<WithdrawResult> {
+/**
+ * ID で挙手を取り消す（管理者による代理の取り消し。行を削除する）。対戦枠がマッチング済みなら、取り消せない。
+ * force を渡すと、マッチング済みでも取り消す（管理者の「補正」。組分けとの整合は、呼び出し側が守る）。
+ */
+export async function withdrawHandupById(db: Db, input: { guildId: string; id: number; force?: boolean }): Promise<WithdrawResult> {
   const row = await findHandupById(db, input);
   if (!row) return "not_found";
 
   const slot = await findMatchSlot(db, row);
-  if (slot?.status === "matched") return "matched";
+  if (slot?.status === "matched" && !input.force) return "matched";
 
   const rows = await db.delete(handups).where(eq(handups.id, input.id)).returning({ id: handups.id });
   return rows.length > 0 ? "withdrawn" : "not_found";

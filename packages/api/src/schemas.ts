@@ -91,6 +91,9 @@ export const adminHandupInputSchema = z.object({
   slotDate: dateSchema.optional(),
 });
 
+/** 組分けの削除。notify は、クエリ文字列（"true" で、Discord に、組分けの変更を投稿する。条件は、追加と同じ） */
+export const matchDeleteQuerySchema = z.object({ notify: z.enum(["true", "false"]).optional() });
+
 /** 日付の絞り込み（クエリ文字列）。省略すると今日 */
 export const dateQuerySchema = z.object({ date: dateSchema.optional() });
 
@@ -102,6 +105,8 @@ export const matchInputSchema = z
     slotHour: hourSchema,
     /** 省略すると今日 */
     slotDate: dateSchema.optional(),
+    /** マッチング済みで、試合開始前の対戦枠で、Discord に、組分けの変更を投稿する（省略は、投稿しない。それ以外の対戦枠では、無視する） */
+    notify: z.boolean().optional(),
   })
   .refine((value) => value.teamAId !== value.teamBId, { message: "別のチームを選んでください", path: ["teamBId"] });
 

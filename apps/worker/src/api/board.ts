@@ -1,8 +1,7 @@
-import { dateQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
-import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, seasonAccess, slotHoursOnDate, slotPhase } from "@uc/core";
+import { dateQuerySchema, matchDeleteQuerySchema, matchInputSchema, matchSlotInputSchema, matchSlotReopenInputSchema } from "@uc/api";
+import { cutoffJobKey, hostTeamOf, isContinuedRecruit, jstDateOf, matchNumberKey, matchNumbers, seasonAccess, slotHoursOnDate, slotOperations, slotPhase } from "@uc/core";
 import {
   claimJob,
-  deleteMatch,
   findMatch,
   findMatchSlot,
   findSlotHour,
@@ -21,7 +20,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { createRestFromEnv } from "../discord";
-import { addMatchByAdmin, reopenSlotByAdmin } from "../usecases/admin-matches";
+import { addMatchByAdmin, deleteMatchByAdmin, reopenSlotByAdmin } from "../usecases/admin-matches";
 import { seasonAccessFor, seasonWindow } from "../usecases/season";
 import { confirmMatching } from "../usecases/confirm-matching";
 import { cancelWaiting } from "../usecases/continued-recruit";
@@ -75,6 +74,8 @@ export function createBoardRoutes(deps: ApiDeps) {
             deleted: slot.deleted,
             phase: slotPhase(now, date, slot.hour, settings),
             matched: matchSlot?.status === "matched",
+            // 管理者の操作の可否（運営モード / 補正モード）。時刻と状態から決まる。画面は、これに従って、ボタンを出す
+            ...slotOperations({ now, slotDate: date, slotHour: slot.hour, matched: matchSlot?.status === "matched" }),
             excluded: matchSlot?.excludedTeamId == null ? null : team(matchSlot.excludedTeamId),
             // 継続募集中なら、待機しているチーム（組まれなかったチームが待機して、00 分まで、別のチームを募集している）。保存せず、計算する
             waiting:
@@ -126,19 +127,19 @@ export function createBoardRoutes(deps: ApiDeps) {
       const onDate = slotHoursOnDate(await listSlotHours(db, guildId, { includeDeleted: true }), slotDate);
       if (!onDate.some((slot) => slot.hour === input.slotHour)) return c.json({ error: "slot_not_found" as const }, 404);
       try {
-        const id = await addMatchByAdmin(
+        const added = await addMatchByAdmin(
           { db, rest: createRestFromEnv(c.env), now },
-          { guildId, userId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId },
+          { guildId, userId, slotDate, slotHour: input.slotHour, teamAId: input.teamAId, teamBId: input.teamBId, notify: input.notify ?? false },
         );
-        return c.json({ id }, 201);
+        return c.json({ id: added.id, notified: added.notified, notifyFailed: added.notifyFailed }, 201);
       } catch (error) {
         if (error instanceof MatchTeamTakenError) return c.json({ error: "team_already_matched" as const }, 409);
         throw error;
       }
     })
 
-    // 組分けを削除する
-    .delete("/matches/:id", async (c) => {
+    // 組分けを削除する。マッチング済みで、試合開始前の対戦枠では、notify=true のとき、Discord に、組分けの変更を投稿する
+    .delete("/matches/:id", zValidator("query", matchDeleteQuerySchema), async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "invalid_id" as const }, 400);
 
@@ -150,9 +151,12 @@ export function createBoardRoutes(deps: ApiDeps) {
       const today = jstDateOf(deps.clock.now());
       if ((await seasonAccessFor(db, guildId, today, found.slotDate)) === "closed") return c.json({ error: "outside_season" as const }, 409);
 
-      const deleted = await deleteMatch(db, { guildId, id });
+      const deleted = await deleteMatchByAdmin(
+        { db, rest: createRestFromEnv(c.env), now: deps.clock.now() },
+        { guildId, id, notify: c.req.valid("query").notify === "true" },
+      );
       if (!deleted) return c.json({ error: "not_found" as const }, 404);
-      return c.json({ ok: true as const });
+      return c.json({ ok: true as const, notified: deleted.notified, notifyFailed: deleted.notifyFailed });
     })
 
     // 管理者が、対戦枠のマッチングを、いま確定する（cron の締切と同じ処理）。挙手を組み、結果を Discord に投稿する。
@@ -167,9 +171,10 @@ export function createBoardRoutes(deps: ApiDeps) {
       if ((await seasonAccessFor(db, guildId, today, slotDate)) !== "play") return c.json({ error: "outside_season" as const }, 409);
 
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
-      if ((await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched") {
-        return c.json({ error: "slot_matched" as const }, 409);
-      }
+      const matched = (await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched";
+      if (matched) return c.json({ error: "slot_matched" as const }, 409);
+      // 試合が始まったあとは、マッチングしない（記録の補正だけ）
+      if (!slotOperations({ now, slotDate, slotHour: input.slotHour, matched }).canRunMatching) return c.json({ error: "slot_started" as const }, 409);
       const key = cutoffJobKey(slotDate, input.slotHour);
       // 対戦枠が未マッチングなのに権利が残っているのは、締切を過ぎてから「やり直す」を実行したとき（cron が自動で確定しないように、権利を残してある）。
       // 管理者の確定は、それを承知の操作なので、権利を取り直して実行する
@@ -201,6 +206,10 @@ export function createBoardRoutes(deps: ApiDeps) {
       if ((await seasonAccessFor(db, guildId, today, slotDate)) === "closed") return c.json({ error: "outside_season" as const }, 409);
       // 削除した試合時刻の対戦枠は、やり直せない（組分けの削除も、Discord への投稿もしない）
       if (!(await findSlotHour(db, guildId, input.slotHour))) return c.json({ error: "slot_not_found" as const }, 404);
+
+      // 試合が始まったあとは、やり直せない（組分けの追加・削除で、記録を直す）
+      const matched = (await findMatchSlot(db, { guildId, slotDate, slotHour: input.slotHour }))?.status === "matched";
+      if (matched && !slotOperations({ now, slotDate, slotHour: input.slotHour, matched }).canReopen) return c.json({ error: "slot_started" as const }, 409);
 
       const reopened = await reopenSlotByAdmin(
         { db, rest: createRestFromEnv(c.env), now },

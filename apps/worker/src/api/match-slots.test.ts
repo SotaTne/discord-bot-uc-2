@@ -167,15 +167,15 @@ describe("POST /api/match-slots/reopen（やり直し）", () => {
     // 前: 確定の権利が戻っている（もう一度、確定できる＝権利を取れる）
     expect((await confirm()).status).toBe(200);
 
-    h.time.now = jst("2026-10-07T21:00:00");
+    h.time.now = jst("2026-10-07T20:55:00");
     await reopen();
     // 後: 権利は戻さない（cron は、同じキーを取れない）
     const { claimJob } = await import("@uc/db");
     expect(await claimJob(h.seeded.db, GUILD_ID, "cutoff:2026-10-07:21", 1)).toBe(false);
   });
 
-  it("締切を過ぎてから「やり直す」を実行しても、管理者は、もう一度確定できる", async () => {
-    h.time.now = jst("2026-10-07T21:00:00");
+  it("締切を過ぎてから「やり直す」を実行しても、試合開始前なら、管理者は、もう一度確定できる", async () => {
+    h.time.now = jst("2026-10-07T20:55:00");
     await raise(h.seeded.kmuId);
     await raise(h.seeded.utId);
     await confirm();

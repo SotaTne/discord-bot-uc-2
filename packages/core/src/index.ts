@@ -4,3 +4,4 @@ export * from "./matching";
 export * from "./slot-time";
 export * from "./schedule";
 export * from "./season";
+export * from "./slot-mode";
