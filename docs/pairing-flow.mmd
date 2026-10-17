@@ -1,0 +1,43 @@
+---
+title: 組み合わせの決め方（pairByHistory）
+---
+%% 実装: packages/core/src/pairing.ts（DB・時計に依存しない純粋な関数）
+%% 元の図: docs/event.pdf の 2 ページ目。「全組み合わせの補完」は、履歴にない組み合わせを「一度も対戦なし」と扱うので、要らない
+flowchart TD
+  start([マッチング開始]) --> input["入力<br/>・対象のチーム（挙手の ID と時刻）<br/>・過去の組分け（全期間）<br/>・規定数（なし = null）<br/>・今日の日付 ・乱数"]
+  input --> dedupe["挙手の早い順に並べる<br/>（同時刻は挙手の ID の順。同じチームは早い方だけ）"]
+  dedupe --> few{"チームが 2 つ未満？"}
+  few -- はい --> insufficient([成立しない（insufficient）])
+  few -- いいえ --> summarize
+
+  subgraph summarize_box["履歴の集計（1 回だけ走査）"]
+    summarize["チームごと<br/>・全期間の試合数<br/>・当日の試合数<br/><br/>2 チームごと<br/>・対戦回数<br/>・最後に対戦した対戦枠の開始時刻<br/>（一度もなければ、いちばん古い）"]
+  end
+  summarize --> odd{"チーム数は奇数？"}
+
+  odd -- はい --> over{"規定数を超えた<br/>チームがいる？<br/>（試合数が規定数より大きい）"}
+  over -- はい --> candOver["候補 = 超えたチームだけ"]
+  over -- いいえ --> candAll["候補 = 全チーム"]
+  candOver --> busiest
+  candAll --> busiest["候補のうち、当日の試合数が<br/>いちばん多いチームだけに絞る"]
+  busiest --> latest["その中で、最後に挙手したチームを除外<br/>（乱数は使わない）"]
+  latest --> pairs
+
+  odd -- いいえ --> pairs["残りの全組み合わせを作る<br/>（組み合わせごとに、乱数を 1 回だけ引く）"]
+
+  pairs --> sort
+
+  subgraph sort_box["並べ替えの優先順"]
+    sort["1. 最後に対戦した日時が、古い方<br/>2. 対戦回数が、少ない方<br/>3. 乱数が、小さい方<br/>4. 挙手の順"]
+  end
+
+  sort --> next["前から 1 組、取り出す"]
+  next --> free{"両方のチームが<br/>まだ組まれていない？"}
+  free -- いいえ --> more{"次の組み合わせが<br/>ある？"}
+  free -- はい --> take["採用する<br/>（2 チームを、組まれた扱いにする）"]
+  take --> done{"全チームが<br/>組まれた？"}
+  done -- いいえ --> more
+  more -- はい --> next
+  done -- はい --> order
+  more -- いいえ --> order["結果の並びをそろえる<br/>・組分けの中: 挙手の早い順<br/>・組分け全体: 先頭のチームの挙手の早い順"]
+  order --> result(["結果<br/>・組分け（2 チームずつ）<br/>・除外したチーム（奇数のとき）"])

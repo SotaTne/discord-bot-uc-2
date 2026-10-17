@@ -1,0 +1,27 @@
+---
+title: マッチングの確定（confirmMatching）の呼び出しの流れ
+---
+%% 実装: apps/worker/src/usecases/confirm-matching.ts
+%% 呼び出す側（cron の締切・管理者の「マッチング処理を実行する」）は、どちらも同じ usecase を呼ぶ
+sequenceDiagram
+  autonumber
+  actor Trigger as cron の締切 / 管理者
+  participant UC as confirmMatching（usecase）
+  participant DB as DB（D1）
+  participant Core as pairByHistory（純粋な関数）
+  participant Discord as Discord
+
+  Trigger->>UC: 対戦枠（日付・時刻）を指定して実行
+  UC->>DB: 対戦枠を「マッチング済み」にする（挙手を打ち切る）
+  UC->>DB: この対戦枠の組分け（管理者が先に組んだもの）を取得
+  UC->>DB: 挙手を取得し、すでに組まれたチームを外す
+  UC->>DB: 設定（規定数）と、全期間の組分けを取得
+  UC->>Core: 対象のチーム・過去の組分け・規定数・今日の日付・乱数
+  Note over Core: DB・時計に依存しない。<br/>奇数なら、先に 1 チームを除外してから、<br/>履歴を見て、組み合わせを決める
+  Core-->>UC: 組分け（2 チームずつ）と、除外したチーム
+  UC->>DB: 結果を保存（組分け・除外チーム。主催は、乱数で決めて保存）
+  UC->>Discord: マッチング結果を投稿（何試合目・主催・規定数超過つき）
+  opt 除外したチームがいる
+    UC->>Discord: 「待機する」の案内を投稿（継続募集）
+    UC->>DB: 案内のメッセージの ID を保存
+  end

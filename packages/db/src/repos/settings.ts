@@ -15,7 +15,7 @@ export type GuildSettingsValues = {
   recruitMentionMode: RecruitMentionMode;
   /** mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here） */
   recruitMentionTargets: string[];
-  /** チームの試合数の規定数（超過は、表示だけ）。null は、規定数なし */
+  /** チームの試合数の規定数（超過しても、挙手・マッチングは止めない。奇数のとき、除外する候補になる）。null は、規定数なし */
   matchLimit: number | null;
   /** 大会の期間の開始日（JST。YYYY-MM-DD）。終了日と両方空なら、期間を設けない */
   seasonStart: string | null;

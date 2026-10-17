@@ -1,4 +1,4 @@
-import { hostTeamOf, matchNumberKey, matchNumbers, pairTeams, type MatchingResult } from "@uc/core";
+import { hostTeamOf, matchNumberKey, matchNumbers, pairByHistory, slotStart, type MatchingResult } from "@uc/core";
 import {
   ensureMatchSlot,
   getGuildSettings,
@@ -19,7 +19,7 @@ import { postMatchingResult, postWaitingOffer } from "../messages";
  * cron の締切と、管理者の手動の確定の、どちらからも使う。管理者が先に追加した組分けがあれば、そのチームは自動のマッチングから外し、組分けは残して、投稿にも含める。
  */
 export async function confirmMatching(
-  deps: { db: Db; rest: Pick<DiscordRest, "createMessage">; /** 主催を決める乱数（既定は Math.random。テストで差し替える） */ random?: () => number },
+  deps: { db: Db; rest: Pick<DiscordRest, "createMessage">; /** 主催と、組み合わせの同順位を決める乱数（既定は Math.random。テストで差し替える） */ random?: () => number },
   input: { guildId: string; channelId: string | null; slotDate: string; slotHour: number; now: Date },
 ) {
   const { db } = deps;
@@ -35,7 +35,17 @@ export async function confirmMatching(
   // すでに組分けに入っているチーム（管理者が追加した組分け）は、自動のマッチングに使わない
   const taken = new Set((await inThisSlot()).flatMap((m) => [m.teamAId, m.teamBId]));
   const remaining = (await listHandupsForSlot(db, input)).filter((h) => !taken.has(h.teamId));
-  const result = pairTeams(remaining);
+
+  // 組み合わせは、対戦履歴を見て決める（`pairByHistory`。DB に依存しない純粋な関数）。ここでは、必要なデータを集めて、渡すだけ
+  const settings = await getGuildSettings(db, input.guildId);
+  const history = await listGuildMatches(db, input.guildId);
+  const result = pairByHistory({
+    today: input.slotDate,
+    teams: remaining.map((h) => ({ teamId: h.teamId, handupId: h.id, handupAt: h.createdAt })),
+    pastMatches: history.map((m) => ({ teamAId: m.teamAId, teamBId: m.teamBId, slotDate: m.slotDate, at: slotStart(m.slotDate, m.slotHour).getTime() })),
+    limit: settings.matchLimit,
+    random: deps.random ?? Math.random,
+  });
 
   const pairs: [number, number][] = result.kind === "matched" ? result.pairs.map(([a, b]) => [Number(a), Number(b)]) : [];
   const onlyRemaining = remaining.length === 1 ? remaining[0] : undefined;
