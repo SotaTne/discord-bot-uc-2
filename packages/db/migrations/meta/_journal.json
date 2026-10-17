@@ -57,6 +57,20 @@
       "when": 1792233735791,
       "tag": "0007_add_match_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792239153133,
+      "tag": "0008_add_role_registration",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792242000000,
+      "tag": "0009_role_message_ids",
+      "breakpoints": true
     }
   ]
 }

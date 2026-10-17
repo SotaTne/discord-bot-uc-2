@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formOf, useAction } from "../actions";
 import { mockApi } from "../api";
 import { userName, type MockMessage, type MockStateData } from "../mockState";
@@ -19,6 +19,16 @@ function ReplyPreview({ state, replyTo }: { state: MockStateData; replyTo: strin
   );
 }
 
+/** 「すべてのチャンネル」を表す値 */
+const ALL = "all";
+
+/** 見られるチャンネル。サーバーのチャンネルに加えて、メッセージがあるのに一覧にないチャンネルも（ID のまま）出す */
+function channelsOf(state: MockStateData) {
+  const known = new Map(state.channels.map((channel) => [channel.id, channel.name]));
+  for (const message of state.messages) if (!known.has(message.channelId)) known.set(message.channelId, message.channelId);
+  return [...known].map(([id, name]) => ({ id, name }));
+}
+
 /**
  * Discord の画面: 公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。新しいメッセージが来たら、末尾へ送る。
  * ボタンは、本人にだけ見える返信なら、その本人として、公開メッセージなら、選んでいる実行者として押す（チームごとに、押せるかが変わるため）。
@@ -26,12 +36,16 @@ function ReplyPreview({ state, replyTo }: { state: MockStateData; replyTo: strin
 export function Feed({ state, selectedUsers }: { state: MockStateData; selectedUsers: string[] }) {
   const click = useAction((form) => mockApi.click.$post({}, { init: { body: form } }));
   const scroller = useRef<HTMLDivElement>(null);
-  const count = state.messages.length;
+  // 見るチャンネル（すべて / 1 つだけ）。選んだチャンネルのメッセージだけを出す
+  const [view, setView] = useState<string>(ALL);
+  const channels = channelsOf(state);
+  const shown = view === ALL ? state.messages : state.messages.filter((message) => message.channelId === view);
+  const count = shown.length;
 
   useEffect(() => {
     const element = scroller.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [count]);
+  }, [count, view]);
 
   const press = (message: MockMessage, customId: string) =>
     click.mutate(formOf({ custom_id: customId, message_id: message.id, users: selectedUsers.join(",") }));
@@ -42,7 +56,14 @@ export function Feed({ state, selectedUsers }: { state: MockStateData; selectedU
         <span className="hash" aria-hidden="true">
           #
         </span>
-        マッチング
+        <select aria-label="表示するチャンネル" className="channel-select" value={view} onChange={(event) => setView(event.target.value)}>
+          <option value={ALL}>すべてのチャンネル</option>
+          {channels.map((channel) => (
+            <option key={channel.id} value={channel.id}>
+              {channel.name} のみ
+            </option>
+          ))}
+        </select>
       </div>
       {count === 0 ? (
         <div className="msgs-empty">
@@ -50,7 +71,7 @@ export function Feed({ state, selectedUsers }: { state: MockStateData; selectedU
         </div>
       ) : (
         <div ref={scroller} className="msgs" role="log" aria-label="Discord のメッセージ">
-          {state.messages.map((message) => (
+          {shown.map((message) => (
             <div key={message.id} className={`msg ${message.visibleTo ? "private" : ""}`}>
               <div className="avatar" aria-hidden="true">
                 UC
@@ -62,6 +83,8 @@ export function Feed({ state, selectedUsers }: { state: MockStateData; selectedU
                   <span className="author">UC Bot</span>
                   <span className="bot">BOT</span>
                   <time>{jstHm(message.createdAt)}</time>
+                  {/* すべてのチャンネルを見ているときは、どのチャンネルのメッセージかを添える */}
+                  {view === ALL ? <span className="channel-tag">#{channels.find((channel) => channel.id === message.channelId)?.name ?? message.channelId}</span> : null}
                   <span className="to">{message.visibleTo ? `${userName(state, message.visibleTo)} だけ` : "全員"}</span>
                 </div>
                 <div className="body">

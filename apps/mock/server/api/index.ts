@@ -81,6 +81,7 @@ export function createMockApi(deps: MockApiDeps) {
       return c.json({
         guildId: state.guildId,
         channelId: state.channelId,
+        channels: state.channels,
         users: state.users,
         roles: state.roles,
         messages: state.messages,

@@ -22,6 +22,7 @@ const json = async (response: Response) => (await response.json()) as { ok: bool
 type StateBody = {
   guildId: string;
   channelId: string;
+  channels: { id: string; name: string }[];
   users: { id: string; username: string; isAdmin: boolean; roleIds: string[] }[];
   roles: { id: string; name: string }[];
   messages: { content: string; visibleTo: string | null; components?: unknown[] }[];
@@ -52,7 +53,7 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
 
     const body = await stateOf(mock);
 
-    expect(body.users.map((user) => user.username)).toEqual(["alice (KMU)", "bob (KMU)", "carol (UT)", "dave (NGT)", "admin"]);
+    expect(body.users.map((user) => user.username)).toEqual(["alice (KMU)", "bob (KMU)", "carol (UT)", "dave (NGT)", "admin", "eve (チームなし)"]);
     expect(body.users.find((user) => user.id === ADMIN)?.isAdmin).toBe(true);
     expect(body.roles.map((role) => role.name)).toEqual(["KMU", "UT", "NGT", "ITF"]);
     expect(body.messages.map((message) => [message.content, message.visibleTo])).toEqual([["こんにちは", null], ["内緒", ADMIN]]);
@@ -77,7 +78,7 @@ describe("GET /mock-api/state（画面に出すもの）", () => {
     expect(body.snapshot).toBeNull();
     expect(body.snapshotError).toContain("500");
     expect(body.clockSteps).toEqual([]);
-    expect(body.users).toHaveLength(5);
+    expect(body.users).toHaveLength(6);
   });
 
   it("状態を取りに行くとき、worker の時計が、mock の時計とずれていれば、mock の時計を伝え直す（worker を作り直したときなど）", async () => {
@@ -206,6 +207,35 @@ describe("ボタンを押す（POST /mock-api/click）", () => {
     expect(interaction.data?.custom_id).toBe("sample:confirm");
     expect(mock.state.messages[0]).toMatchObject({ content: "完了しました" });
     expect(mock.state.messages[0]?.components).toBeUndefined();
+  });
+});
+
+describe("チャンネル", () => {
+  it("画面用の状態に、サーバーのチャンネルの一覧を含める（マッチングとロール登録）", async () => {
+    const mock = await createTestMock();
+
+    const body = await stateOf(mock);
+
+    expect(body.channels).toEqual([
+      { id: mock.state.channelId, name: "マッチング" },
+      { id: "300000000000000002", name: "ロール登録" },
+    ]);
+  });
+
+  it("ボタンを押した返信は、押されたメッセージがあるチャンネルに出る（そのチャンネルとして、worker に渡す）", async () => {
+    const mock = await createTestMock({ interaction: { type: 4, data: { content: "付けました", flags: 64 } } });
+    const roleChannel = "300000000000000002";
+    const message = mock.state.addMessage({
+      channelId: roleChannel,
+      content: "ロール登録",
+      components: [{ type: 1, components: [{ type: 2, style: 1, label: "KMU", custom_id: "role-set:1" }] }],
+    });
+
+    await json(await post(mock.app, "/mock-api/click", { custom_id: "role-set:1", message_id: message.id, users: ADMIN }));
+
+    const interaction = JSON.parse(mock.worker.callsTo("/interactions")[0]!.body) as Interaction;
+    expect(interaction.channel_id).toBe(roleChannel);
+    expect(mock.state.messages.at(-1)).toMatchObject({ channelId: roleChannel, content: "付けました", visibleTo: ADMIN });
   });
 });
 

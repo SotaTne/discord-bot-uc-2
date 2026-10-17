@@ -69,6 +69,23 @@ export function createDiscordRestRoutes(state: MockState) {
       return c.json(state.roles);
     })
 
+    // メンバーへのロールの付与・解除（Bot トークンが必要）。本物と同じく、成功は 204
+    .put("/guilds/:guildId/members/:userId/roles/:roleId", (c) => {
+      if (!c.req.header("Authorization")?.startsWith("Bot ")) return c.json({ message: "401: Unauthorized", code: 0 }, 401);
+      const user = state.userById(c.req.param("userId"));
+      if (!user) return c.json({ message: "Unknown Member", code: 10007 }, 404);
+      if (!state.findRole(c.req.param("roleId"))) return c.json({ message: "Unknown Role", code: 10011 }, 404);
+      if (!user.roleIds.includes(c.req.param("roleId"))) user.roleIds.push(c.req.param("roleId"));
+      return c.body(null, 204);
+    })
+    .delete("/guilds/:guildId/members/:userId/roles/:roleId", (c) => {
+      if (!c.req.header("Authorization")?.startsWith("Bot ")) return c.json({ message: "401: Unauthorized", code: 0 }, 401);
+      const user = state.userById(c.req.param("userId"));
+      if (!user) return c.json({ message: "Unknown Member", code: 10007 }, 404);
+      user.roleIds = user.roleIds.filter((id) => id !== c.req.param("roleId"));
+      return c.body(null, 204);
+    })
+
     // メンバー1人（表示名を取るため）。サーバーにいない人は 404
     .get("/guilds/:guildId/members/:userId", (c) => {
       if (!c.req.header("Authorization")?.startsWith("Bot ")) {

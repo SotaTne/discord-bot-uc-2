@@ -39,6 +39,8 @@ const mentionTargetsSchema = z
 
 export const settingsInputSchema = z.object({
   channelId: snowflakeSchema.nullable(),
+  /** ロール登録のメッセージを投稿するチャンネル。null（省略も）は、使わない */
+  roleChannelId: snowflakeSchema.nullable().default(null),
   recruitHour: hourSchema,
   cutoffMinutes: z.number().int().min(1).max(180),
   recruitMentionMode: z.enum(RECRUIT_MENTION_MODES),

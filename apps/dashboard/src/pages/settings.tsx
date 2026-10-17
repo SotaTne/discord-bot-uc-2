@@ -176,6 +176,7 @@ function ChangeDialog(props: {
 function PostSettings({ initial }: { initial: SettingsValues }) {
   const slotHours = useSlotHours();
   const [channelId, setChannelId] = useState(initial.channelId ?? "");
+  const [roleChannelId, setRoleChannelId] = useState(initial.roleChannelId ?? "");
   const [recruitHour, setRecruitHour] = useState(String(initial.recruitHour));
   const [cutoffMinutes, setCutoffMinutes] = useState(String(initial.cutoffMinutes));
   const [matchLimit, setMatchLimit] = useState(initial.matchLimit === null ? "" : String(initial.matchLimit));
@@ -189,13 +190,15 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
 
   const errors = {
     channelId: validateChannelId(channelId),
+    roleChannelId: validateChannelId(roleChannelId),
     recruitHour: validateRecruitHour(recruitHour),
     cutoffMinutes: validateCutoffMinutes(cutoffMinutes),
     matchLimit: validateMatchLimit(matchLimit),
   };
-  const valid = !errors.channelId && !errors.recruitHour && !errors.cutoffMinutes && !errors.matchLimit;
+  const valid = !errors.channelId && !errors.roleChannelId && !errors.recruitHour && !errors.cutoffMinutes && !errors.matchLimit;
   const dirty =
     channelId.trim() !== (initial.channelId ?? "") ||
+    roleChannelId.trim() !== (initial.roleChannelId ?? "") ||
     recruitHour.trim() !== String(initial.recruitHour) ||
     cutoffMinutes.trim() !== String(initial.cutoffMinutes) ||
     matchLimit.trim() !== (initial.matchLimit === null ? "" : String(initial.matchLimit)) ||
@@ -209,6 +212,7 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
   function saveWith(notifyChange: boolean | undefined) {
     save.mutate({
       channelId: nextChannelId,
+      roleChannelId: roleChannelId.trim() === "" ? null : roleChannelId.trim(),
       recruitHour: Number(recruitHour),
       cutoffMinutes: Number(cutoffMinutes),
       matchLimit: matchLimit.trim() === "" ? null : Number(matchLimit),
@@ -240,6 +244,9 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
         <Stack gap={0}>
           <SettingRow title="投稿先のチャンネル" description="募集開始とマッチング結果を投稿します。空にすると、投稿しません">
             <TextInput aria-label="投稿先のチャンネル ID" name="channelId" placeholder="チャンネル ID" spellCheck={false} inputMode="numeric" w={280} value={channelId} error={errors.channelId ?? false} onChange={(event) => setChannelId(event.target.value)} />
+          </SettingRow>
+          <SettingRow title="ロール登録の投稿先" description="チームのロールを選ぶボタンの、メッセージを置くチャンネル。決めたら、Discord で /uc-admin-role を実行します。チームが 21 以上のときは、メッセージが分かれます。空にすると、使いません">
+            <TextInput aria-label="ロール登録のチャンネル ID" name="roleChannelId" placeholder="チャンネル ID" spellCheck={false} inputMode="numeric" w={280} value={roleChannelId} error={errors.roleChannelId ?? false} onChange={(event) => setRoleChannelId(event.target.value)} />
           </SettingRow>
           <SettingRow title="募集開始時刻" description="この時（0〜23, JST）に、その日の募集を始めます">
             <TextInput aria-label="募集開始時刻（JST）" name="recruitHour" type="number" min={0} max={23} w={120} value={recruitHour} error={errors.recruitHour ?? false} onChange={(event) => setRecruitHour(event.target.value)} />
@@ -311,6 +318,7 @@ function PostSettings({ initial }: { initial: SettingsValues }) {
             error={save.error}
             onCancel={() => {
               setChannelId(initial.channelId ?? "");
+              setRoleChannelId(initial.roleChannelId ?? "");
               setRecruitHour(String(initial.recruitHour));
               setCutoffMinutes(String(initial.cutoffMinutes));
               setMatchLimit(initial.matchLimit === null ? "" : String(initial.matchLimit));

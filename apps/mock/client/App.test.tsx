@@ -159,6 +159,60 @@ describe("Discord の画面: 返信", () => {
   });
 });
 
+describe("Discord の画面: チャンネルの選択", () => {
+  const A = "300000000000000001";
+  const B = "300000000000000002";
+  const withChannels = () =>
+    stateRoute(
+      sampleState({
+        messages: [
+          message({ id: "m1", channelId: A, content: "マッチングの投稿" }),
+          message({ id: "m2", channelId: B, content: "ロール登録の投稿" }),
+        ] as never,
+      }),
+    );
+
+  it("既定は、すべてのチャンネル。メッセージに、チャンネルの名前を添える", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+
+    const log = within(await screen.findByRole("log", { name: "Discord のメッセージ" }));
+    expect(log.getByText("マッチングの投稿").closest(".msg")?.textContent).toContain("#マッチング");
+    expect(log.getByText("ロール登録の投稿").closest(".msg")?.textContent).toContain("#ロール登録");
+    expect((screen.getByLabelText("表示するチャンネル") as HTMLSelectElement).value).toBe("all");
+  });
+
+  it("選べる項目は、「すべてのチャンネル」と、チャンネルごとの「○○ のみ」", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+
+    const select = await screen.findByLabelText("表示するチャンネル");
+    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual(["すべてのチャンネル", "マッチング のみ", "ロール登録 のみ"]);
+  });
+
+  it("1 つのチャンネルを選ぶと、そのチャンネルのメッセージだけを出す。「すべて」に戻すと、全部出る", async () => {
+    installFakeApi(withChannels());
+    renderApp();
+    const select = await screen.findByLabelText("表示するチャンネル");
+
+    fireEvent.change(select, { target: { value: B } });
+    const log = within(screen.getByRole("log", { name: "Discord のメッセージ" }));
+    expect(log.queryByText("マッチングの投稿")).toBeNull();
+    expect(log.getByText("ロール登録の投稿").closest(".msg")?.textContent).not.toContain("#ロール登録");
+
+    fireEvent.change(select, { target: { value: "all" } });
+    expect(within(screen.getByRole("log")).getByText("マッチングの投稿")).toBeTruthy();
+  });
+
+  it("一覧にないチャンネルのメッセージも、ID のまま、選べる", async () => {
+    installFakeApi(stateRoute(sampleState({ messages: [message({ id: "m1", channelId: "c9", content: "謎のチャンネル" })] as never })));
+    renderApp();
+
+    const select = await screen.findByLabelText("表示するチャンネル");
+    expect(within(select).getByRole("option", { name: "c9 のみ" })).toBeTruthy();
+  });
+});
+
 describe("Discord の画面", () => {
   it("公開メッセージも、本人にだけ見える返信も、時刻順に 1 本で出す。だれに見えるかも出す", async () => {
     installFakeApi(

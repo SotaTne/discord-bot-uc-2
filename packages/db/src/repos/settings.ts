@@ -7,6 +7,8 @@ export type RecruitMentionMode = "none" | "teams" | "roles";
 
 export type GuildSettingsValues = {
   channelId: string | null;
+  /** ロール登録のメッセージを投稿するチャンネル（空は、使わない） */
+  roleChannelId: string | null;
   recruitHour: number;
   cutoffMinutes: number;
   /** 募集開始の投稿で、誰に通知するか（既定は、誰にも通知しない） */
@@ -21,6 +23,7 @@ export type GuildSettingsValues = {
 /** まだ設定されていないサーバーで使う値（スキーマの既定値と同じ。テストで一致を確かめている） */
 export const defaultGuildSettings: GuildSettingsValues = {
   channelId: null,
+  roleChannelId: null,
   recruitHour: 12,
   cutoffMinutes: 7,
   recruitMentionMode: "none",
@@ -35,6 +38,7 @@ export async function getGuildSettings(db: Db, guildId: string): Promise<GuildSe
   if (!row) return { ...defaultGuildSettings };
   return {
     channelId: row.channelId,
+    roleChannelId: row.roleChannelId,
     recruitHour: row.recruitHour,
     cutoffMinutes: row.cutoffMinutes,
     recruitMentionMode: row.recruitMentionMode,
@@ -42,6 +46,17 @@ export async function getGuildSettings(db: Db, guildId: string): Promise<GuildSe
     matchLimit: row.matchLimit,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   };
+}
+
+/** ロール登録のメッセージの ID（投稿順。まだ投稿していなければ空）。設定の保存では変わらない、状態 */
+export async function getRoleMessageIds(db: Db, guildId: string): Promise<string[]> {
+  const [row] = await db.select({ ids: guildSettings.roleMessageIds }).from(guildSettings).where(eq(guildSettings.guildId, guildId)).limit(1);
+  return row?.ids ?? [];
+}
+
+/** ロール登録のメッセージの ID を、投稿順で保存する（空配列で、消す）。設定のないサーバーでは、何もしない */
+export async function setRoleMessageIds(db: Db, guildId: string, messageIds: readonly string[]): Promise<void> {
+  await db.update(guildSettings).set({ roleMessageIds: messageIds.length === 0 ? null : [...messageIds] }).where(eq(guildSettings.guildId, guildId));
 }
 
 /** サーバーの設定を保存する（なければ作成、あれば更新） */
@@ -63,6 +78,7 @@ export async function listConfiguredGuilds(db: Db): Promise<({ guildId: string }
   return rows.map((row) => ({
     guildId: row.guildId,
     channelId: row.channelId,
+    roleChannelId: row.roleChannelId,
     recruitHour: row.recruitHour,
     cutoffMinutes: row.cutoffMinutes,
     recruitMentionMode: row.recruitMentionMode,

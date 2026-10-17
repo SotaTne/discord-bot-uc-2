@@ -25,9 +25,14 @@ export type MockMessage = {
   replyTo?: string;
 };
 
+export type MockChannel = { id: string; name: string };
+
 export type Seed = {
   guildId: string;
+  /** コマンドの実行・返信が出る、既定のチャンネル（channels のどれか） */
   channelId: string;
+  /** サーバーのチャンネル（画面で、見るチャンネルを選べる） */
+  channels: MockChannel[];
   users: MockUser[];
   roles: MockRole[];
 };
@@ -56,6 +61,7 @@ export function createMockState(seed: Seed, options: MockStateOptions = {}) {
   return {
     guildId: seed.guildId,
     channelId: seed.channelId,
+    channels: seed.channels,
     users: seed.users,
     roles: seed.roles,
     messages,

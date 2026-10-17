@@ -60,6 +60,30 @@ describe("createDiscordRest", () => {
     expect((calls[0]?.init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
+  it("addGuildMemberRole・removeGuildMemberRole は、メンバーのロールを付ける（PUT）・外す（DELETE）。Bot トークンで認証する。本文は、送らない", async () => {
+    const { fetchImpl, calls } = fakeFetch(() => new Response(null, { status: 204 }));
+    const rest = createDiscordRest({ token: "t", fetch: fetchImpl });
+
+    await rest.addGuildMemberRole("g1", "u1", "r1");
+    await rest.removeGuildMemberRole("g1", "u1", "r1");
+
+    expect(calls.map((call) => [call.init.method, call.url])).toEqual([
+      ["PUT", "https://discord.com/api/v10/guilds/g1/members/u1/roles/r1"],
+      ["DELETE", "https://discord.com/api/v10/guilds/g1/members/u1/roles/r1"],
+    ]);
+    for (const call of calls) {
+      expect((call.init.headers as Record<string, string>).Authorization).toBe("Bot t");
+      expect(call.init.body).toBeUndefined();
+    }
+  });
+
+  it("ロールの付け外しが拒否されたら（権限・ロールの位置が足りない 403）、DiscordApiError で失敗する", async () => {
+    const { fetchImpl } = fakeFetch(() => new Response("Missing Permissions", { status: 403 }));
+    const rest = createDiscordRest({ token: "t", fetch: fetchImpl });
+
+    await expect(rest.addGuildMemberRole("g1", "u1", "r1")).rejects.toMatchObject({ name: "DiscordApiError", status: 403 });
+  });
+
   it("getGuildRoles はロール一覧を返す", async () => {
     const roles = [{ id: "r1", name: "KMU", position: 1 }];
     const { fetchImpl, calls } = fakeFetch(() => json(roles));
