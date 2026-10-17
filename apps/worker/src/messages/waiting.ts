@@ -23,11 +23,11 @@ const row = (...buttons: ActionRow["components"]): ActionRow[] => [{ type: 1, co
  * 奇数で組まれなかったチームへの案内。本文は、いつも同じ。「待機する」のボタンだけが、いつも表示される。
  * 待機中は、「対戦する」「待機をキャンセル」を、別の、募集のメッセージ（`waitingAnnounce`）に出す。
  */
-export function waitingMessage(input: { hour: number; excluded: Team; slotDate: string }) {
+export function waitingMessage(input: { hour: number; excluded: Team; slotDate: string; /** 挙手が 1 チームだけだった（既定は、奇数のため） */ single?: boolean }) {
   const mention = teamMention(input.excluded);
   return {
     content: [
-      `${mention} 挙手が奇数だったため、${input.hour}時は組まれませんでした。`,
+      `${mention} ${input.single ? "挙手が 1 チームだけだったため" : "挙手が奇数だったため"}、${input.hour}時は組まれませんでした。`,
       `待機すると、${input.hour}:00 まで、${mention} と対戦したいチームを募集します。待機しなければ、この対戦枠は、このまま終わります。`,
     ].join("\n"),
     components: row({ type: 2, style: 3, label: "待機する", custom_id: waitingCustomId("wait", input.slotDate, input.hour) }),

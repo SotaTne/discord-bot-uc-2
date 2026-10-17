@@ -46,6 +46,11 @@ export function matchingMessage(input: {
     const team = teamById.get(id);
     return team ? `<@&${team.roleId}>` : String(id);
   };
+  // 挙手したのが 1 チームだけ（組分けが 1 つもなく、組まれなかったチームだけがいる）: 専用の文面
+  if (result.pairs.length === 0 && result.excluded) {
+    return `## 試合 (時間:${hour}時)\n${mention(result.excluded)} だけの挙手だったため、組分けはありません`;
+  }
+
   const lines = [`## 試合 (時間:${hour}時) の組分け:`];
   const withNumber = (id: number, a: number, b: number) => {
     const n = numberOf(id, a, b);

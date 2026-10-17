@@ -66,9 +66,9 @@ export async function postMatchingCancelled(
  */
 export async function postWaitingOffer(
   rest: ChannelPoster,
-  input: { channelId: string; slotDate: string; hour: number; excluded: Team },
+  input: { channelId: string; slotDate: string; hour: number; excluded: Team; single?: boolean },
 ): Promise<string> {
-  const message = waitingMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate });
+  const message = waitingMessage({ hour: input.hour, excluded: input.excluded, slotDate: input.slotDate, single: input.single ?? false });
   const created = await rest.createMessage(input.channelId, {
     content: message.content,
     components: message.components,

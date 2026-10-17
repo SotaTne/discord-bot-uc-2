@@ -55,8 +55,9 @@ export async function confirmMatching(
 
   // 投稿するのは、この対戦枠の、すべての組分け（管理者が追加した分も含む）
   const all = await inThisSlot();
+  // 組分けがなくても、挙手したチームが 1 つだけいれば（組まれなかったチーム）、それを伝える専用の文面にする
   const announced: MatchingResult =
-    all.length === 0
+    all.length === 0 && excludedTeamId === null
       ? { kind: "insufficient" }
       : {
           kind: "matched",
@@ -89,6 +90,7 @@ export async function confirmMatching(
         slotDate: input.slotDate,
         hour: input.slotHour,
         excluded: excludedTeam,
+        single: all.length === 0,
       });
       await setWaitingMessage(db, { id: slot.id, messageId });
     } catch (error) {

@@ -53,6 +53,12 @@ describe("matchingMessage", () => {
     expect(post(null)).toBe("- <@&role1>（3試合目） vs <@&role2>（5試合目）・主催: <@&role1>");
   });
 
+  it("挙手が 1 チームだけ（組分けがなく、組まれなかったチームだけ）なら、そのチームの専用の文面で出す", () => {
+    const text = matchingMessage({ ...base, hour: 21, result: { kind: "matched", pairs: [], excluded: 3 } });
+
+    expect(text).toBe("## 試合 (時間:21時)\n<@&role3> だけの挙手だったため、組分けはありません");
+  });
+
   it("奇数で除外されたチームも、理由つきで出す（除外されたチームに、試合目は付かない）", () => {
     const text = matchingMessage({ ...base, hour: 22, result: { kind: "matched", pairs: [[1, 2]], excluded: 3 } });
 

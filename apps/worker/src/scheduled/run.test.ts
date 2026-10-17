@@ -200,16 +200,18 @@ describe("試合の K 分前の締切とマッチング", () => {
     expect(await listMatchedSlots(seeded.db, { guildId: GUILD_ID })).toHaveLength(1);
   });
 
-  it("取り消された挙手は、マッチングに含めない", async () => {
+  it("挙手が 1 チームだけのときは、そのチームだけの専用の文面で投稿する（「十分ではありません」ではない）。挙手が 0 のときは、従来どおり", async () => {
     await raise("KMU", KMU_ROLE, 21, 100);
     await raise("UT", UT_ROLE, 21, 200);
     await withdrawHandup(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, teamId: seeded.utId });
 
     await tick("2026-10-07T20:53:00");
 
-    expect(posted[0]?.content).toBe("## 試合 (時間:21時)\n試合に参加するチームが十分ではありません");
+    expect(posted[0]?.content).toBe(`## 試合 (時間:21時)\n<@&${KMU_ROLE}> だけの挙手だったため、組分けはありません`);
     const [round] = await listMatchedSlots(seeded.db, { guildId: GUILD_ID });
     expect(round).toMatchObject({ pairs: [], excludedTeamId: seeded.kmuId });
+    // 案内の本文も、「奇数」ではなく、「1 チームだけ」
+    expect(posted[1]?.content).toContain("挙手が 1 チームだけだったため、21時は組まれませんでした");
   });
 
   it("挙手がなくても、その旨を投稿して、結果（空）を保存する", async () => {
