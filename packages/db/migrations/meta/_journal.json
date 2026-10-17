@@ -50,6 +50,13 @@
       "when": 1792073873359,
       "tag": "0006_add_waiting_announce",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792233735791,
+      "tag": "0007_add_match_limit",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,7 @@ describe("サーバーの設定", () => {
     cutoffMinutes: 15,
     recruitMentionMode: "roles" as const,
     recruitMentionTargets: ["200000000000000099", "here"],
+    matchLimit: 8,
     revokeSessionsOnReissue: true,
   };
 
@@ -113,6 +114,21 @@ describe("チーム", () => {
     const { body } = await h.json<{ teams: { id: number; matchCount: number }[] }>("/api/teams", { cookie });
 
     expect(body.teams.map((t) => [t.id, t.matchCount])).toEqual([[h.seeded.kmuId, 2], [h.seeded.utId, 2], [third.body.id, 0]]);
+  });
+
+  it("一覧に、規定数と、各チームの超過が付く（規定数なしなら null・超過なし）", async () => {
+    const { saveMatchResult, saveGuildSettings, defaultGuildSettings } = await import("@uc/db");
+    type Body = { teams: { id: number; matchOver: boolean }[]; matchLimit: number | null };
+    const third = await h.json<{ id: number }>("/api/teams", { method: "POST", cookie, body: team });
+    expect((await h.json<Body>("/api/teams", { cookie })).body).toMatchObject({ matchLimit: null });
+
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, h.seeded.utId]], now: 1 });
+    await saveMatchResult(h.seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[h.seeded.kmuId, third.body.id]], now: 1 });
+    const { body } = await h.json<Body>("/api/teams", { cookie });
+
+    expect(body.matchLimit).toBe(1);
+    expect(body.teams.map((t) => [t.id, t.matchOver])).toEqual([[h.seeded.kmuId, true], [h.seeded.utId, false], [third.body.id, false]]);
   });
 
   it("一覧できる。表示名は、ロールの名前（シード: KMU・UT）", async () => {

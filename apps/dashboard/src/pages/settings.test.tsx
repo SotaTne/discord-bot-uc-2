@@ -8,6 +8,7 @@ const SETTINGS = {
   cutoffMinutes: 7,
   recruitMentionMode: "none" as const,
   recruitMentionTargets: [] as string[],
+  matchLimit: null as number | null,
   revokeSessionsOnReissue: false,
 };
 const ROLES = { roles: [{ id: "400000000000000001", name: "KMU" }, { id: "400000000000000002", name: "UT" }, { id: "400000000000000003", name: "NGT" }] };
@@ -59,8 +60,23 @@ describe("設定の画面: 設定は、関わるものごとに、別々のセ�
       cutoffMinutes: 15,
       recruitMentionMode: "none",
       recruitMentionTargets: [],
+      matchLimit: null,
       revokeSessionsOnReissue: false,
     });
+  });
+
+  it("試合数の規定数を、入力して保存できる。空にすると、規定数なし（null）。範囲外は、保存できない", async () => {
+    const backend = installFakeBackend({ ...apis(), "PUT /api/settings": { body: { ok: true, notified: false, notifyFailed: false } } });
+    renderApp("/settings");
+    const input = await screen.findByLabelText("試合数の規定数");
+
+    fireEvent.change(input, { target: { value: "0" } });
+    expect((region("投稿と募集").getByRole("button", { name: "保存する" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.click(region("投稿と募集").getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => expect(backend.last("PUT", "/api/settings")?.json).toMatchObject({ matchLimit: 5 }));
   });
 
   describe("募集開始の時刻・締切の変更（投稿先があるとき、変更を知らせるかを、確認する）", () => {

@@ -38,11 +38,13 @@ export async function postMatchingResult(
     result: MatchingResult;
     /** 組分けの主催（2 チームのうちの 1 チームの ID）を返す */
     hostOf: (teamAId: number, teamBId: number) => number;
+    /** 試合数の規定数（サーバー設定。null・省略は、なし） */
+    matchLimit?: number | null;
     teams: readonly Team[];
   },
 ): Promise<void> {
   await rest.createMessage(input.channelId, {
-    content: matchingMessage({ hour: input.hour, numberOf: input.numberOf, hostOf: input.hostOf, result: input.result, teamById: teamsById(input.teams) }),
+    content: matchingMessage({ hour: input.hour, numberOf: input.numberOf, hostOf: input.hostOf, matchLimit: input.matchLimit ?? null, result: input.result, teamById: teamsById(input.teams) }),
     allowed_mentions: { parse: ["roles"] },
   });
 }

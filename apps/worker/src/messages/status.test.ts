@@ -32,6 +32,22 @@ describe("formatStatus", () => {
       expect(text([], 4)[1]).toBe("これまで 4 試合（次の試合は 5 試合目）");
     });
 
+    it("組まれた試合が規定数を超えていれば、その対戦枠の行にも「規定数超過」を付ける", () => {
+      const line = (over: boolean) =>
+        text([{ hour: 21, phase: "closed", handups: [], matched: true, match: { opponent, number: 6, host: opponent, over } }]).find((row) => row.startsWith("- 21時"));
+
+      expect(line(true)).toBe(`- 21時: <@&${opponent.roleId}> と対戦（6試合目・規定数超過・主催: <@&${opponent.roleId}>）`);
+      expect(line(false)).toBe(`- 21時: <@&${opponent.roleId}> と対戦（6試合目・主催: <@&${opponent.roleId}>）`);
+    });
+
+    it("試合数が規定数を超えていれば、見出しの下に、小さな字で出す。ちょうど規定数・規定数なしは、出さない", () => {
+      const withLimit = (count: number, limit: number | null) => formatStatus({ team, slotDate: "2026-10-07", matchCount: count, matchLimit: limit, slots: [] }).split("\n");
+
+      expect(withLimit(6, 5)[2]).toBe("-# 試合数が規定数（5試合）を超えています");
+      expect(withLimit(5, 5).join("\n")).not.toContain("規定数");
+      expect(withLimit(6, null).join("\n")).not.toContain("規定数");
+    });
+
     it("マッチング済みで、組まれたなら、誰と対戦するか（何試合目か・主催）を出す", () => {
       const lines = text([{ hour: 21, phase: "closed", handups: [], matched: true, match: { opponent, number: 4, host: opponent } }]);
 

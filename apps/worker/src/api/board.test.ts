@@ -22,6 +22,8 @@ type Slot = {
     teamB: Team;
     matchNumberA: number;
     matchNumberB: number;
+    overA: boolean;
+    overB: boolean;
   }[];
 };
 type Board = { date: string; today: string; slots: Slot[] };
@@ -72,6 +74,22 @@ describe("GET /api/board（対戦枠の画面）", () => {
     expect(slots.find((slot) => slot.hour === 22)?.matches).toMatchObject([
       { id: matchId, teamA: { name: "KMU" }, teamB: { name: "UT" }, matchNumberA: 2, matchNumberB: 2 },
     ]);
+  });
+
+  it("規定数を超えた試合には、チームごとに超過が付く（規定数なしなら、付かない。ちょうど規定数は、超過ではない）", async () => {
+    const { saveGuildSettings, defaultGuildSettings } = await import("@uc/db");
+    const { GUILD_ID } = await import("../test-helpers");
+    await h.json("/api/matches", { method: "POST", cookie, body: { teamAId: h.seeded.kmuId, teamBId: h.seeded.utId, slotHour: 21, slotDate: "2026-10-05" } });
+    await kmuVsUt(22);
+    const over = async () => (await slotOf(22)).matches.map((match) => [match.matchNumberA, match.overA, match.overB]);
+
+    expect(await over()).toEqual([[2, false, false]]);
+
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 2 }, 1);
+    expect(await over()).toEqual([[2, false, false]]);
+
+    await saveGuildSettings(h.seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    expect(await over()).toEqual([[2, true, true]]);
   });
 
   it("別の日の組分け・別のサーバーのデータは、出ない。日付が不正なら 400", async () => {

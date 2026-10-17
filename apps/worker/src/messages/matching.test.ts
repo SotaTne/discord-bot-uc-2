@@ -37,6 +37,22 @@ describe("matchingMessage", () => {
     ]);
   });
 
+  it("何試合目が規定数を超えるチームにだけ、「規定数超過」が付く。ちょうど規定数・規定数なしは、付かない", () => {
+    const post = (matchLimit: number | null) =>
+      matchingMessage({
+        ...base,
+        hour: 21,
+        numberOf: (teamId) => ({ 1: 3, 2: 5 })[teamId],
+        matchLimit,
+        result: { kind: "matched", pairs: [[1, 2]], excluded: null },
+      }).split("\n")[1];
+
+    expect(post(4)).toBe("- <@&role1>（3試合目） vs <@&role2>（5試合目・規定数超過）・主催: <@&role1>");
+    expect(post(3)).toBe("- <@&role1>（3試合目） vs <@&role2>（5試合目・規定数超過）・主催: <@&role1>");
+    expect(post(5)).toBe("- <@&role1>（3試合目） vs <@&role2>（5試合目）・主催: <@&role1>");
+    expect(post(null)).toBe("- <@&role1>（3試合目） vs <@&role2>（5試合目）・主催: <@&role1>");
+  });
+
   it("奇数で除外されたチームも、理由つきで出す（除外されたチームに、試合目は付かない）", () => {
     const text = matchingMessage({ ...base, hour: 22, result: { kind: "matched", pairs: [[1, 2]], excluded: 3 } });
 

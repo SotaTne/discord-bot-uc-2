@@ -23,7 +23,7 @@ export function matchingCancelledMessage(input: {
 
 /**
  * マッチング結果の投稿。チームは、ロールのメンションで表す（組まれたチームと除外されたチームに、通知される）。
- * 組分けごとに、各チームが何試合目か（そのチームが入った組分けの数）と、主催（部屋を立てる側）を添える。主催は、組分けを作るときに、無作為に決めて保存したもの（`hostOf` で渡す）。
+ * 組分けごとに、各チームが何試合目か（そのチームが入った組分けの数。規定数を超えるなら「規定数超過」も）と、主催（部屋を立てる側）を添える。主催は、組分けを作るときに、無作為に決めて保存したもの（`hostOf` で渡す）。
  * （挙手が足りないときは、メンションなし）
  */
 export function matchingMessage(input: {
@@ -32,10 +32,12 @@ export function matchingMessage(input: {
   numberOf: (teamId: number, teamAId: number, teamBId: number) => number | undefined;
   /** 組分けの主催（2 チームのうちの 1 チームの ID）を返す */
   hostOf: (teamAId: number, teamBId: number) => number;
+  /** サーバー設定の試合数の規定数（null・省略は、なし）。何試合目がこれを超えるチームには、「規定数超過」を添える */
+  matchLimit?: number | null;
   result: MatchingResult;
   teamById: Map<number, Team>;
 }): string {
-  const { hour, hostOf, numberOf, result, teamById } = input;
+  const { hour, hostOf, numberOf, matchLimit, result, teamById } = input;
   if (result.kind === "insufficient") {
     return `## 試合 (時間:${hour}時)\n試合に参加するチームが十分ではありません`;
   }
@@ -47,7 +49,8 @@ export function matchingMessage(input: {
   const lines = [`## 試合 (時間:${hour}時) の組分け:`];
   const withNumber = (id: number, a: number, b: number) => {
     const n = numberOf(id, a, b);
-    return n === undefined ? mention(id) : `${mention(id)}（${n}試合目）`;
+    if (n === undefined) return mention(id);
+    return matchLimit != null && n > matchLimit ? `${mention(id)}（${n}試合目・規定数超過）` : `${mention(id)}（${n}試合目）`;
   };
   for (const [a, b] of result.pairs) {
     lines.push(`- ${withNumber(a, a, b)} vs ${withNumber(b, a, b)}・主催: ${mention(hostOf(a, b))}`);

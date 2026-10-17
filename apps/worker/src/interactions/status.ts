@@ -34,18 +34,20 @@ export const status: CommandHandler = async ({ interaction, clock, db }) => {
       team,
       slotDate,
       matchCount: mine.length,
+      matchLimit: settings.matchLimit,
       slots: slots.map((slot) => {
         const own = mine.find((match) => match.slotDate === slotDate && match.slotHour === slot.hour);
         const matchSlot = matchSlots.find((m) => m.slotHour === slot.hour);
         const opponent = own ? teamOf(own.teamAId === team.id ? own.teamBId : own.teamAId) : undefined;
         // 主催は、組分けを作るときに決めて保存した値。古い行（空）だけ、計算で補う
         const host = own ? teamOf(own.hostTeamId ?? hostTeamOf({ slotDate, slotHour: slot.hour, teamAId: own.teamAId, teamBId: own.teamBId })) : undefined;
+        const number = own ? (numbers.get(matchNumberKey(team.id, own.id)) ?? 0) : 0;
         return {
           hour: slot.hour,
           phase: handupPhase(now, slot.hour, settings),
           handups: handups.filter((h) => h.slotHour === slot.hour),
           matched: matchSlot?.status === "matched",
-          ...(own && opponent && host ? { match: { opponent, number: numbers.get(matchNumberKey(team.id, own.id)) ?? 0, host } } : {}),
+          ...(own && opponent && host ? { match: { opponent, number, host, over: settings.matchLimit !== null && number > settings.matchLimit } } : {}),
           ...(matchSlot?.excludedTeamId === team.id ? { excluded: true } : {}),
           ...(matchSlot && isContinuedRecruit({ ...matchSlot, slotDate, slotHour: slot.hour }, now)
             ? (() => {

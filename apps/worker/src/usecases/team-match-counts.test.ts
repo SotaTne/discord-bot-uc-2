@@ -1,4 +1,4 @@
-import { addMatch, createTeam, deleteTeam, saveMatchResult } from "@uc/db";
+import { addMatch, createTeam, defaultGuildSettings, deleteTeam, saveGuildSettings, saveMatchResult } from "@uc/db";
 import { createTestDb } from "@uc/db/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 import { teamMatchCounts } from "./team-match-counts";
@@ -21,6 +21,28 @@ beforeEach(async () => {
 });
 
 const counts = async () => (await teamMatchCounts(db, GUILD)).map(({ team, count }) => [team.id, count]);
+
+describe("teamMatchCounts: 規定数の超過", () => {
+  const play = (slotDate: string) => saveMatchResult(db, { guildId: GUILD, slotDate, slotHour: 21, excludedTeamId: null, pairs: [[a, b]], now: 1 });
+
+  it("規定数がなければ、超過はない（何試合でも）", async () => {
+    await play("2026-10-05");
+    await play("2026-10-06");
+
+    expect((await teamMatchCounts(db, GUILD)).map((row) => [row.limit, row.over])).toEqual([[null, false], [null, false], [null, false], [null, false]]);
+  });
+
+  it("試合数が規定数を超えたチームだけが、超過。ちょうど規定数は、超過ではない", async () => {
+    await saveGuildSettings(db, GUILD, { ...defaultGuildSettings, matchLimit: 2 }, 1);
+    await play("2026-10-05");
+    await play("2026-10-06");
+    expect((await teamMatchCounts(db, GUILD)).map((row) => row.over)).toEqual([false, false, false, false]);
+
+    await play("2026-10-07");
+
+    expect((await teamMatchCounts(db, GUILD)).map((row) => [row.count, row.limit, row.over])).toEqual([[3, 2, true], [3, 2, true], [0, 2, false], [0, 2, false]]);
+  });
+});
 
 describe("teamMatchCounts（チームごとの試合数）", () => {
   it("組分けが 1 つもなければ、全チームが 0 試合。チームの登録順に並ぶ", async () => {

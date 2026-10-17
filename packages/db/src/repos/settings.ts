@@ -13,6 +13,8 @@ export type GuildSettingsValues = {
   recruitMentionMode: RecruitMentionMode;
   /** mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here） */
   recruitMentionTargets: string[];
+  /** チームの試合数の規定数（超過は、表示だけ）。null は、規定数なし */
+  matchLimit: number | null;
   revokeSessionsOnReissue: boolean;
 };
 
@@ -23,6 +25,7 @@ export const defaultGuildSettings: GuildSettingsValues = {
   cutoffMinutes: 7,
   recruitMentionMode: "none",
   recruitMentionTargets: [],
+  matchLimit: null,
   revokeSessionsOnReissue: false,
 };
 
@@ -36,6 +39,7 @@ export async function getGuildSettings(db: Db, guildId: string): Promise<GuildSe
     cutoffMinutes: row.cutoffMinutes,
     recruitMentionMode: row.recruitMentionMode,
     recruitMentionTargets: row.recruitMentionTargets,
+    matchLimit: row.matchLimit,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   };
 }
@@ -63,6 +67,7 @@ export async function listConfiguredGuilds(db: Db): Promise<({ guildId: string }
     cutoffMinutes: row.cutoffMinutes,
     recruitMentionMode: row.recruitMentionMode,
     recruitMentionTargets: row.recruitMentionTargets,
+    matchLimit: row.matchLimit,
     revokeSessionsOnReissue: row.revokeSessionsOnReissue,
   }));
 }

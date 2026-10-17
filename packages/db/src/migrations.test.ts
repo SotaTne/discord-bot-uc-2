@@ -56,7 +56,7 @@ describe("マイグレーションは、差分で積む", () => {
     expect(() => db.prepare("INSERT INTO slot_hours (guild_id, hour, created_at) VALUES ('g1', 24, 3)").run()).toThrow(/CHECK/);
   });
 
-  it("得点・勝利・主催・待機の差分（0003〜0006）は、本番に近いデータ（設定・チーム・組分け・勝利・挙手）を、失わずに適用できる", () => {
+  it("得点・勝利・主催・待機の差分（0003〜0007）は、本番に近いデータ（設定・チーム・組分け・勝利・挙手）を、失わずに適用できる", () => {
     const db = new DatabaseSync(":memory:");
     db.exec("PRAGMA foreign_keys = ON");
     const files = migrationFiles();
@@ -99,6 +99,10 @@ describe("マイグレーションは、差分で積む", () => {
       waiting_message_id: null,
       waiting_announce_message_id: null,
     });
+    // 試合数の規定数（0007）は、空（規定数なし）で入り、あとから、書ける
+    expect(db.prepare("SELECT match_limit FROM guild_settings").get()).toEqual({ match_limit: null });
+    db.exec("UPDATE guild_settings SET match_limit = 8");
+    expect(db.prepare("SELECT match_limit FROM guild_settings").get()).toEqual({ match_limit: 8 });
     // 外部キーの整合性が、保たれている（壊れた参照が、1 つもない）
     expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     // 新しい列が、実際に、使える（主催は、2 チームのどちらか、待機の情報も、書ける）

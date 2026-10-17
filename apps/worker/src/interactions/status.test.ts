@@ -1,4 +1,4 @@
-import { createHandup, createTeam, findMatchSlot, saveMatchResult, startWaiting, type Handup, type Team } from "@uc/db";
+import { createHandup, createTeam, defaultGuildSettings, findMatchSlot, saveGuildSettings, saveMatchResult, startWaiting, type Handup, type Team } from "@uc/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ALICE,
@@ -31,6 +31,30 @@ const call = (
 ) => handler(commandContext(seeded.db, commandInteraction(input), now));
 
 describe("/uc-status", () => {
+  it("試合数が規定数（サーバー設定）を超えていれば、その旨を出す。超えていなければ、出さない", async () => {
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-05", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    const text = async () => contentOf(await call(status, { name: "uc-status" }, jst("2026-10-07T12:30:00")));
+
+    expect(await text()).not.toContain("規定数");
+
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 2 }, 1);
+    expect(await text()).not.toContain("規定数");
+
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+    expect(await text()).toContain("-# 試合数が規定数（1試合）を超えています");
+  });
+
+  it("今日組まれた試合が規定数を超える試合なら、その対戦枠の行にも「規定数超過」が付く", async () => {
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-06", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveMatchResult(seeded.db, { guildId: GUILD_ID, slotDate: "2026-10-07", slotHour: 21, excludedTeamId: null, pairs: [[seeded.kmuId, seeded.utId]], now: 1 });
+    await saveGuildSettings(seeded.db, GUILD_ID, { ...defaultGuildSettings, matchLimit: 1 }, 1);
+
+    const text = contentOf(await call(status, { name: "uc-status" }, jst("2026-10-07T12:30:00")));
+
+    expect(text).toMatch(/- 21時: .* と対戦（2試合目・規定数超過・主催: /);
+  });
+
   it("自チームの、対戦枠ごとの挙手状況と受付の段階を返す（取り消した対戦枠は、未挙手に戻る）", async () => {
     await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(21)] }, jst("2026-10-07T14:05:00"));
     await call(handup, { name: "uc-handup", userId: ALICE, options: [timeOption(23)] }, jst("2026-10-07T14:06:00"));

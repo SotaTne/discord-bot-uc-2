@@ -315,7 +315,15 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
     (input: { teamAId: number; teamBId: number }) => unwrap(api.matches.$post({ json: { ...input, slotHour: hour, slotDate: date } })),
     REFRESH,
   );
+  const teams = useTeams();
   if (candidates.length < 2) return null;
+
+  // 規定数ちょうどのチームは、この組分けを足すと、規定数を超える（追加は止めない。管理者が決める）
+  const limit = teams.data?.matchLimit ?? null;
+  const exceeding = [teamAId, teamBId].flatMap((id) => {
+    const team = teams.data?.teams.find((candidate) => candidate.id === id);
+    return limit !== null && team && team.matchCount >= limit ? [team] : [];
+  });
 
   return (
     <form
@@ -347,6 +355,11 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
           組分けを追加
         </Button>
       </Group>
+      {exceeding.length > 0 && limit !== null && (
+        <Text size="sm" c="orange" mt="xs" role="note">
+          {exceeding.map((team) => team.name).join("・")}は、この組分けを追加すると、試合数が規定数（{limit}試合）を超えます
+        </Text>
+      )}
       <ErrorNote error={add.error} />
     </form>
   );
@@ -356,7 +369,9 @@ function AddMatch({ date, hour, candidates }: { date: string; hour: number; cand
 function MatchRow({ match }: { match: Match }) {
   const label = `${match.teamA.name} vs ${match.teamB.name}`;
   // 表示は、各チームが何試合目かを添える（そのチームが入った組分けの数。サーバーが、組分けから数える）
-  const shown = `${match.teamA.name}（${match.matchNumberA}試合目） vs ${match.teamB.name}（${match.matchNumberB}試合目）`;
+  // 規定数を超えた試合には、「超過」を添える
+  const numberOf = (number: number, over: boolean) => `${number}試合目${over ? "・超過" : ""}`;
+  const shown = `${match.teamA.name}（${numberOf(match.matchNumberA, match.overA)}） vs ${match.teamB.name}（${numberOf(match.matchNumberB, match.overB)}）`;
   const [removing, setRemoving] = useState(false);
   const removeMatch = useInvalidatingMutation(
     (id: number) => unwrap(api.matches[":id"].$delete({ param: { id: String(id) } })),

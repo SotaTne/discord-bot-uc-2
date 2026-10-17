@@ -21,5 +21,8 @@ export const validateChannelId = (value: string): string | undefined =>
 /** 募集開始時刻（時, 0〜23） */
 export const validateRecruitHour = (value: string) => integerInRange(value, 0, 23);
 
+/** 試合数の規定数（1〜999。空なら、規定数なし） */
+export const validateMatchLimit = (value: string) => (value.trim() === "" ? undefined : integerInRange(value, 1, 999));
+
 /** 締切（試合の何分前, 1〜180） */
 export const validateCutoffMinutes = (value: string) => integerInRange(value, 1, 180);

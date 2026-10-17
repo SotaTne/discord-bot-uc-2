@@ -1,6 +1,7 @@
 import { hostTeamOf, matchNumberKey, matchNumbers, pairTeams, type MatchingResult } from "@uc/core";
 import {
   ensureMatchSlot,
+  getGuildSettings,
   listHandupsForSlot,
   listGuildMatches,
   listMatchesOnDate,
@@ -77,7 +78,7 @@ export async function confirmMatching(
     const found = all.find((m) => (m.teamAId === teamAId && m.teamBId === teamBId) || (m.teamAId === teamBId && m.teamBId === teamAId));
     return found ? numbers.get(matchNumberKey(teamId, found.id)) : undefined;
   };
-  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, hostOf, numberOf, teams });
+  await postMatchingResult(deps.rest, { channelId: input.channelId, hour: input.slotHour, result: announced, hostOf, numberOf, matchLimit: (await getGuildSettings(db, input.guildId)).matchLimit, teams });
 
   // 奇数で組まれなかったチームがいれば、「待機する」の案内を出す。結果の投稿のあとに出し、失敗しても、結果の投稿は、やり直さない
   const excludedTeam = excludedTeamId === null ? undefined : teams.find((team) => team.id === excludedTeamId);

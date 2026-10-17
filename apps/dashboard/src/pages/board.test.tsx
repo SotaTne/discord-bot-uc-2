@@ -17,7 +17,7 @@ const slot = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const handup = (over: Record<string, unknown> = {}) => ({ id: 1, team: KMU, raisedByName: "alice", createdAt: at("2026-10-07T15:00:00"), ...over });
-const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 3, matchNumberB: 5, host: UT, ...over });
+const match = (over: Record<string, unknown> = {}) => ({ id: 7, teamA: KMU, teamB: UT, matchNumberA: 3, matchNumberB: 5, overA: false, overB: false, host: UT, ...over });
 const board = (slots: unknown[], date = "2026-10-07", today = "2026-10-07") => ({ body: { date, today, slots } });
 const apis = (slots: unknown[] = [slot()]) => ({
   ...loggedIn,
@@ -166,6 +166,13 @@ describe("対戦枠の画面: 挙手", () => {
     await waitFor(() => expect(backend.last("POST", "/api/handups")?.json).toEqual({ teamId: 2, slotHour: 21, slotDate: "2026-10-07" }));
   });
 
+  it("規定数を超えた試合には、そのチームの何試合目に「超過」を添える", async () => {
+    installFakeBackend(apis([slot({ matched: true, handups: [handup()], matches: [match({ overB: true })] })]));
+    renderApp("/");
+
+    expect((await screen.findAllByText("KMU（3試合目） vs UT（5試合目・超過）")).length).toBeGreaterThan(0);
+  });
+
   it("マッチング済みの対戦枠では、挙手の追加も取り消しも出さない", async () => {
     installFakeBackend(apis([slot({ matched: true, handups: [handup()], matches: [match()] })]));
     renderApp("/");
@@ -204,6 +211,39 @@ describe("対戦枠の画面: 組分けの追加", () => {
       expect(backend.last("POST", "/api/matches")?.json).toEqual({ teamAId: 1, teamBId: 2, slotHour: 21, slotDate: "2026-10-07" }),
     );
     await waitFor(() => expect(backend.count("GET", "/api/board")).toBe(2));
+  });
+
+  it("規定数ちょうどのチームを選ぶと、追加すると規定数を超える、と知らせる（追加は止めない）。余裕のあるチーム・規定数なしでは、出さない", async () => {
+    const teams = (matchLimit: number | null) => ({
+      body: {
+        teams: [
+          { id: 1, name: "KMU", roleId: "400000000000000001", matchCount: 4, matchOver: false },
+          { id: 2, name: "UT", roleId: "400000000000000002", matchCount: 3, matchOver: false },
+        ],
+        matchLimit,
+      },
+    });
+    const backend = installFakeBackend({ ...apis(), "GET /api/teams": teams(4) });
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "2" } });
+    expect(within21.queryByRole("note")).toBeNull();
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
+    expect((await within21.findByRole("note")).textContent).toBe("KMUは、この組分けを追加すると、試合数が規定数（4試合）を超えます");
+    expect((within21.getByRole("button", { name: "組分けを追加" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(backend.count("POST", "/api/matches")).toBe(0);
+  });
+
+  it("規定数がなければ、規定数を超える、という知らせは出ない", async () => {
+    installFakeBackend(apis());
+    renderApp("/");
+    const within21 = await card("21:00の対戦枠");
+
+    fireEvent.change(await within21.findByLabelText("1チーム目"), { target: { value: "1" } });
+
+    expect(within21.queryByRole("note")).toBeNull();
   });
 
   it("1チーム目に選んだチームは、2チーム目の選択肢から外れる。2チームそろうまで、追加できない", async () => {

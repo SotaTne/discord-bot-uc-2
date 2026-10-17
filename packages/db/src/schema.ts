@@ -16,6 +16,8 @@ export const guildSettings = sqliteTable("guild_settings", {
   recruitMentionMode: text("recruit_mention_mode", { enum: ["none", "teams", "roles"] }).notNull().default("none"),
   /** recruit_mention_mode が roles のときの、通知先。Discord のロールの ID と、"here"（@here）の配列（JSON） */
   recruitMentionTargets: text("recruit_mention_targets", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+  /** チームの試合数の規定数（これを超えると、/uc-teams とダッシュボードに「超過」と出す。null は、規定数なし）。表示だけで、挙手・マッチングは止めない */
+  matchLimit: integer("match_limit"),
   /** ダッシュボードのリンクを再発行したときに、古いセッションを失効させるか */
   revokeSessionsOnReissue: integer("revoke_sessions_on_reissue", { mode: "boolean" })
     .notNull()

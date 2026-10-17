@@ -43,6 +43,8 @@ export const settingsInputSchema = z.object({
   cutoffMinutes: z.number().int().min(1).max(180),
   recruitMentionMode: z.enum(RECRUIT_MENTION_MODES),
   recruitMentionTargets: mentionTargetsSchema,
+  /** チームの試合数の規定数。null は、規定数なし（省略も、なし） */
+  matchLimit: z.number().int().min(1).max(999).nullable().default(null),
   revokeSessionsOnReissue: z.boolean(),
 });
 

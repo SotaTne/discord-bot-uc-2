@@ -15,7 +15,7 @@ export type SlotStatus = {
   handups: Handup[];
   matched?: boolean;
   /** 自チームが組まれていれば、その組分け（相手・何試合目か・主催） */
-  match?: { opponent: Team; number: number; host: Team };
+  match?: { opponent: Team; number: number; host: Team; /** 何試合目が、規定数を超えている */ over?: boolean };
   /** マッチング済みで、自チームが、奇数のために組まれなかった */
   excluded?: boolean;
   /** 継続募集中（組まれなかったチームが待機して、00 分まで、別のチームを募集している）。self: 待機しているのが、自チーム */
@@ -29,9 +29,15 @@ export function formatStatus(input: {
   slots: SlotStatus[];
   /** 自チームが、これまでに入った組分けの数（組まれた試合数） */
   matchCount?: number;
+  /** サーバー設定の規定数（null・省略は、なし）。試合数がこれを超えていれば、見出しの下に、その旨を出す */
+  matchLimit?: number | null;
 }): string {
   const count = input.matchCount === undefined ? "" : `\nこれまで ${input.matchCount} 試合（次の試合は ${input.matchCount + 1} 試合目）`;
-  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${count}`;
+  const over =
+    input.matchLimit != null && input.matchCount !== undefined && input.matchCount > input.matchLimit
+      ? `\n-# 試合数が規定数（${input.matchLimit}試合）を超えています`
+      : "";
+  const header = `${teamMention(input.team)} の挙手状況（${input.slotDate}）${count}${over}`;
   if (input.slots.length === 0) {
     return `${header}\n試合時刻が登録されていません`;
   }
@@ -39,7 +45,7 @@ export function formatStatus(input: {
   // 対戦枠ごとに、知りたいのは、3 つ: 誰とマッチングしたか / 締切か / 受付中か
   const lines = input.slots.map(({ hour, phase, handups, matched, match, excluded, continued }) => {
     if (match) {
-      return `- ${hour}時: ${teamMention(match.opponent)} と対戦（${match.number}試合目・主催: ${teamMention(match.host)}）`;
+      return `- ${hour}時: ${teamMention(match.opponent)} と対戦（${match.number}試合目${match.over ? "・規定数超過" : ""}・主催: ${teamMention(match.host)}）`;
     }
     // 継続募集中は、「マッチング済み」「締切」とは別の状態。参加できるのに、できないと見せない
     if (continued) {

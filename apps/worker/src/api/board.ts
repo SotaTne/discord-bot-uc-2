@@ -92,6 +92,9 @@ export function createBoardRoutes(deps: ApiDeps) {
                 // 各チームの、その組分けは、何試合目か
                 matchNumberA: numbers.get(matchNumberKey(match.teamAId, match.id)) ?? 0,
                 matchNumberB: numbers.get(matchNumberKey(match.teamBId, match.id)) ?? 0,
+                // その組分けが、規定数を超えた試合か（何試合目 > 規定数。表示だけ）
+                overA: settings.matchLimit !== null && (numbers.get(matchNumberKey(match.teamAId, match.id)) ?? 0) > settings.matchLimit,
+                overB: settings.matchLimit !== null && (numbers.get(matchNumberKey(match.teamBId, match.id)) ?? 0) > settings.matchLimit,
                 // 主催（部屋を立てる側）。組分けを作るときに、無作為に決めて保存した値。古い行（空）だけ、計算で補う
                 host: team(match.hostTeamId ?? hostTeamOf({ slotDate: date, slotHour: slot.hour, teamAId: match.teamAId, teamBId: match.teamBId })),
               })),

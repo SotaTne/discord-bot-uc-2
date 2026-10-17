@@ -138,6 +138,7 @@ export async function joinWaiting(
           result: { kind: "matched", pairs: [[excluded.id, team.id]], excluded: null },
           hostOf: () => created?.hostTeamId ?? hostTeamOf({ slotDate, slotHour, teamAId: excluded.id, teamBId: team.id }),
           numberOf: (teamId) => numbers.get(matchNumberKey(teamId, matchId)),
+          matchLimit: settings.matchLimit,
           teams,
         });
       } catch (error) {

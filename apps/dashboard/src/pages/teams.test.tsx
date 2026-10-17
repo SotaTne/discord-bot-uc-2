@@ -85,6 +85,27 @@ describe("チームの画面: チームの追加と削除", () => {
     expect(screen.getByRole("columnheader", { name: "試合数" })).toBeTruthy();
   });
 
+  it("規定数があれば、見出しに出し、超過したチームには「超過」と出す。超えていないチームには出さない", async () => {
+    installFakeBackend({
+      ...apis(),
+      "GET /api/teams": {
+        body: {
+          teams: [
+            { id: 1, name: "KMU", roleId: "400000000000000001", matchCount: 6, matchOver: true },
+            { id: 2, name: "UT", roleId: "400000000000000002", matchCount: 5, matchOver: false },
+          ],
+          matchLimit: 5,
+        },
+      },
+    });
+    renderApp("/teams");
+
+    expect(await screen.findByRole("columnheader", { name: "試合数（規定数 5）" })).toBeTruthy();
+    const [kmu, ut] = (await screen.findAllByRole("button", { name: "削除" })).map((button) => button.closest("tr")!);
+    expect(within(kmu!).getByText("超過")).toBeTruthy();
+    expect(within(ut!).queryByText("超過")).toBeNull();
+  });
+
   it("ロールを選んで、チームを追加できる（送るのは、ロールの ID だけ）", async () => {
     const backend = installFakeBackend({ ...apis(), "POST /api/teams": { status: 201, body: { id: 3 } } });
     renderApp("/teams");
